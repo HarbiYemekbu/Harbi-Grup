@@ -193,15 +193,20 @@ h2 {
 
 .tile {
   text-align: left;
-  padding: 8px 16px;
+  padding: 12px 10px;
   color: inherit;
   text-decoration: none;
-  width: calc(100% - 20mm);
-  min-height: calc(132px - 40mm);
-  justify-self: center;
+  width: 100%;
+  min-height: 108px;
+  justify-self: stretch;
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.tile-row-3 .tile strong {
+  font-size: 13px;
+  line-height: 1.25;
 }
 
 .tile-icon {
@@ -210,12 +215,14 @@ h2 {
 
 .tile span:last-child {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .tile-sponsored {
   grid-column: 1 / -1;
-  min-height: calc(88px - 40mm);
+  min-height: 72px;
+  width: 100%;
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -236,7 +243,8 @@ h2 {
 }
 
 .install-card h2 {
-  font-size: 18px;
+  font-size: 16px;
+  line-height: 1.35;
   margin-bottom: 8px;
 }
 
@@ -1084,6 +1092,12 @@ pre {
 
 #gkNav {
   margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+#gkNav button {
+  flex: 1 1 calc(50% - 8px);
 }
 
 #gkShopSort {
