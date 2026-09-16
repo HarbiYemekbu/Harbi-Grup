@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
+    <meta name="theme-color" content="#070b14" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#070b14" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Harbi Grup" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Harbi Grup" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="description" content="Harbi Grup — Kamera, not defteri, NFC kontrol ve sanal santral" />
+    <title>Harbi Grup</title>
+    <link rel="canonical" href="https://www.tolkanugur.com/" />
+    <meta property="og:url" content="https://www.tolkanugur.com/" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/app.css?v=68" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <img src="icons/icon-192.png" alt="" class="brand-mark" />
+          <div>
+            <h1>Harbi Grup</h1>
+          </div>
+        </div>
+        <button class="ghost-btn" id="installBtn" type="button">Ana ekrana ekle</button>
+      </header>
+
+      <main id="views">
+        <section class="view active" data-view="home">
+          <div class="grid">
+            <a class="tile tile-sponsored" href="tel:05448583595">
+              <strong>Sponsor olmak için bize yazın</strong>
+              <span>05448583595</span>
+            </a>
+            <div class="tile-row-3">
+              <button class="tile" data-go="camera" type="button">
+                <span class="tile-icon">📷</span>
+                <strong>Kamera</strong>
+                <span>Fotoğraf çek, arşivle</span>
+              </button>
+              <button class="tile" data-go="women" type="button">
+                <span class="tile-icon">💪</span>
+                <strong>Güçlü Kadınların ürünleri</strong>
+                <span>Üye ol, sat</span>
+              </button>
+              <button class="tile" data-go="nfc" type="button">
+                <span class="tile-icon">📡</span>
+                <strong>NFC Kontrol</strong>
+                <span>Etiket oku / yaz</span>
+              </button>
+            </div>
+            <div class="tile-row-3">
+              <button class="tile" data-go="notes" type="button">
+                <span class="tile-icon">🗒</span>
+                <strong>Not Defteri</strong>
+                <span>Saha notları</span>
+              </button>
+              <button class="tile" data-go="pbx" type="button">
+                <span class="tile-icon">☎</span>
+                <strong>Sanal Santral</strong>
+                <span>Dahili ve çağrı</span>
+              </button>
+              <button class="tile" data-go="hygiene" type="button">
+                <span class="tile-icon">🧴</span>
+                <strong>Hijyen Deryası</strong>
+                <span>Ürün ve fiyat</span>
+              </button>
+            </div>
+            <div class="tile-row-3">
+              <a class="tile" href="https://www.harbiyemek7.com" rel="noopener noreferrer">
+                <span class="tile-icon">🍽</span>
+                <strong>Harbi Yemek 7</strong>
+              </a>
+              <button class="tile" data-go="flights" type="button">
+                <span class="tile-icon">✈</span>
+                <strong>Uçak Bileti</strong>
+                <span>Rezervasyon</span>
+              </button>
+              <button class="tile" data-go="holiday" type="button">
+                <span class="tile-icon">🏖</span>
+                <strong>Tatil Rezervasyonu</strong>
+                <span>Otel ve tur</span>
+              </button>
+            </div>
+            <div class="tile-row-3">
+              <button class="tile" data-go="cars" type="button">
+                <span class="tile-icon">🚗</span>
+                <strong>Oto Kiralama</strong>
+                <span>Araç ve fiyat</span>
+              </button>
+              <button class="tile" data-go="homes" type="button">
+                <span class="tile-icon">🏠</span>
+                <strong>Satılık ve Kiralık Ev</strong>
+                <span>Adresle ara</span>
+              </button>
+              <button class="tile" data-go="bikes" type="button">
+                <span class="tile-icon">🏍</span>
+                <strong>Motorsiklet Kiralama</strong>
+                <span>Motor ve fiyat</span>
+              </button>
+            </div>
+          </div>
+          <article class="card install-card" id="installCard">
+            <h2>Telefonuna Uygulamayı Kısayol İndirmek İçin Alt Kısımdaki Adımları Uygula</h2>
+            <p id="installHint">
+              Uygulamayı ana ekrana ekleyince tam ekran açılır, tarayıcı çubuğu kaybolur.
+            </p>
+            <div class="phone-guides">
+              <div>
+                <strong>iPhone</strong>
+                <ol class="steps" id="iosSteps">
+                  <li>Safari ile açın (Chrome değil)</li>
+                  <li>Paylaş → <strong>Ana Ekrana Ekle</strong></li>
+                  <li>Ekle’ye basın</li>
+                </ol>
+              </div>
+              <div>
+                <strong>Android</strong>
+                <ol class="steps" id="androidSteps">
+                  <li>Chrome ile açın</li>
+                  <li>Sağ üst ⋮ menü</li>
+                  <li><strong>Uygulamayı yükle</strong> veya Ana ekrana ekle</li>
+                </ol>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="camera" hidden>
+          <div class="cam-app">
+            <div class="cam-stage">
+              <div class="neon-bars" aria-hidden="true">
+                <span class="neon-bar neon-purple"></span>
+                <span class="neon-bar neon-pink"></span>
+                <span class="neon-bar neon-white"></span>
+                <span class="neon-bar neon-purple-2"></span>
+                <span class="neon-bar neon-white-2"></span>
+              </div>
+            <div class="camera-frame" id="cameraFrame">
+              <video id="cameraVideo" autoplay playsinline muted webkit-playsinline></video>
+              <div class="cam-grid" id="camGrid" hidden></div>
+              <div class="focus-box" id="focusBox" hidden></div>
+              <div class="cam-top" id="camTop">
+                <div class="flash-wrap" id="flashWrap">
+                  <button type="button" id="flashBtn" class="cam-icon" aria-label="Flaş">
+                    <span id="flashIcon" class="flash-icon flash-auto">A</span>
+                  </button>
+                  <div class="flash-menu" id="flashMenu" hidden>
+                    <button type="button" data-flash="auto" class="active" aria-label="Otomatik flaş">
+                      <span class="flash-icon flash-auto">A</span>
+                    </button>
+                    <button type="button" data-flash="on" aria-label="Flaş açık">
+                      <span class="flash-icon flash-on">⚡</span>
+                    </button>
+                    <button type="button" data-flash="off" aria-label="Flaş kapalı">
+                      <span class="flash-icon flash-off">⚡</span>
+                    </button>
+                  </div>
+                </div>
+                <button type="button" id="styleBtn" class="cam-icon" aria-label="Stil">◐</button>
+              </div>
+              <canvas id="cameraCanvas" hidden></canvas>
+              <p class="camera-status" id="cameraStatus"></p>
+              <div class="iso-rail" id="isoRail">
+                <span class="iso-sun" aria-hidden="true">☀</span>
+                <div class="iso-track" id="isoTrack">
+                  <div class="iso-fill" id="isoFill"></div>
+                  <div class="iso-thumb" id="isoThumb"></div>
+                </div>
+                <span class="iso-value" id="isoValue">ISO 405</span>
+              </div>
+              <label class="zoom-bar" id="zoomBar">
+                <input id="zoomRange" type="range" min="0.5" max="300" step="0.1" value="0.5" />
+              </label>
+              <div class="cam-overlay-bottom" id="camOverlayBottom">
+                <div class="mode-row" id="modeRow">
+                  <button type="button" data-mode="photo" class="active">Fotoğraf</button>
+                  <button type="button" data-mode="video">Video</button>
+                  <button type="button" data-mode="cinema">Sinema Modu</button>
+                </div>
+              </div>
+              <button type="button" class="cam-flip" id="switchCamera" aria-label="Ön veya arka kamera">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                  <path
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M20 8.2A8 8 0 0 0 6.4 6.4L5 5m-1 10.8A8 8 0 0 0 17.6 17.6L19 19"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M15.4 9H14.6l-.55-.75A1.2 1.2 0 0 0 13.1 8h-2.2c-.4 0-.76.2-.95.5L9.4 9H8.6A1.6 1.6 0 0 0 7 10.6v4.8A1.6 1.6 0 0 0 8.6 17h6.8a1.6 1.6 0 0 0 1.6-1.6v-4.8A1.6 1.6 0 0 0 15.4 9zM12 15.1a1.9 1.9 0 1 1 0-3.8 1.9 1.9 0 0 1 0 3.8z"
+                  />
+                </svg>
+              </button>
+              <div class="cinema-mask" id="cinemaMask" hidden></div>
+              <button class="shutter" id="capturePhoto" type="button" aria-label="Fotoğraf çek"></button>
+            </div>
+            </div>
+            <svg width="0" height="0" aria-hidden="true" class="fx-svg">
+              <filter id="harbiSharpen" color-interpolation-filters="sRGB">
+                <feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5.2 -1 0 -1 0" preserveAlpha="true" />
+              </filter>
+              <filter id="deepFusion" color-interpolation-filters="sRGB">
+                <feConvolveMatrix order="3" kernelMatrix="0 -0.8 0 -0.8 4.6 -0.8 0 -0.8 0" preserveAlpha="true" />
+              </filter>
+            </svg>
+          </div>
+          <h3 class="subhead">Arşiv</h3>
+          <div class="gallery" id="photoGallery"></div>
+        </section>
+
+        <section class="view" data-view="notes" hidden>
+          <h2>Not Defteri</h2>
+          <form id="noteForm" class="note-form">
+            <input id="noteTitle" placeholder="Başlık" maxlength="80" required />
+            <textarea id="noteBody" placeholder="Notunuz..." rows="4" required></textarea>
+            <button class="primary" type="submit">Kaydet</button>
+          </form>
+          <input class="search" id="noteSearch" type="search" placeholder="Notlarda ara" />
+          <div class="note-list" id="noteList"></div>
+        </section>
+
+        <section class="view" data-view="nfc" hidden>
+          <h2>NFC Kontrol</h2>
+          <p class="hint" id="nfcHint">Android Chrome’da Web NFC ile etiket okunur ve yazılır.</p>
+          <div class="row">
+            <button class="primary" id="nfcScan" type="button">Tara</button>
+            <button class="secondary" id="nfcWrite" type="button">Yaz</button>
+          </div>
+          <label class="field">
+            Yazılacak metin / URL
+            <input id="nfcPayload" placeholder="https://harbigrup.local veya görev kodu" />
+          </label>
+          <article class="card">
+            <h3>Son okuma</h3>
+            <pre id="nfcResult">Henüz tarama yok.</pre>
+          </article>
+          <h3 class="subhead">Geçmiş</h3>
+          <div id="nfcHistory" class="log-list"></div>
+        </section>
+
+        <section class="view" data-view="pbx" hidden>
+          <h2>Sanal Santral</h2>
+          <div id="pbxGate">
+            <p class="hint">Her şirket kendi santralini kurar. Üyelik oluşturun veya giriş yapın.</p>
+            <p class="hint" id="pbxAuthMsg"></p>
+            <article class="card">
+              <h3>Giriş</h3>
+              <form id="pbxLoginForm" class="note-form">
+                <input id="pbxLoginName" placeholder="Şirket adı" required maxlength="80" />
+                <input id="pbxLoginPin" type="password" placeholder="Şifre" required />
+                <button class="primary" type="submit">Giriş</button>
+              </form>
+            </article>
+            <article class="card">
+              <h3>Yeni şirket üyeliği</h3>
+              <form id="pbxRegisterForm" class="note-form">
+                <input id="pbxRegName" placeholder="Şirket adı" required maxlength="80" />
+                <input id="pbxRegCity" placeholder="Şehir" maxlength="60" />
+                <input id="pbxRegPhone" inputmode="tel" placeholder="Telefon" maxlength="20" />
+                <input id="pbxRegPin" type="password" placeholder="Şifre (en az 4 karakter)" required minlength="4" />
+                <button class="gold" type="submit">Santral kur</button>
+              </form>
+            </article>
+          </div>
+          <div id="pbxApp" hidden>
+            <div class="pbx-head">
+              <div class="status-pill" id="pbxStatus">Santral çevrimiçi</div>
+              <button class="secondary" id="pbxLogout" type="button">Çıkış</button>
+            </div>
+            <p class="hint" id="pbxCompanyMeta"></p>
+            <form id="pbxExtForm" class="note-form">
+              <input id="pbxExtNo" inputmode="numeric" placeholder="Dahili no" required maxlength="6" />
+              <input id="pbxExtName" placeholder="Birim / kişi" required maxlength="40" />
+              <input id="pbxExtRole" placeholder="Görev" maxlength="40" />
+              <button class="primary" type="submit">Dahili ekle</button>
+            </form>
+            <div class="ext-list" id="extList"></div>
+            <div class="dialer card">
+              <input id="dialNumber" inputmode="tel" placeholder="Dahili veya numara" />
+              <button class="gold" id="dialBtn" type="button">Ara</button>
+            </div>
+            <h3 class="subhead">Çağrı kaydı</h3>
+            <div id="callLog" class="log-list"></div>
+          </div>
+        </section>
+
+        <section class="view" data-view="flights" hidden>
+          <h2>Uçak Bileti</h2>
+          <p class="hint">Aktarmasız ve aktarmalı en ucuz uçuşları arayın.</p>
+          <form id="flightSearch" class="note-form">
+            <input id="flightSearchFrom" placeholder="Nereden (İstanbul, Ankara…)" required maxlength="40" />
+            <input id="flightSearchTo" placeholder="Nereye (Antalya, İzmir…)" required maxlength="40" />
+            <input id="flightSearchDate" type="date" required />
+            <label class="field">Yolcu
+              <input id="flightSearchPeople" type="number" min="1" max="9" value="1" required />
+            </label>
+            <select id="flightSearchKind">
+              <option value="all">Aktarmasız ve aktarmalı</option>
+              <option value="direct">Sadece aktarmasız</option>
+              <option value="connect">Sadece aktarmalı</option>
+            </select>
+            <select id="flightSort">
+              <option value="asc">Ucuzdan pahalıya</option>
+              <option value="desc">Pahalıdan ucuza</option>
+            </select>
+            <button class="gold" type="submit">Uçuş ara</button>
+          </form>
+          <div class="holiday-results" id="flightResults"></div>
+          <h3 class="subhead">Kayıtlı biletler</h3>
+          <form id="flightForm" class="note-form">
+            <input id="flightFrom" placeholder="Nereden" required maxlength="40" />
+            <input id="flightTo" placeholder="Nereye" required maxlength="40" />
+            <input id="flightDate" type="date" required />
+            <input id="flightNote" placeholder="Not / PNR" maxlength="80" />
+            <button class="primary" type="submit">Kaydet</button>
+          </form>
+          <div class="log-list" id="flightList"></div>
+        </section>
+
+        <section class="view" data-view="holiday" hidden>
+          <h2>Tatil Rezervasyonu</h2>
+          <p class="hint">Tatil köyü veya tatil yeri arayın. Kişi sayısına göre en uygun seçenekler listelenir.</p>
+          <form id="holidaySearch" class="note-form">
+            <select id="holidayType">
+              <option value="all">Tatil köyleri ve tatil yerleri</option>
+              <option value="village">Sadece tatil köyleri</option>
+              <option value="place">Sadece tatil yerleri</option>
+            </select>
+            <input id="holidayWhere" placeholder="Bölge (Antalya, Bodrum, Kapadokya…)" maxlength="40" />
+            <label class="field">Kişi sayısı
+              <input id="holidayPeople" type="number" min="1" max="20" value="2" required />
+            </label>
+            <label class="field">Gece
+              <input id="holidayNights" type="number" min="1" max="30" value="7" required />
+            </label>
+            <select id="holidaySort">
+              <option value="asc">Ucuzdan pahalıya</option>
+              <option value="desc">Pahalıdan ucuza</option>
+            </select>
+            <button class="gold" type="submit">En uygun tatili bul</button>
+          </form>
+          <div class="holiday-results" id="holidayResults"></div>
+          <h3 class="subhead">Kayıtlı rezervasyonlar</h3>
+          <form id="holidayForm" class="note-form">
+            <input id="holidayPlace" placeholder="Yer / otel" required maxlength="60" />
+            <input id="holidayDates" placeholder="Tarih aralığı" maxlength="40" />
+            <input id="holidayNote" placeholder="Not" maxlength="80" />
+            <button class="primary" type="submit">Kaydet</button>
+          </form>
+          <div class="log-list" id="holidayList"></div>
+        </section>
+
+        <section class="view" data-view="cars" hidden>
+          <h2>Oto Kiralama</h2>
+          <p class="hint">Şehir ve gün sayısına göre en uygun kiralama şirketlerini ve araçlarını bulun.</p>
+          <form id="carSearch" class="note-form">
+            <input id="carCity" placeholder="Şehir (İstanbul, Antalya, İzmir…)" maxlength="40" />
+            <select id="carClass">
+              <option value="all">Tüm sınıflar</option>
+              <option value="economy">Ekonomi</option>
+              <option value="compact">Kompakt / orta</option>
+              <option value="suv">SUV</option>
+              <option value="luxury">Lüks</option>
+            </select>
+            <label class="field">Gün
+              <input id="carDays" type="number" min="1" max="30" value="3" required />
+            </label>
+            <select id="carSort">
+              <option value="asc">Ucuzdan pahalıya</option>
+              <option value="desc">Pahalıdan ucuza</option>
+            </select>
+            <button class="gold" type="submit">En uygun kiralamayı bul</button>
+          </form>
+          <div class="holiday-results" id="carResults"></div>
+          <h3 class="subhead">Kayıtlı kiralamalar</h3>
+          <div class="log-list" id="carList"></div>
+        </section>
+
+        <section class="view" data-view="homes" hidden>
+          <h2>Satılık ve Kiralık Ev</h2>
+          <p class="hint">Adres, semt veya şehir yazın. Eşleşen evler fotoğraf ve detaylarıyla listelenir.</p>
+          <form id="homeSearch" class="note-form">
+            <select id="homeKind">
+              <option value="all">Satılık ve kiralık</option>
+              <option value="sale">Satılık</option>
+              <option value="rent">Kiralık</option>
+            </select>
+            <input id="homeAddress" placeholder="Adres (Kadıköy, Çankaya, Lara…)" maxlength="80" />
+            <select id="homeRooms">
+              <option value="all">Tüm oda sayısı</option>
+              <option value="1">1+1</option>
+              <option value="2">2+1</option>
+              <option value="3">3+1</option>
+              <option value="4">4+1 ve üzeri</option>
+            </select>
+            <select id="homeSort">
+              <option value="asc">Ucuzdan pahalıya</option>
+              <option value="desc">Pahalıdan ucuza</option>
+            </select>
+            <button class="gold" type="submit">Evleri göster</button>
+          </form>
+          <div class="holiday-results" id="homeResults"></div>
+          <h3 class="subhead">Kaydedilen ilanlar</h3>
+          <div class="log-list" id="homeList"></div>
+        </section>
+
+        <section class="view" data-view="bikes" hidden>
+          <h2>Motorsiklet Kiralama</h2>
+          <p class="hint">Yer yazın. En uygun motorlar ortalama fiyat ve fotoğraflarıyla listelenir.</p>
+          <form id="bikeSearch" class="note-form">
+            <input id="bikeCity" placeholder="Yer (Antalya, Bodrum, İstanbul…)" maxlength="40" />
+            <select id="bikeClass">
+              <option value="all">Tüm motorlar</option>
+              <option value="scooter">Scooter</option>
+              <option value="naked">Naked / cadde</option>
+              <option value="adventure">Adventure</option>
+              <option value="sport">Sport</option>
+            </select>
+            <label class="field">Gün
+              <input id="bikeDays" type="number" min="1" max="30" value="2" required />
+            </label>
+            <select id="bikeSort">
+              <option value="asc">Ucuzdan pahalıya</option>
+              <option value="desc">Pahalıdan ucuza</option>
+            </select>
+            <button class="gold" type="submit">En uygun motoru bul</button>
+          </form>
+          <div class="holiday-results" id="bikeResults"></div>
+          <h3 class="subhead">Kayıtlı kiralamalar</h3>
+          <div class="log-list" id="bikeList"></div>
+        </section>
+
+        <section class="view" data-view="hygiene" hidden>
+          <h2>Hijyen Deryası</h2>
+          <p class="hint">Ürün adı ve fiyat yazın. Liste boş başlar, istediğiniz kadar ürün ekleyin.</p>
+          <select id="hygieneSort">
+            <option value="asc">Ucuzdan pahalıya</option>
+            <option value="desc">Pahalıdan ucuza</option>
+          </select>
+          <button class="primary" id="hygieneAdd" type="button">Yeni ürün</button>
+          <div class="hygiene-list" id="hygieneList"></div>
+        </section>
+
+        <section class="view" data-view="women" hidden>
+          <h2>Güçlü Kadınların ürünleri</h2>
+          <p class="hint">Üye olun, ürün ekleyin, satış yapın. Alıcılar yalnızca vitrini ve ödemeyi görür.</p>
+          <div class="row" id="gkNav">
+            <button class="secondary" type="button" data-gk-tab="shop">Vitrin</button>
+            <button class="secondary" type="button" data-gk-tab="cart" id="gkCartTabBtn">Alışveriş Sepeti</button>
+            <button class="secondary" type="button" data-gk-tab="auth" id="gkAuthTabBtn">Üye ol / Giriş</button>
+            <button class="secondary" type="button" data-gk-tab="seller" id="gkSellerTab" hidden>Satışlarım</button>
+            <button class="secondary" type="button" data-gk-tab="adminLogin" id="gkAdminTabBtn">Yönetim</button>
+          </div>
+          <p class="hint" id="gkMsg"></p>
+
+          <div id="gkShop">
+            <select id="gkShopSort">
+              <option value="asc">Ucuzdan pahalıya</option>
+              <option value="desc">Pahalıdan ucuza</option>
+            </select>
+            <div class="holiday-results" id="gkShopList"></div>
+          </div>
+
+          <div id="gkCart" hidden>
+            <article class="card">
+              <h3>Alışveriş sepeti</h3>
+              <p class="hint">Ürünleri sepete ekleyin, sonra birlikte ödeyin.</p>
+              <div class="log-list" id="gkCartList"></div>
+              <p class="price" id="gkCartTotal"></p>
+              <div class="row">
+                <button class="gold" id="gkCartCheckout" type="button">Ödemeye geç</button>
+                <button class="secondary" id="gkCartClear" type="button">Sepeti boşalt</button>
+              </div>
+            </article>
+          </div>
+
+          <div id="gkAuth" hidden>
+            <article class="card" id="gkRegisterCard">
+              <h3>Üye ol</h3>
+              <form id="gkRegister" class="note-form">
+                <input id="gkRegName" placeholder="Ad soyad" required maxlength="60" />
+                <input id="gkRegPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                <input id="gkRegTc" inputmode="numeric" placeholder="TC kimlik no" required maxlength="11" />
+                <textarea id="gkRegAddress" placeholder="Adres" required maxlength="200" rows="2"></textarea>
+                <input id="gkRegIban" placeholder="IBAN" required maxlength="32" />
+                <input id="gkRegPin" type="password" placeholder="Şifre" required minlength="4" />
+                <select id="gkRegCargo">
+                  <option value="yurtici">Yurtiçi Kargo</option>
+                  <option value="aras">Aras Kargo</option>
+                  <option value="mng">MNG Kargo</option>
+                  <option value="ptt">PTT Kargo</option>
+                  <option value="surat">Sürat Kargo</option>
+                </select>
+                <button class="gold" type="submit">Üye ol ve satmaya başla</button>
+              </form>
+            </article>
+            <article class="card">
+              <h3>Üye girişi</h3>
+              <form id="gkLogin" class="note-form">
+                <input id="gkLoginPhone" inputmode="tel" placeholder="Telefon" required />
+                <input id="gkLoginPin" type="password" placeholder="Şifre" required />
+                <button class="primary" type="submit">Giriş</button>
+                <button class="pw-toggle" id="gkForgotOpen" type="button">Şifremi unuttum</button>
+              </form>
+              <form id="gkForgot" class="note-form" hidden>
+                <p class="hint">Şifre sıfırlamak için telefon ve TC kimlik no gerekli.</p>
+                <input id="gkForgotPhone" inputmode="tel" placeholder="Telefon" required />
+                <input id="gkForgotTc" inputmode="numeric" placeholder="TC kimlik no" required maxlength="11" />
+                <input id="gkForgotPin" type="password" placeholder="Yeni şifre" required minlength="4" />
+                <input id="gkForgotPin2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
+                <button class="gold" type="submit">Şifreyi sıfırla</button>
+                <button class="secondary" id="gkForgotCancel" type="button">Vazgeç</button>
+              </form>
+            </article>
+          </div>
+
+          <div id="gkSeller" hidden>
+            <div class="pbx-head">
+              <p class="hint" id="gkSellerHello"></p>
+              <button class="secondary" id="gkLogout" type="button">Çıkış</button>
+            </div>
+            <form id="gkProfileForm" class="note-form">
+              <h3 class="subhead">Üye bilgileri</h3>
+              <p class="hint">TC, adres ve IBAN zorunludur. Ürün eklemek için bunları kaydedin.</p>
+              <input id="gkProfTc" inputmode="numeric" placeholder="TC kimlik no" required maxlength="11" />
+              <textarea id="gkProfAddress" placeholder="Adres" required maxlength="200" rows="2"></textarea>
+              <input id="gkProfIban" placeholder="IBAN" required maxlength="32" />
+              <button class="primary" type="submit">Bilgileri kaydet</button>
+            </form>
+            <form id="gkPassForm" class="note-form">
+              <h3 class="subhead">Şifre değiştir</h3>
+              <input id="gkPassOld" type="password" placeholder="Mevcut şifre" required />
+              <input id="gkPassNew" type="password" placeholder="Yeni şifre" required minlength="4" />
+              <input id="gkPassNew2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
+              <button class="secondary" type="submit">Şifreyi değiştir</button>
+            </form>
+            <form id="gkProductForm" class="note-form">
+              <p class="hint" id="gkCommissionHint">Ürününüz satılmadan önce: her satıştan %5 komisyon otomatik kesilir. Kalan %95 ertesi gün IBAN’ınıza yatırılır.</p>
+              <input id="gkProdName" placeholder="Ürün adı" required maxlength="80" />
+              <input id="gkProdPrice" inputmode="decimal" placeholder="Fiyat ₺" required />
+              <input id="gkProdPhoto" placeholder="Fotoğraf linki (isteğe bağlı)" maxlength="300" />
+              <textarea id="gkProdDesc" placeholder="Ürün açıklaması" rows="3"></textarea>
+              <select id="gkProdCargo">
+                <option value="yurtici">Gönderim: Yurtiçi Kargo</option>
+                <option value="aras">Gönderim: Aras Kargo</option>
+                <option value="mng">Gönderim: MNG Kargo</option>
+                <option value="ptt">Gönderim: PTT Kargo</option>
+                <option value="surat">Gönderim: Sürat Kargo</option>
+              </select>
+              <label class="field"><input type="checkbox" id="gkCommissionOk" required /> Satışa koymadan önce %5 komisyonu kabul ediyorum</label>
+              <button class="gold" type="submit">Ürünü satışa koy</button>
+            </form>
+            <div class="holiday-results" id="gkMyProducts"></div>
+            <h3 class="subhead">Siparişler / kargo</h3>
+            <p class="hint">Satış tutarının %95’i ertesi gün IBAN’ınıza yatırılır. %5 komisyon otomatik kesilir.</p>
+            <div class="log-list" id="gkSellerOrders"></div>
+          </div>
+
+          <div id="gkBuy" hidden>
+            <article class="card">
+              <h3>Satın al</h3>
+              <p id="gkBuySummary"></p>
+              <form id="gkBuyForm" class="note-form">
+                <input id="gkBuyName" placeholder="Ad soyad" required maxlength="60" />
+                <input id="gkBuyPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                <input id="gkBuyAddress" placeholder="Teslimat adresi" required maxlength="160" />
+                <button class="gold" type="submit">Sanal POS ile öde</button>
+                <button class="secondary" id="gkBuyCancel" type="button">Vazgeç</button>
+              </form>
+            </article>
+          </div>
+
+          <div id="gkAdminLogin" hidden>
+            <article class="card">
+              <h3>Süper admin girişi</h3>
+              <form id="gkAdminForm" class="note-form">
+                <input id="gkAdminUser" name="username" autocomplete="username" placeholder="Kullanıcı adı" required />
+                <div class="pw-wrap">
+                  <input id="gkAdminPin" name="password" autocomplete="current-password" type="password" placeholder="Şifre" required />
+                  <button class="pw-toggle" id="gkAdminShowPin" type="button" aria-pressed="false">Şifre göster</button>
+                </div>
+                <label class="field"><input type="checkbox" id="gkAdminRemember" checked /> Beni hatırla</label>
+                <button class="primary" type="submit">Giriş</button>
+              </form>
+            </article>
+          </div>
+
+          <div id="gkAdminPanel" hidden>
+            <div class="pbx-head">
+              <p class="hint">Entegrasyonlar yalnızca süper adminde görünür.</p>
+              <button class="secondary" id="gkAdminLogout" type="button">Admin çıkış</button>
+            </div>
+            <article class="card">
+              <h3>Sanal POS</h3>
+              <form id="gkPosForm" class="note-form">
+                <select id="gkPosProvider">
+                  <option value="demo">Demo POS</option>
+                  <option value="iyzico">iyzico</option>
+                  <option value="paytr">PayTR</option>
+                </select>
+                <input id="gkPosMerchant" placeholder="Üye işyeri no" maxlength="80" />
+                <input id="gkPosKey" placeholder="API anahtarı" maxlength="120" />
+                <input id="gkPosSecret" type="password" placeholder="Gizli anahtar" maxlength="120" />
+                <label class="field"><input type="checkbox" id="gkPosOn" /> POS aktif</label>
+                <button class="gold" type="submit">POS kaydet</button>
+              </form>
+            </article>
+            <article class="card">
+              <h3>Kargo entegrasyonu</h3>
+              <form id="gkCargoForm" class="note-form">
+                <input id="gkCargoYurtici" placeholder="Yurtiçi API anahtarı" maxlength="120" />
+                <input id="gkCargoAras" placeholder="Aras API anahtarı" maxlength="120" />
+                <input id="gkCargoMng" placeholder="MNG API anahtarı" maxlength="120" />
+                <input id="gkCargoPtt" placeholder="PTT API anahtarı" maxlength="120" />
+                <input id="gkCargoSurat" placeholder="Sürat API anahtarı" maxlength="120" />
+                <button class="gold" type="submit">Kargo kaydet</button>
+              </form>
+            </article>
+            <article class="card">
+              <h3>IBAN ödemeleri</h3>
+              <p class="hint">Satıcı ödemeleri satışın ertesi günü otomatik yatırılır.</p>
+              <div class="log-list" id="gkAdminPayouts"></div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <nav class="tabbar">
+        <button class="tab active" data-go="home" type="button">Ana</button>
+        <button class="tab" data-go="camera" type="button">Kamera</button>
+        <button class="tab" data-go="notes" type="button">Not</button>
+        <button class="tab" data-go="nfc" type="button">NFC</button>
+        <button class="tab" data-go="pbx" type="button">Santral</button>
+        <button class="tab" data-go="hygiene" type="button">Hijyen</button>
+      </nav>
+    </div>
+
+    <div class="modal" id="installModal" hidden>
+      <div class="modal-card">
+        <h2>Ana ekrana ekle</h2>
+        <p id="modalInstallText"></p>
+        <div class="row">
+          <button class="primary" id="confirmInstall" type="button">Ekle</button>
+          <button class="secondary" id="closeInstall" type="button">Kapat</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="call-overlay" id="callOverlay" hidden>
+      <p class="eyebrow">Aktif çağrı</p>
+      <h2 id="callTitle">—</h2>
+      <p id="callTimer">00:00</p>
+      <div class="row">
+        <button class="secondary" id="holdCall" type="button">Beklet</button>
+        <button class="danger" id="hangupCall" type="button">Kapat</button>
+      </div>
+    </div>
+
+    <script src="js/app.js?v=68"></script>
+  </body>
+</html>
