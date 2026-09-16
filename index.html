@@ -65,7 +65,7 @@
       .tile-sponsored { grid-column: 1 / -1; min-height: 52px; align-items: center; justify-content: center; text-align: center; }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=104" />
+    <link rel="stylesheet" href="css/app.css?v=128" />
   </head>
   <body>
     <div class="app">
@@ -105,6 +105,11 @@
               </button>
             </div>
             <div class="tile-row-3">
+              <button class="tile" data-go="pos" type="button">
+                <span class="tile-icon">💳</span>
+                <strong>Sanal Pos</strong>
+                <span>%0,95 Komisyon Oranı</span>
+              </button>
               <button class="tile" data-go="notes" type="button">
                 <span class="tile-icon">🗒</span>
                 <strong>Not Defteri</strong>
@@ -115,13 +120,13 @@
                 <strong>Sanal Santral</strong>
                 <span>Dahili ve çağrı</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="hygiene" type="button">
                 <span class="tile-icon">🧴</span>
                 <strong>Hijyen Deryası</strong>
                 <span>Ürün ve fiyat</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <a class="tile" href="https://www.harbiyemek7.com" rel="noopener noreferrer">
                 <span class="tile-icon">🍽</span>
                 <strong>Harbi Yemek 7</strong>
@@ -131,13 +136,13 @@
                 <strong>Uçak Bileti</strong>
                 <span>Rezervasyon</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="holiday" type="button">
                 <span class="tile-icon">🏖</span>
                 <strong>Tatil Rezervasyonu</strong>
                 <span>Otel ve tur</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="cars" type="button">
                 <span class="tile-icon">🚗</span>
                 <strong>Oto Kiralama</strong>
@@ -148,17 +153,12 @@
                 <strong>Satılık ve Kiralık Ev</strong>
                 <span>Adresle ara</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="bikes" type="button">
                 <span class="tile-icon">🏍</span>
                 <strong>Motorsiklet Kiralama</strong>
                 <span>Motor ve fiyat</span>
-              </button>
-            </div>
-            <div class="tile-row-3">
-              <button class="tile" data-go="pos" type="button">
-                <span class="tile-icon">💳</span>
-                <strong>Sanal POS</strong>
-                <span>Üye ol, ödeme al</span>
               </button>
             </div>
           </div>
@@ -302,24 +302,49 @@
         <section class="view" data-view="pbx" hidden>
           <h2>Sanal Santral</h2>
           <div id="pbxGate">
-            <p class="hint">Her şirket kendi santralini kurar. Üyelik oluşturun veya giriş yapın.</p>
+            <p class="hint">En fazla 100 işletme üye olabilir. Harbi Grup santrali ayrıdır; her üye şifresiyle yalnızca kendi işletmesine girer.</p>
+            <p class="hint" id="pbxOrgCount"></p>
             <p class="hint" id="pbxAuthMsg"></p>
             <article class="card">
-              <h3>Giriş</h3>
+              <h3>Üye girişi</h3>
               <form id="pbxLoginForm" class="note-form">
-                <input id="pbxLoginName" placeholder="Şirket adı" required maxlength="80" />
+                <input id="pbxLoginName" placeholder="İşletme adı, telefon veya e-posta" required maxlength="120" />
                 <input id="pbxLoginPin" type="password" placeholder="Şifre" required />
+                <button class="pw-toggle" id="pbxLoginShowPin" type="button" aria-pressed="false">Şifreyi göster</button>
+                <label class="field"><input type="checkbox" id="pbxLoginRemember" checked /> Beni hatırla</label>
                 <button class="primary" type="submit">Giriş</button>
+                <button class="pw-toggle" id="pbxForgotOpen" type="button">Şifremi unuttum</button>
+              </form>
+              <form id="pbxForgot" class="note-form" hidden>
+                <p class="hint">Şifre sıfırlamak için kayıtlı telefon ve e-posta gerekir. Tüm alanlar zorunludur.</p>
+                <input id="pbxForgotPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                <input id="pbxForgotEmail" type="email" placeholder="E-posta" required maxlength="120" />
+                <input id="pbxForgotPin" type="password" placeholder="Yeni şifre" required minlength="4" />
+                <input id="pbxForgotPin2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
+                <button class="pw-toggle" id="pbxForgotShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
+                <button class="gold" type="submit">Şifreyi sıfırla</button>
+                <button class="secondary" id="pbxForgotCancel" type="button">Vazgeç</button>
               </form>
             </article>
             <article class="card">
-              <h3>Yeni şirket üyeliği</h3>
+              <h3>İşletme üyeliği</h3>
+              <p class="hint">İkametgah ve imza sirküleri zorunludur. Her işletme kendi santralini kullanır.</p>
               <form id="pbxRegisterForm" class="note-form">
-                <input id="pbxRegName" placeholder="Şirket adı" required maxlength="80" />
-                <input id="pbxRegCity" placeholder="Şehir" maxlength="60" />
-                <input id="pbxRegPhone" inputmode="tel" placeholder="Telefon" maxlength="20" />
+                <input id="pbxRegName" placeholder="İşletme adı" required maxlength="80" />
+                <input id="pbxRegCity" placeholder="Şehir" required maxlength="60" />
+                <input id="pbxRegPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                <input id="pbxRegEmail" type="email" placeholder="E-posta" required maxlength="120" />
+                <label class="field">İkametgah
+                  <input id="pbxRegIkamet" type="file" accept="image/*,.pdf" required />
+                </label>
+                <label class="field">İmza sirküleri
+                  <input id="pbxRegImza" type="file" accept="image/*,.pdf" required />
+                </label>
                 <input id="pbxRegPin" type="password" placeholder="Şifre (en az 4 karakter)" required minlength="4" />
-                <button class="gold" type="submit">Santral kur</button>
+                <input id="pbxRegPin2" type="password" placeholder="Şifre tekrar" required minlength="4" />
+                <button class="pw-toggle" id="pbxRegShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
+                <label class="field"><input type="checkbox" id="pbxRegRemember" checked /> Beni hatırla</label>
+                <button class="gold" type="submit">Üye ol</button>
               </form>
             </article>
           </div>
@@ -329,12 +354,65 @@
               <button class="secondary" id="pbxLogout" type="button">Çıkış</button>
             </div>
             <p class="hint" id="pbxCompanyMeta"></p>
+            <article class="card">
+              <h3>Harbi içi konuşma</h3>
+              <p class="hint">Dış platform yok. Aynı Wi‑Fi’de iki cihaz bu santrale girer, her biri kendi dahilini seçer, Ara’ya basınca karşı cihazda çağrı düşer. Mikrofon izni gerekir. iPhone’da gerçek mikrofon için HTTPS gerekir; bilgisayarda iki sekme ile denenebilir.</p>
+              <label class="field">Bu cihazın dahili
+                <select id="pbxStationExt">
+                  <option value="">Çağrı almak için dahili seçin</option>
+                </select>
+              </label>
+              <p class="hint" id="pbxRtcLive"></p>
+            </article>
+            <article class="card">
+              <h3>Karşılama</h3>
+              <p class="hint" id="pbxLineHint">Santral hattı yok. Yeni numarayı yazıp kaydedin.</p>
+              <form id="pbxGreetForm" class="note-form">
+                <input id="pbxLineNo" inputmode="tel" placeholder="Santral hattı" maxlength="20" />
+                <textarea id="pbxGreetText" required maxlength="600" rows="4" placeholder="Karşılama metni"></textarea>
+                <button class="gold" type="submit">Karşılamayı kaydet</button>
+                <button class="secondary" id="pbxGreetListen" type="button">Metni dinle</button>
+                <button class="primary" id="pbxGreetTry" type="button">Hattı dene</button>
+              </form>
+            </article>
+            <article class="card">
+              <h3>Müzik</h3>
+              <p class="hint">Dahili tuşlanınca “Müzik çalıyor” sırasında bu parça çalar. Hazır müzik seçin veya kendi dosyanızı yükleyin.</p>
+              <p class="hint" id="pbxMusicNow"></p>
+              <form id="pbxMusicForm" class="note-form">
+                <select id="pbxMusicPick" required>
+                  <option value="harbi">Harbi bekletme</option>
+                  <option value="soft">Yumuşak bekletme</option>
+                  <option value="classic">Klasik hat müziği</option>
+                  <option value="file">Yüklenen müzik</option>
+                </select>
+                <label class="field">Müzik dosyası
+                  <input id="pbxMusicFile" type="file" accept="audio/*" />
+                </label>
+                <button class="gold" type="submit">Müziği kaydet</button>
+                <button class="secondary" id="pbxMusicPreview" type="button">Müziği dinle</button>
+                <button class="pw-toggle" id="pbxMusicStop" type="button">Durdur</button>
+              </form>
+            </article>
+            <p class="hint">Dahili eklerken hizmet kategorisi seçin. Kim hangi desteği veriyor, aşağıda görünür.</p>
             <form id="pbxExtForm" class="note-form">
               <input id="pbxExtNo" inputmode="numeric" placeholder="Dahili no" required maxlength="6" />
               <input id="pbxExtName" placeholder="Birim / kişi" required maxlength="40" />
-              <input id="pbxExtRole" placeholder="Görev" maxlength="40" />
+              <select id="pbxExtService" required>
+                <option value="">Hizmet kategorisi</option>
+                <option value="restoran">Restoran Destek</option>
+                <option value="musteri">Müşteri Destek</option>
+                <option value="kurye">Kurye Destek</option>
+              </select>
+              <input id="pbxExtMobile" inputmode="tel" placeholder="Cep numarası" required maxlength="20" />
               <button class="primary" type="submit">Dahili ekle</button>
             </form>
+            <div class="pbx-cats" id="pbxCats">
+              <button class="gold" data-pbx-cat="all" type="button">Tümü</button>
+              <button class="secondary" data-pbx-cat="restoran" type="button">Restoran Destek</button>
+              <button class="secondary" data-pbx-cat="musteri" type="button">Müşteri Destek</button>
+              <button class="secondary" data-pbx-cat="kurye" type="button">Kurye Destek</button>
+            </div>
             <div class="ext-list" id="extList"></div>
             <div class="dialer card">
               <input id="dialNumber" inputmode="tel" placeholder="Dahili veya numara" />
@@ -625,7 +703,24 @@
                 <input id="gkBuyName" placeholder="Ad soyad" required maxlength="60" />
                 <input id="gkBuyPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
                 <input id="gkBuyAddress" placeholder="Teslimat adresi" required maxlength="160" />
-                <button class="gold" type="submit">Sanal POS ile öde</button>
+                <p class="hint">Tüm kredi kartları ile öde. Tahsilat Tolkan Uğur IBAN’ına (TR54 0006 2000 1110 0006 ** **) kabul edilir.</p>
+                <select id="gkBuyBrand" required>
+                  <option value="">Kart tipi</option>
+                  <option value="Visa">Visa</option>
+                  <option value="Mastercard">Mastercard</option>
+                  <option value="Troy">Troy</option>
+                  <option value="American Express">American Express</option>
+                  <option value="Discover">Discover</option>
+                  <option value="UnionPay">UnionPay</option>
+                  <option value="Diğer">Diğer kredi kartı</option>
+                </select>
+                <input id="gkBuyCardName" placeholder="Kart üzerindeki isim" required maxlength="80" />
+                <input id="gkBuyCardNumber" inputmode="numeric" placeholder="Kart numarası" required maxlength="23" autocomplete="off" />
+                <div class="row">
+                  <input id="gkBuyExp" placeholder="SKT AA/YY" required maxlength="5" />
+                  <input id="gkBuyCvc" inputmode="numeric" placeholder="CVC" required maxlength="4" autocomplete="off" />
+                </div>
+                <button class="gold" type="submit">Kredi kartı ile öde</button>
                 <button class="secondary" id="gkBuyCancel" type="button">Vazgeç</button>
               </form>
             </article>
@@ -662,6 +757,7 @@
                 <input id="gkPosMerchant" placeholder="Üye işyeri no" maxlength="80" />
                 <input id="gkPosKey" placeholder="API anahtarı" maxlength="120" />
                 <input id="gkPosSecret" type="password" placeholder="Gizli anahtar" maxlength="120" />
+                <button class="pw-toggle" id="gkPosSecretToggle" type="button" aria-pressed="false">Gizli anahtarı göster</button>
                 <label class="field"><input type="checkbox" id="gkPosOn" /> POS aktif</label>
                 <button class="gold" type="submit">POS kaydet</button>
               </form>
@@ -687,7 +783,8 @@
 
         <section class="view" data-view="pos" hidden>
           <h2>Sanal POS</h2>
-          <p class="hint">Üye olun. İkametgah, imza sirküleri ve Findeks raporu incelenir. Onaylanmadan POS kullanılamaz; API ve gizli anahtar gösterilmez.</p>
+          <p class="lede" id="posFeeBanner">%0,95 Komisyon Oranıyla Çalışıyoruz</p>
+          <p class="hint">Üye olun. İkametgah, imza sirküleri ve Findeks raporu incelenir. Onaylanmadan POS kullanılamaz; API ve gizli anahtar gösterilmez. Her tahsilattan %0,95 komisyon kesilir.</p>
           <div class="row" id="posNav">
             <button class="secondary" type="button" data-pos-tab="apply">Üye ol</button>
             <button class="secondary" type="button" data-pos-tab="login">Giriş</button>
@@ -765,22 +862,74 @@
             </article>
             <article class="card" id="posKeysCard" hidden>
               <h3>API bilgileri</h3>
-              <p class="hint">Yalnızca onaylı üyeye gösterilir. Gizli anahtarı kimseyle paylaşmayın.</p>
+              <p class="hint">Yalnızca onaylı üyeye gösterilir. Gizli anahtarı kimseyle paylaşmayın. Ödeme sistemi anahtarları otomatik yazılır, kodlar aynı kalır.</p>
               <p><strong>API anahtarı</strong></p>
               <input id="posApiKey" readonly />
               <p><strong>Gizli anahtar</strong></p>
               <input id="posSecretKey" type="password" readonly />
               <button class="pw-toggle" id="posSecretToggle" type="button">Gizli anahtarı göster</button>
+              <p><strong>Ödeme sistemi API</strong></p>
+              <input id="posPayApiKey" readonly />
+              <p><strong>Ödeme sistemi gizli anahtar</strong></p>
+              <input id="posPaySecret" type="password" readonly />
+              <button class="pw-toggle" id="posPaySecretToggle" type="button">Gizli anahtarı göster</button>
+              <button class="gold" id="posCreateApiDesk" type="button">API Anahtarı oluştur</button>
+              <button class="gold" id="posCreateSecretDesk" type="button">Gizli Anahtar oluştur</button>
             </article>
-            <article class="card" id="posChargeCard" hidden>
-              <h3>Ödeme al</h3>
-              <form id="posChargeForm" class="note-form">
-                <input id="posChargeAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
-                <input id="posChargeNote" placeholder="Açıklama" maxlength="80" />
-                <button class="gold" type="submit">Sanal POS ile tahsil et</button>
-              </form>
-              <div class="log-list" id="posPayList"></div>
-            </article>
+            <div id="posChargeWrap" hidden>
+              <article class="card pos-settle">
+                <h3>Aktarım hesabı</h3>
+                <p class="hint">Yapılan tüm tahsilatlar Türkiye Cumhuriyeti’nde bulunan Lüleburgaz Şubesi’ne, Tolkan Uğur adına kayıtlı özel IBAN’a aktarılır.</p>
+                <p><strong>Alıcı</strong> Tolkan Uğur</p>
+                <p><strong>Şube</strong> Lüleburgaz Şubesi</p>
+                <p><strong>IBAN</strong></p>
+                <input id="posSettleIban" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <button class="secondary" id="posCopyIban" type="button">IBAN kopyala</button>
+              </article>
+              <article class="card" id="posIbanCard">
+                <h3>IBAN ile ödeme al</h3>
+                <p class="hint">Müşteri IBAN’ından tahsil edilir, tutar Tolkan Uğur IBAN’ına geçer.</p>
+                <form id="posIbanForm" class="note-form">
+                  <input id="posIbanAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
+                  <input id="posIbanPayer" placeholder="Ödeyen ad soyad" required maxlength="80" />
+                  <input id="posIbanFrom" placeholder="Ödeyen IBAN (TR…)" required maxlength="32" />
+                  <input id="posIbanNote" placeholder="Açıklama" maxlength="80" />
+                  <button class="gold" type="submit">IBAN ile tahsil et</button>
+                </form>
+              </article>
+              <article class="card" id="posCardCard">
+                <h3>Tüm kredi kartları ile ödeme</h3>
+                <p class="hint">Visa, Mastercard, Troy, American Express ve diğer kartlarla tahsilat. Anahtarlar ödeme sistemine otomatik yazılır.</p>
+                <form id="posCardForm" class="note-form">
+                  <input id="posCardApiKey" readonly placeholder="API anahtarı" />
+                  <input id="posCardSecret" type="password" readonly placeholder="Gizli anahtar" />
+                  <input id="posCardAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
+                  <select id="posCardBrand" required>
+                    <option value="">Kart tipi</option>
+                    <option value="Visa">Visa</option>
+                    <option value="Mastercard">Mastercard</option>
+                    <option value="Troy">Troy</option>
+                    <option value="American Express">American Express</option>
+                    <option value="Discover">Discover</option>
+                    <option value="UnionPay">UnionPay</option>
+                    <option value="Diğer">Diğer kredi kartı</option>
+                  </select>
+                  <input id="posCardName" placeholder="Kart üzerindeki isim" required maxlength="80" />
+                  <input id="posCardNumber" inputmode="numeric" placeholder="Kart numarası" required maxlength="23" autocomplete="off" />
+                  <div class="row">
+                    <input id="posCardExp" placeholder="SKT AA/YY" required maxlength="5" />
+                    <input id="posCardCvc" inputmode="numeric" placeholder="CVC" required maxlength="4" autocomplete="off" />
+                  </div>
+                  <input id="posCardNote" placeholder="Açıklama" maxlength="80" />
+                  <button class="gold" type="submit">Kart ile tahsil et</button>
+                </form>
+              </article>
+              <article class="card">
+                <h3>Yapılan tüm ödemeler</h3>
+                <p class="hint">Kayıtlı her tahsilattan %0,95 komisyon kesilir. Net tutar TR54 0006 2000 1110 0006 ** ** hesabına yönlendirilir.</p>
+                <div class="log-list" id="posPayList"></div>
+              </article>
+            </div>
           </div>
 
           <div id="posAdminLogin" hidden>
@@ -790,27 +939,83 @@
               <form id="posAdminForm" class="note-form">
                 <input id="posAdminUser" autocomplete="username" placeholder="Kullanıcı adı" required />
                 <input id="posAdminPin" autocomplete="current-password" type="password" placeholder="Şifre" required />
+                <button class="pw-toggle" id="posAdminShowPin" type="button" aria-pressed="false">Şifreyi göster</button>
+                <label class="field"><input type="checkbox" id="posAdminRemember" checked /> Beni hatırla</label>
                 <button class="gold" type="submit">Giriş</button>
+                <button class="pw-toggle" id="posAdminForgotOpen" type="button">Şifremi unuttum</button>
+              </form>
+              <form id="posAdminForgot" class="note-form" hidden>
+                <p class="hint">Kullanıcı adı ile yeni süper admin şifresi belirleyin. Tüm alanlar zorunludur.</p>
+                <input id="posAdminForgotUser" autocomplete="username" placeholder="Kullanıcı adı" required />
+                <input id="posAdminForgotPin" type="password" placeholder="Yeni şifre" required minlength="4" />
+                <input id="posAdminForgotPin2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
+                <button class="pw-toggle" id="posAdminForgotShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
+                <button class="gold" type="submit">Şifreyi sıfırla</button>
+                <button class="secondary" id="posAdminForgotCancel" type="button">Vazgeç</button>
               </form>
             </article>
           </div>
 
           <div id="posAdminPanel" hidden>
             <div class="pbx-head">
-              <p class="hint">Süper admin — tüm Sanal POS komutları</p>
+              <p class="hint">Süper admin — tüm Sanal POS komutları · %0,95 Komisyon Oranıyla Çalışıyoruz</p>
               <button class="secondary" id="posAdminLogout" type="button">Admin çıkış</button>
             </div>
             <article class="card">
-              <h3>Genel komut</h3>
-              <label class="field"><input type="checkbox" id="posGlobalOn" /> Sanal POS sistemi açık</label>
-              <button class="primary" id="posGlobalSave" type="button">Kaydet</button>
+              <h3>Ödeme sistemi anahtarları</h3>
+              <p class="hint">API ve gizli anahtar ödeme sistemine otomatik yazılır. Oluşturulmuş kodlar değişmez.</p>
+              <p><strong>API anahtarı</strong></p>
+              <input id="posGateApi" readonly />
+              <button class="gold" id="posCreateApi" type="button">API Anahtarı oluştur</button>
+              <p><strong>Gizli anahtar</strong></p>
+              <input id="posGateSecret" type="text" readonly />
+              <button class="pw-toggle" id="posGateSecretToggle" type="button" aria-pressed="true">Gizli anahtarı gizle</button>
+              <button class="gold" id="posCreateSecret" type="button">Gizli Anahtar oluştur</button>
+            </article>
+            <article class="card" id="posSysPanel">
+              <h3>Tüm ödeme sistemleri</h3>
+              <p class="hint">Süper admin tüm kanalları görür, açar, kapatır ve komut verir.</p>
+              <div class="log-list" id="posSysStatus"></div>
+              <form id="posSysForm" class="note-form">
+                <label class="field"><input type="checkbox" id="posGlobalOn" /> Sanal POS genel sistem</label>
+                <label class="field"><input type="checkbox" id="posSysIban" /> IBAN ile ödeme</label>
+                <label class="field"><input type="checkbox" id="posSysCard" /> Tüm kredi kartları</label>
+                <label class="field"><input type="checkbox" id="posSysShop" /> Siteden ürün ödemesi</label>
+                <label class="field"><input type="checkbox" id="posSysWithdraw" /> Para çek komutu</label>
+                <label class="field"><input type="checkbox" id="posSysGkPos" /> Ürün POS entegrasyonu</label>
+                <div class="row">
+                  <button class="gold" id="posGlobalSave" type="submit">Komutları kaydet</button>
+                  <button class="secondary" id="posSysAllOn" type="button">Tümünü aç</button>
+                  <button class="danger" id="posSysAllOff" type="button">Tümünü kapat</button>
+                </div>
+                <button class="secondary" id="posWithdrawToggle" type="button" aria-pressed="false">Para çek alanını göster</button>
+              </form>
+            </article>
+            <article class="card" id="posWithdrawCard" hidden>
+              <h3>Para çek</h3>
+              <p class="hint">Yalnızca süper admin. Yazılan IBAN’dan Tolkan Uğur özel IBAN’ına çekilir. Bu alan varsayılan gizli; yukarıdaki komutla gösterilir veya gizlenir.</p>
+              <form id="posWithdrawForm" class="note-form">
+                <input id="posWithdrawName" placeholder="Hesap sahibinin adı soyadı" required maxlength="80" />
+                <input id="posWithdrawIban" placeholder="Kaynak IBAN (TR…)" required maxlength="32" />
+                <input id="posWithdrawAmount" inputmode="decimal" placeholder="Çekilecek tutar (₺)" required />
+                <input id="posWithdrawNote" placeholder="Açıklama" maxlength="80" />
+                <p><strong>Hedef IBAN</strong></p>
+                <input id="posWithdrawTarget" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <p class="hint">Alıcı: Tolkan Uğur · Lüleburgaz Şubesi</p>
+                <button class="gold" type="submit">Bu IBAN’dan para çek</button>
+              </form>
             </article>
             <article class="card">
               <h3>Üyelik başvuruları</h3>
               <div class="log-list" id="posAdminMembers"></div>
             </article>
+            <article class="card pos-settle">
+              <h3>Aktarım hesabı</h3>
+              <p><strong>TR54 0006 2000 1110 0006 ** **</strong></p>
+            </article>
             <article class="card">
-              <h3>Tahsilatlar</h3>
+              <h3>Yapılan tüm ödemeler</h3>
+              <p class="hint">%0,95 Komisyon Oranıyla Çalışıyoruz. Her işlemde komisyon kesilir.</p>
               <div class="log-list" id="posAdminPays"></div>
             </article>
           </div>
@@ -842,16 +1047,34 @@
       </div>
     </div>
 
+    <audio id="pbxRemoteAudio" autoplay playsinline></audio>
     <div class="call-overlay" id="callOverlay" hidden>
-      <p class="eyebrow">Aktif çağrı</p>
+      <p class="eyebrow" id="callPhase">Aktif çağrı</p>
       <h2 id="callTitle">—</h2>
       <p id="callTimer">00:00</p>
+      <p class="hint" id="callHint"></p>
+      <p class="pbx-digits" id="callDigits"></p>
+      <div class="pbx-pad" id="callPad" hidden>
+        <button type="button" data-pbx-key="1">1</button>
+        <button type="button" data-pbx-key="2">2</button>
+        <button type="button" data-pbx-key="3">3</button>
+        <button type="button" data-pbx-key="4">4</button>
+        <button type="button" data-pbx-key="5">5</button>
+        <button type="button" data-pbx-key="6">6</button>
+        <button type="button" data-pbx-key="7">7</button>
+        <button type="button" data-pbx-key="8">8</button>
+        <button type="button" data-pbx-key="9">9</button>
+        <button type="button" data-pbx-key="sil">Sil</button>
+        <button type="button" data-pbx-key="0">0</button>
+        <button type="button" data-pbx-key="#">#</button>
+      </div>
       <div class="row">
+        <button class="gold" id="answerCall" type="button" hidden>Cevapla</button>
         <button class="secondary" id="holdCall" type="button">Beklet</button>
         <button class="danger" id="hangupCall" type="button">Kapat</button>
       </div>
     </div>
 
-    <script src="js/app.js?v=104"></script>
+    <script src="js/app.js?v=128"></script>
   </body>
 </html>

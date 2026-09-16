@@ -1,4 +1,4 @@
-const CACHE = "harbi-grup-v104";
+const CACHE = "harbi-grup-v128";
 const ASSETS = [
   "./",
   "./index.html",
@@ -28,6 +28,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const path = new URL(event.request.url).pathname;
+  if (path === "/pbx-rtc") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   const live = path.endsWith(".css") || path.endsWith(".js") || path.endsWith(".html") || path === "/" || path.endsWith("/");
   if (live) {
     event.respondWith(

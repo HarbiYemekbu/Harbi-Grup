@@ -266,10 +266,18 @@ h2 {
   margin-top: 16px;
 }
 
+.pos-settle p {
+  margin: 6px 0;
+}
+
+.pos-settle .secondary {
+  margin-top: 8px;
+}
+
 [data-view="home"] .tile,
 [data-view="home"] .card {
-  background: linear-gradient(180deg, rgba(112, 52, 138, 0.62), rgba(78, 36, 102, 0.58));
-  border-color: rgba(168, 85, 247, 0.35);
+  background: linear-gradient(180deg, rgba(112, 52, 138, 0.72), rgba(78, 36, 102, 0.68));
+  border-color: rgba(168, 85, 247, 0.45);
 }
 
 [data-view="home"] .card {
@@ -1000,6 +1008,22 @@ select {
   gap: 10px;
 }
 
+.pbx-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.ext-cat {
+  display: grid;
+  gap: 10px;
+}
+
+.ext-cat .subhead {
+  margin: 6px 0 0;
+}
+
 .note {
   padding: 14px;
   border-radius: 18px;
@@ -1228,6 +1252,31 @@ pre {
 
 .call-overlay h2 {
   margin: 8px 0;
+}
+
+#pbxRemoteAudio {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+  min-height: 28px;
+  margin: 0;
+  letter-spacing: 0.18em;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.pbx-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.pbx-pad button {
+  min-height: 44px;
 }
 
 #gkNav {

@@ -47,6 +47,7 @@ function resumeSaveFields() {
     state.fields = {};
     $$("#views input, #views textarea, #views select").forEach((el) => {
       if (!el.id || el.type === "password" || el.type === "file") return;
+      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey") return;
       state.fields[el.id] = el.type === "checkbox" ? el.checked : el.value;
     });
     if ($("#nfcResult")) state.nfcResult = $("#nfcResult").textContent || "";
@@ -80,12 +81,15 @@ function resumeRestoreFields() {
   const state = resumeGet();
   resumeBusy = true;
   Object.entries(state.fields || {}).forEach(([id, value]) => {
+    if (id === "posWithdrawTarget" || id === "posSettleIban" || id === "posGateApi" || id === "posGateSecret" || id === "posPayApiKey" || id === "posCardApiKey") return;
     const el = document.getElementById(id);
     if (!el) return;
     if (el.type === "checkbox") el.checked = Boolean(value);
     else el.value = value ?? "";
   });
   if (state.nfcResult && $("#nfcResult")) $("#nfcResult").textContent = state.nfcResult;
+  if ($("#posWithdrawTarget")) $("#posWithdrawTarget").value = POS_SETTLE.ibanMasked;
+  if ($("#posSettleIban")) $("#posSettleIban").value = POS_SETTLE.ibanMasked;
   resumeBusy = false;
 }
 
@@ -1205,18 +1209,42 @@ function nfcAudio() {
 }
 
 function speakTr(text) {
+  return speakVoice(text, { rate: 0.95, pitch: 1 });
+}
+
+function speakNiceTr(text) {
+  return speakVoice(text, { rate: 0.9, pitch: 1.06, nice: true });
+}
+
+function pickTrVoice(nice) {
+  const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
+  if (!voices.length) return null;
+  const score = (voice) => {
+    const n = `${voice.name} ${voice.lang}`.toLowerCase();
+    let s = 0;
+    if (/^tr(-|_|$)/i.test(voice.lang)) s += 12;
+    if (/turkish|türk/.test(n)) s += 8;
+    if (nice && /neural|natural|premium|enhanced|online|google|microsoft|siri/.test(n)) s += 10;
+    if (nice && /female|kadın|woman|yelda|emel|filiz|zehra|selin|yade/.test(n)) s += 7;
+    if (nice && /male|erkek|man/.test(n)) s += 2;
+    return s;
+  };
+  return [...voices].sort((a, b) => score(b) - score(a))[0];
+}
+
+function speakVoice(text, opts) {
   return new Promise((resolve) => {
-    if (!("speechSynthesis" in window)) {
+    const spoken = String(text || "").trim();
+    if (!spoken || !("speechSynthesis" in window)) {
       resolve();
       return;
     }
-    const utter = new SpeechSynthesisUtterance(text);
+    const utter = new SpeechSynthesisUtterance(spoken);
     utter.lang = "tr-TR";
-    utter.rate = 0.95;
-    utter.pitch = 1;
-    const voice =
-      speechSynthesis.getVoices().find((item) => /^tr(-|_|$)/i.test(item.lang)) ||
-      speechSynthesis.getVoices().find((item) => /turkish|türk/i.test(item.name));
+    utter.rate = opts?.rate ?? 0.95;
+    utter.pitch = opts?.pitch ?? 1;
+    utter.volume = 1;
+    const voice = pickTrVoice(Boolean(opts?.nice));
     if (voice) utter.voice = voice;
     utter.onend = () => resolve();
     utter.onerror = () => resolve();
@@ -1384,19 +1412,94 @@ $("#nfcScan").addEventListener("click", async () => {
 
 const PBX_ORGS = "pbx-orgs";
 const PBX_SESSION = "pbx-session";
+const PBX_REMEMBER = "pbx-remember";
+const PBX_MAX_ORGS = 100;
+const PBX_INBOUND = "";
+const PBX_RETIRED_LINES = ["05448583595", "05448583695"];
+const PBX_GREET_DEFAULT =
+  "Harbi Grup’a hoş geldiniz. Restoran destek, müşteri destek veya kurye destek için dahili numarayı tuşlayınız.";
+const PBX_SERVICES = [
+  { id: "restoran", label: "Restoran Destek" },
+  { id: "musteri", label: "Müşteri Destek" },
+  { id: "kurye", label: "Kurye Destek" },
+];
+let pbxCatFilter = "all";
 
 function defaultPbxExts() {
   return [
-    { ext: "100", name: "Santral", role: "Karşılama", status: "ok" },
-    { ext: "101", name: "Operasyon", role: "Saha koordinasyon", status: "ok" },
-    { ext: "102", name: "Muhasebe", role: "Faturalama", status: "busy" },
-    { ext: "103", name: "Yönetim", role: "Karar hattı", status: "ok" },
-    { ext: "104", name: "Teknik", role: "Destek", status: "ok" },
+    { ext: "100", name: "Santral", service: "musteri", role: "Karşılama", status: "ok" },
+    { ext: "101", name: "Operasyon", service: "kurye", role: "Saha koordinasyon", status: "ok" },
+    { ext: "102", name: "Muhasebe", service: "musteri", role: "Faturalama", status: "busy" },
+    { ext: "103", name: "Yönetim", service: "restoran", role: "Karar hattı", status: "ok" },
+    { ext: "104", name: "Teknik", service: "restoran", role: "Destek", status: "ok" },
   ];
+}
+
+function pbxServiceOf(item) {
+  if (item?.service && PBX_SERVICES.some((svc) => svc.id === item.service)) return item.service;
+  const t = String(item?.role || "").toLocaleLowerCase("tr");
+  if (t.includes("restoran")) return "restoran";
+  if (t.includes("kurye")) return "kurye";
+  if (t.includes("müşteri") || t.includes("musteri")) return "musteri";
+  return "";
+}
+
+function pbxServiceLabel(id) {
+  return PBX_SERVICES.find((svc) => svc.id === id)?.label || "";
 }
 
 function pbxOrgs() {
   return store.get(PBX_ORGS, []);
+}
+
+function pbxMemberOrgs() {
+  return pbxOrgs().filter((org) => !org.owner);
+}
+
+function pbxEnsureOwner() {
+  const orgs = pbxOrgs();
+  let changed = false;
+  if (!orgs.some((org) => org.owner) && orgs.length) {
+    const named = orgs.find((org) => /harbi grup/i.test(org.name || ""));
+    (named || orgs[orgs.length - 1]).owner = true;
+    changed = true;
+  }
+  orgs.forEach((org) => {
+    if (PBX_RETIRED_LINES.includes(pbxDigits(org.inbound))) {
+      org.inbound = "";
+      changed = true;
+    }
+  });
+  if (changed) store.set(PBX_ORGS, orgs);
+}
+
+function pbxRememberGet() {
+  return store.get(PBX_REMEMBER, null);
+}
+
+function pbxRememberSave(login, pin, on) {
+  if (on) store.set(PBX_REMEMBER, { login, pin });
+  else store.set(PBX_REMEMBER, null);
+}
+
+function pbxFillRemember() {
+  const saved = pbxRememberGet();
+  if ($("#pbxRegRemember")) $("#pbxRegRemember").checked = saved ? true : $("#pbxRegRemember").checked !== false;
+  if ($("#pbxLoginRemember")) $("#pbxLoginRemember").checked = saved ? true : true;
+  if (!saved) return;
+  if (saved.login && $("#pbxLoginName")) $("#pbxLoginName").value = saved.login;
+  if (saved.pin && $("#pbxLoginPin")) $("#pbxLoginPin").value = saved.pin;
+}
+
+function pbxMatchOrg(login) {
+  const q = String(login || "").trim().toLowerCase();
+  const phone = pbxDigits(login);
+  return pbxOrgs().find((org) => {
+    if (org.name && org.name.toLowerCase() === q) return true;
+    if (org.email && org.email.toLowerCase() === q) return true;
+    if (phone && pbxDigits(org.phone) === phone) return true;
+    return false;
+  });
 }
 
 function pbxCurrent() {
@@ -1414,51 +1517,645 @@ function pbxPatch(mutator) {
   return org;
 }
 
+function pbxDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function pbxInboundLine() {
+  const org = pbxCurrent();
+  if (!org) return "";
+  const line = pbxDigits(org.inbound || "");
+  if (!line || PBX_RETIRED_LINES.includes(line)) return "";
+  return line;
+}
+
+function pbxLineLabel() {
+  const d = pbxInboundLine();
+  if (!d) return "Hat yok";
+  if (d.length === 11 && d.startsWith("0")) return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7, 9)} ${d.slice(9)}`;
+  return d;
+}
+
+function pbxIsInbound(number) {
+  const d = pbxDigits(number);
+  const line = pbxInboundLine();
+  return Boolean(d) && (d === line || d === line.slice(-10) || d === "90" + line);
+}
+
+function pbxGreetingText() {
+  return String(pbxCurrent()?.greeting || $("#pbxGreetText")?.value || PBX_GREET_DEFAULT).trim() || PBX_GREET_DEFAULT;
+}
+
 function pbxAuthMsg(text) {
   const el = $("#pbxAuthMsg");
   if (el) el.textContent = text || "";
 }
 
 function renderPbx() {
+  pbxEnsureOwner();
+  pbxFillRemember();
   const org = pbxCurrent();
   $("#pbxGate").hidden = Boolean(org);
   $("#pbxApp").hidden = !org;
+  if ($("#pbxOrgCount")) {
+    $("#pbxOrgCount").textContent = `Üye işletme: ${pbxMemberOrgs().length} / ${PBX_MAX_ORGS}`;
+  }
   if (!org) {
     $("#pbxStatus").textContent = "Santral kapalı";
+    pbxRtcWatch(false);
     return;
   }
   $("#pbxStatus").textContent = `${org.name} · çevrimiçi`;
-  $("#pbxCompanyMeta").textContent = [org.city, org.phone].filter(Boolean).join(" · ");
+  const kind = org.owner ? "Sizin işletmeniz" : "Üye işletme";
+  const phone = PBX_RETIRED_LINES.includes(pbxDigits(org.phone)) ? "" : org.phone;
+  $("#pbxCompanyMeta").textContent = [kind, org.city, phone].filter(Boolean).join(" · ");
+  if ($("#pbxGreetText")) $("#pbxGreetText").value = org.greeting || PBX_GREET_DEFAULT;
+  if ($("#pbxLineNo")) $("#pbxLineNo").value = pbxInboundLine();
+  if ($("#pbxLineHint")) {
+    $("#pbxLineHint").textContent = pbxInboundLine()
+      ? `${pbxLineLabel()} arandığında yapay zeka karşılama metnini okur. Dahili tuşlanınca hat cevap verene kadar müzik çalar.`
+      : "Santral hattı kaldırıldı. Yeni numarayı yazıp kaydedin.";
+  }
+  pbxFillMusicUi();
   renderExt();
   renderCalls();
+  pbxRtcWatch(true);
+}
+
+function pbxExtCard(item) {
+  const service = pbxServiceLabel(pbxServiceOf(item));
+  const bits = [item.ext, service, item.mobile].filter(Boolean);
+  return `
+      <article class="ext">
+        <div>
+          <strong><span class="dot ${item.status || "ok"}"></span>${escapeHtml(item.name)}</strong>
+          <div class="hint">${escapeHtml(bits.join(" · "))}</div>
+        </div>
+        <div>
+          <button class="gold" data-ext="${escapeHtml(item.ext)}" data-name="${escapeHtml(item.name)}" type="button">Ara</button>
+          <button class="linkish" data-ext-del="${escapeHtml(item.ext)}" type="button">Sil</button>
+        </div>
+      </article>`;
 }
 
 function renderExt() {
   const org = pbxCurrent();
   const extensions = org?.extensions || [];
-  $("#extList").innerHTML = extensions
-    .map(
-      (item) => `
-      <article class="ext">
-        <div>
-          <strong><span class="dot ${item.status || "ok"}"></span>${escapeHtml(item.name)}</strong>
-          <div class="hint">${escapeHtml(item.ext)} · ${escapeHtml(item.role || "")}</div>
-        </div>
-        <div>
-          <button class="gold" data-dial="${escapeHtml(item.ext)}" data-name="${escapeHtml(item.name)}" type="button">Ara</button>
-          <button class="linkish" data-ext-del="${escapeHtml(item.ext)}" type="button">Sil</button>
-        </div>
-      </article>`
-    )
-    .join("") || "<p class='hint'>Dahili yok. Yukarıdan ekleyin.</p>";
+  $$("[data-pbx-cat]").forEach((btn) => {
+    const on = btn.dataset.pbxCat === pbxCatFilter;
+    btn.classList.toggle("gold", on);
+    btn.classList.toggle("secondary", !on);
+  });
+  const groups = PBX_SERVICES.map((svc) => ({
+    ...svc,
+    items: extensions.filter((item) => pbxServiceOf(item) === svc.id),
+  }));
+  const other = extensions.filter((item) => !pbxServiceOf(item));
+  const shown = pbxCatFilter === "all" ? groups : groups.filter((g) => g.id === pbxCatFilter);
+  const parts = shown.map(
+    (group) => `
+      <section class="ext-cat">
+        <h3 class="subhead">${escapeHtml(group.label)} (${group.items.length})</h3>
+        ${group.items.map(pbxExtCard).join("") || "<p class='hint'>Bu hizmette henüz kimse yok.</p>"}
+      </section>`
+  );
+  if (pbxCatFilter === "all" && other.length) {
+    parts.push(`
+      <section class="ext-cat">
+        <h3 class="subhead">Diğer (${other.length})</h3>
+        ${other.map(pbxExtCard).join("")}
+      </section>`);
+  }
+  $("#extList").innerHTML = parts.join("") || "<p class='hint'>Dahili yok. Yukarıdan ekleyin.</p>";
+  const sel = $("#pbxStationExt");
+  if (sel && org) {
+    const cur = sessionStorage.getItem("pbx-station-" + org.id) || sel.value || "";
+    sel.innerHTML =
+      `<option value="">Çağrı almak için dahili seçin</option>` +
+      extensions
+        .map(
+          (item) =>
+            `<option value="${escapeHtml(item.ext)}">${escapeHtml(item.ext)} · ${escapeHtml(item.name)}</option>`
+        )
+        .join("");
+    sel.value = extensions.some((item) => item.ext === cur) ? cur : "";
+  }
 }
 
 let callTimer = null;
 let seconds = 0;
 const overlay = $("#callOverlay");
+let pbxCall = { phase: "", digits: "", token: 0, target: null, answerTimer: null };
+let pbxHoldTimer = null;
+let pbxHoldNodes = [];
+let pbxHoldAudio = null;
+let pbxRtc = { pc: null, stream: null, timer: null, peers: [], remote: null, offer: null };
+
+function pbxPeerId() {
+  let id = sessionStorage.getItem("pbx-peer");
+  if (!id) {
+    id = "p" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    sessionStorage.setItem("pbx-peer", id);
+  }
+  return id;
+}
+
+async function pbxRtcPost(body) {
+  const res = await fetch("/pbx-rtc", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("sinyal");
+  return res.json();
+}
+
+function pbxRtcDesc(desc) {
+  if (!desc) return null;
+  return { type: desc.type, sdp: desc.sdp };
+}
+
+function pbxFillRtcHint() {
+  const el = $("#pbxRtcLive");
+  if (!el) return;
+  const live = (pbxRtc.peers || []).filter((item) => item.ext);
+  el.textContent = live.length
+    ? "Çevrimiçi dahili: " + live.map((item) => (item.name ? `${item.ext} ${item.name}` : item.ext)).join(", ")
+    : "Karşı cihaz yok. İkinci sekmede veya telefonda santrale girip dahilini seçin.";
+}
+
+function pbxRtcFindPeer(ext) {
+  return (pbxRtc.peers || []).find((item) => item.ext === ext && item.peer !== pbxPeerId());
+}
+
+async function pbxRtcHello() {
+  const org = pbxCurrent();
+  if (!org) return;
+  const ext = $("#pbxStationExt")?.value || "";
+  const found = (org.extensions || []).find((item) => item.ext === ext);
+  const data = await pbxRtcPost({
+    action: "hello",
+    org: String(org.id),
+    peer: pbxPeerId(),
+    ext,
+    name: found?.name || org.name,
+  });
+  pbxRtc.peers = data.peers || [];
+  pbxFillRtcHint();
+  for (const msg of data.messages || []) {
+    await pbxRtcOnMessage(msg);
+  }
+}
+
+function pbxRtcWatch(on) {
+  clearInterval(pbxRtc.timer);
+  pbxRtc.timer = null;
+  if (!on) {
+    const org = store.get(PBX_SESSION, null);
+    if (org) {
+      pbxRtcPost({ action: "bye", org: String(org), peer: pbxPeerId(), to: pbxRtc.remote || "" }).catch(() => {});
+    }
+    return;
+  }
+  pbxRtcHello().catch(() => pbxFillRtcHint());
+  pbxRtc.timer = setInterval(() => pbxRtcHello().catch(() => {}), 2000);
+}
+
+async function pbxRtcMic() {
+  if (pbxRtc.stream) return pbxRtc.stream;
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("Bu tarayıcı mikrofonu desteklemiyor.");
+  pbxRtc.stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  return pbxRtc.stream;
+}
+
+function pbxRtcRemote(stream) {
+  const audio = $("#pbxRemoteAudio");
+  if (!audio) return;
+  audio.srcObject = stream;
+  audio.play().catch(() => {});
+}
+
+function pbxStartTalkTimer() {
+  seconds = 0;
+  $("#callTimer").textContent = "00:00";
+  clearInterval(callTimer);
+  callTimer = setInterval(() => {
+    seconds += 1;
+    const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const ss = String(seconds % 60).padStart(2, "0");
+    $("#callTimer").textContent = `${mm}:${ss}`;
+  }, 1000);
+}
+
+function pbxRtcHangup(quiet) {
+  const remote = pbxRtc.remote;
+  if (pbxRtc.pc) {
+    try {
+      pbxRtc.pc.close();
+    } catch (_) {}
+    pbxRtc.pc = null;
+  }
+  if (pbxRtc.stream) {
+    pbxRtc.stream.getTracks().forEach((track) => track.stop());
+    pbxRtc.stream = null;
+  }
+  const audio = $("#pbxRemoteAudio");
+  if (audio) audio.srcObject = null;
+  pbxRtc.offer = null;
+  pbxRtc.remote = null;
+  const org = pbxCurrent();
+  if (!quiet && remote && org) {
+    pbxRtcPost({ action: "send", org: String(org.id), peer: pbxPeerId(), to: remote, type: "bye", payload: {} }).catch(
+      () => {}
+    );
+  }
+}
+
+async function pbxRtcMakePc(remotePeer) {
+  const keepOffer = pbxRtc.offer;
+  pbxRtcHangup(true);
+  pbxRtc.offer = keepOffer;
+  const stream = await pbxRtcMic();
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  pbxRtc.pc = pc;
+  pbxRtc.remote = remotePeer;
+  stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+  pc.onicecandidate = (event) => {
+    if (!event.candidate || !pbxCurrent()) return;
+    pbxRtcPost({
+      action: "send",
+      org: String(pbxCurrent().id),
+      peer: pbxPeerId(),
+      to: remotePeer,
+      type: "ice",
+      payload: { candidate: event.candidate.toJSON() },
+    }).catch(() => {});
+  };
+  pc.ontrack = (event) => {
+    pbxRtcRemote(event.streams[0] || new MediaStream(event.track ? [event.track] : []));
+  };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "connected") {
+      pbxStopHoldMusic();
+      pbxCall.phase = "talk";
+      $("#answerCall").hidden = true;
+      pbxStartTalkTimer();
+      pbxShowOverlay("Aktif çağrı", $("#callTitle").textContent, "Harbi içi hat bağlandı.");
+    }
+  };
+  return pc;
+}
+
+async function pbxPlaceRtcCall(found) {
+  if (!found || !pbxCurrent()) return;
+  pbxCall.mode = "rtc";
+  pbxCall.target = found;
+  pbxCall.phase = "hold";
+  pbxCall.digits = found.ext;
+  $("#callPad").hidden = true;
+  $("#answerCall").hidden = true;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  pbxShowOverlay("Bağlanıyor", `${found.name} · ${found.ext}`, "Harbi içi çağrı…");
+  overlay.hidden = false;
+  pbxStartHoldMusic();
+  pbxLogCall(`${found.name} · ${found.ext} · Harbi içi arama`);
+  await pbxRtcHello().catch(() => {});
+  const target = pbxRtcFindPeer(found.ext);
+  if (!target) {
+    pbxShowOverlay(
+      "Bağlanıyor",
+      `${found.name} · ${found.ext}`,
+      "Bu dahili çevrimiçi değil. Karşı cihazda santrale girip aynı dahilini seçin."
+    );
+    return;
+  }
+  try {
+    const pc = await pbxRtcMakePc(target.peer);
+    const offer = await pc.createOffer({ offerToReceiveAudio: true });
+    await pc.setLocalDescription(offer);
+    await pbxRtcPost({
+      action: "send",
+      org: String(pbxCurrent().id),
+      peer: pbxPeerId(),
+      to: target.peer,
+      type: "offer",
+      payload: {
+        sdp: pbxRtcDesc(pc.localDescription),
+        fromName:
+          (pbxCurrent().extensions || []).find((item) => item.ext === $("#pbxStationExt")?.value)?.name ||
+          pbxCurrent().name,
+        ext: $("#pbxStationExt")?.value || "",
+      },
+    });
+    pbxShowOverlay(
+      "Bağlanıyor",
+      `${found.name} · ${found.ext}`,
+      "Cevap verene kadar müzik çalıyor: " + pbxHoldTrack().name
+    );
+  } catch (err) {
+    pbxStopHoldMusic();
+    pbxShowOverlay(
+      "Bağlanıyor",
+      `${found.name} · ${found.ext}`,
+      err.message || "Mikrofon açılamadı. Bilgisayarda veya HTTPS ile deneyin."
+    );
+  }
+}
+
+async function pbxRtcOnMessage(msg) {
+  if (!msg || !msg.type) return;
+  if (msg.type === "offer" && msg.payload?.sdp) {
+    pbxRtc.offer = msg;
+    pbxCall.mode = "rtc";
+    pbxCall.phase = "hold";
+    pbxCall.target = { name: msg.payload.fromName || "Santral", ext: msg.payload.ext || "" };
+    $("#callPad").hidden = true;
+    $("#answerCall").hidden = false;
+    overlay.hidden = false;
+    pbxShowOverlay(
+      "Gelen çağrı",
+      `${pbxCall.target.name}${pbxCall.target.ext ? " · " + pbxCall.target.ext : ""}`,
+      "Cevapla ile Harbi içi konuşma başlar."
+    );
+    return;
+  }
+  if (msg.type === "answer" && pbxRtc.pc && msg.payload?.sdp) {
+    await pbxRtc.pc.setRemoteDescription(new RTCSessionDescription(msg.payload.sdp));
+    return;
+  }
+  if (msg.type === "ice" && pbxRtc.pc && msg.payload?.candidate) {
+    try {
+      await pbxRtc.pc.addIceCandidate(msg.payload.candidate);
+    } catch (_) {}
+    return;
+  }
+  if (msg.type === "bye") {
+    pbxRtcHangup(true);
+    pbxStopHoldMusic();
+    overlay.hidden = true;
+    clearInterval(callTimer);
+    pbxCall.phase = "";
+  }
+}
+
+async function pbxRtcAccept() {
+  const msg = pbxRtc.offer;
+  if (!msg?.payload?.sdp) return;
+  try {
+    const pc = await pbxRtcMakePc(msg.from);
+    await pc.setRemoteDescription(new RTCSessionDescription(msg.payload.sdp));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await pbxRtcPost({
+      action: "send",
+      org: String(pbxCurrent().id),
+      peer: pbxPeerId(),
+      to: msg.from,
+      type: "answer",
+      payload: { sdp: pbxRtcDesc(pc.localDescription) },
+    });
+    pbxRtc.offer = null;
+    $("#answerCall").hidden = true;
+    pbxShowOverlay("Aktif çağrı", $("#callTitle").textContent, "Bağlanıyor…");
+  } catch (err) {
+    pbxShowOverlay("Gelen çağrı", $("#callTitle").textContent, err.message || "Mikrofon açılamadı.");
+  }
+}
+
+function pbxMusicPresets() {
+  return [
+    { id: "harbi", name: "Harbi bekletme" },
+    { id: "soft", name: "Yumuşak bekletme" },
+    { id: "classic", name: "Klasik hat müziği" },
+  ];
+}
+
+function pbxHoldTrack() {
+  const saved = pbxCurrent()?.holdMusic;
+  if (saved?.id === "file" && saved.data) {
+    return { id: "file", name: saved.name || "Yüklenen müzik", data: saved.data };
+  }
+  const id = saved?.id && saved.id !== "file" ? saved.id : "harbi";
+  return pbxMusicPresets().find((item) => item.id === id) || pbxMusicPresets()[0];
+}
+
+function pbxFillMusicUi() {
+  const track = pbxHoldTrack();
+  const pick = $("#pbxMusicPick");
+  if (pick) {
+    const fileOpt = pick.querySelector('option[value="file"]');
+    if (fileOpt) fileOpt.hidden = track.id !== "file" && !pbxCurrent()?.holdMusic?.data;
+    pick.value = track.id === "file" || pbxCurrent()?.holdMusic?.id === "file" ? "file" : track.id;
+    if (pick.value === "file" && !pbxCurrent()?.holdMusic?.data) pick.value = "harbi";
+  }
+  if ($("#pbxMusicNow")) $("#pbxMusicNow").textContent = `Şu an çalan: ${track.name}`;
+}
+
+function pbxStopHoldMusic() {
+  clearInterval(pbxHoldTimer);
+  pbxHoldTimer = null;
+  if (pbxHoldAudio) {
+    try {
+      pbxHoldAudio.pause();
+      pbxHoldAudio.currentTime = 0;
+    } catch (_) {}
+    pbxHoldAudio = null;
+  }
+  pbxHoldNodes.forEach((node) => {
+    try {
+      node.stop?.();
+    } catch (_) {}
+    try {
+      node.disconnect?.();
+    } catch (_) {}
+  });
+  pbxHoldNodes = [];
+}
+
+function pbxHoldChain(ctx) {
+  const master = ctx.createGain();
+  master.gain.value = 1.603;
+  const limit = ctx.createDynamicsCompressor();
+  limit.threshold.value = -6;
+  limit.knee.value = 10;
+  limit.ratio.value = 14;
+  limit.attack.value = 0.003;
+  limit.release.value = 0.1;
+  master.connect(limit);
+  limit.connect(ctx.destination);
+  return { master, limit };
+}
+
+function pbxStartBuiltinHold(style) {
+  const ctx = nfcAudio();
+  if (!ctx) return;
+  const start = () => {
+    const { master, limit } = pbxHoldChain(ctx);
+    const drone = ctx.createOscillator();
+    const droneGain = ctx.createGain();
+    drone.type = style === "classic" ? "square" : "triangle";
+    drone.frequency.value = style === "soft" ? 130.81 : style === "classic" ? 220 : 174.61;
+    droneGain.gain.value = style === "classic" ? 0.05 : 0.12;
+    drone.connect(droneGain);
+    droneGain.connect(master);
+    drone.start();
+    pbxHoldNodes = [drone, droneGain, master, limit];
+    const notes =
+      style === "classic"
+        ? [261.63, 329.63, 392.0, 329.63]
+        : style === "soft"
+          ? [196.0, 246.94, 293.66, 329.63, 293.66, 246.94]
+          : [261.63, 329.63, 392.0, 523.25, 392.0, 329.63, 293.66, 246.94];
+    const gap = style === "soft" ? 720 : style === "classic" ? 900 : 480;
+    let i = 0;
+    const tick = () => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = style === "classic" ? "triangle" : "sine";
+      osc.frequency.value = notes[i % notes.length];
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(style === "soft" ? 0.18 : 0.28, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + (style === "classic" ? 0.85 : 0.62));
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(t);
+      osc.stop(t + (style === "classic" ? 0.88 : 0.64));
+      i += 1;
+    };
+    tick();
+    pbxHoldTimer = setInterval(tick, gap);
+  };
+  if (ctx.state === "suspended") ctx.resume().then(start).catch(start);
+  else start();
+}
+
+function pbxStartHoldMusic() {
+  pbxStopHoldMusic();
+  const track = pbxHoldTrack();
+  if (track.id === "file" && track.data) {
+    pbxHoldAudio = new Audio(track.data);
+    pbxHoldAudio.loop = true;
+    pbxHoldAudio.volume = 0.85;
+    pbxHoldAudio.play().catch(() => pbxStartBuiltinHold("harbi"));
+    return;
+  }
+  pbxStartBuiltinHold(track.id || "harbi");
+}
+
+function pbxStopMedia() {
+  pbxCall.token += 1;
+  clearTimeout(pbxCall.answerTimer);
+  pbxCall.answerTimer = null;
+  pbxCall.phase = "";
+  pbxCall.digits = "";
+  pbxCall.target = null;
+  pbxCall.mode = "";
+  pbxRtcHangup(false);
+  pbxStopHoldMusic();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+function pbxShowOverlay(phase, title, hint) {
+  overlay.hidden = false;
+  $("#callPhase").textContent = phase;
+  $("#callTitle").textContent = title;
+  $("#callHint").textContent = hint || "";
+  $("#callDigits").textContent = pbxCall.digits || "";
+}
+
+function pbxUiIdleCall() {
+  $("#callPad").hidden = true;
+  $("#answerCall").hidden = true;
+  $("#callDigits").textContent = "";
+  $("#callHint").textContent = "";
+  $("#callPhase").textContent = "Aktif çağrı";
+}
+
+function pbxLogCall(detail) {
+  pbxPatch((org) => {
+    org.calls = org.calls || [];
+    org.calls.unshift({ id: Date.now(), detail });
+    org.calls = org.calls.slice(0, 30);
+  });
+  renderCalls();
+}
+
+async function pbxStartInbound() {
+  if (!pbxCurrent()) return;
+  pbxStopMedia();
+  const token = pbxCall.token;
+  pbxCall.phase = "greet";
+  pbxUiIdleCall();
+  $("#callTimer").textContent = "00:00";
+  clearInterval(callTimer);
+  seconds = 0;
+  pbxShowOverlay("Gelen hat", pbxLineLabel(), "Karşılama seslendiriliyor…");
+  pbxLogCall(`Gelen hat · ${pbxLineLabel()} · karşılama`);
+  const ctx = nfcAudio();
+  if (ctx?.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch (_) {}
+  }
+  await speakNiceTr(pbxGreetingText());
+  if (pbxCall.token !== token) return;
+  pbxCall.phase = "ivr";
+  $("#callPad").hidden = false;
+  pbxShowOverlay("Santral", pbxLineLabel(), "Dahili numarayı tuşlayın.");
+  await speakNiceTr("Dahili numarayı tuşlayınız.");
+}
+
+function pbxRingExtension(found) {
+  pbxPlaceRtcCall(found);
+}
+
+function pbxAnswer() {
+  if (pbxCall.mode === "rtc") {
+    pbxRtcAccept();
+    return;
+  }
+  if (pbxCall.phase !== "hold") return;
+  const found = pbxCall.target;
+  pbxCall.phase = "talk";
+  clearTimeout(pbxCall.answerTimer);
+  pbxStopHoldMusic();
+  $("#answerCall").hidden = true;
+  $("#callPad").hidden = true;
+  pbxStartTalkTimer();
+  pbxShowOverlay("Aktif çağrı", `${found?.name || "Dahili"} (${found?.ext || ""})`, "Hat bağlandı.");
+  pbxLogCall(`${found?.name || "Dahili"} · ${found?.ext || ""} · bağlandı`);
+}
+
+function pbxPressKey(key) {
+  if (pbxCall.phase !== "ivr") return;
+  if (key === "sil") pbxCall.digits = pbxCall.digits.slice(0, -1);
+  else if (key === "#") {
+    /* confirm */
+  } else pbxCall.digits += key;
+  $("#callDigits").textContent = pbxCall.digits;
+  const exts = pbxCurrent()?.extensions || [];
+  const found = exts.find((item) => item.ext === pbxCall.digits);
+  if (found) {
+    pbxRingExtension(found);
+    return;
+  }
+  if (key === "#" || pbxCall.digits.length >= 6) {
+    pbxShowOverlay("Santral", pbxLineLabel(), "Dahili bulunamadı. Yeniden tuşlayın.");
+    pbxCall.digits = "";
+    $("#callDigits").textContent = "";
+    speakNiceTr("Dahili bulunamadı. Lütfen yeniden tuşlayınız.");
+  }
+}
 
 function startCall(name, number) {
   if (!pbxCurrent()) return;
+  if (pbxIsInbound(number)) {
+    pbxStartInbound();
+    return;
+  }
+  pbxStopMedia();
+  pbxUiIdleCall();
   seconds = 0;
   $("#callTitle").textContent = `${name} (${number})`;
   $("#callTimer").textContent = "00:00";
@@ -1470,15 +2167,7 @@ function startCall(name, number) {
     const ss = String(seconds % 60).padStart(2, "0");
     $("#callTimer").textContent = `${mm}:${ss}`;
   }, 1000);
-  pbxPatch((org) => {
-    org.calls = org.calls || [];
-    org.calls.unshift({
-      id: Date.now(),
-      detail: `${name} · ${number}`,
-    });
-    org.calls = org.calls.slice(0, 30);
-  });
-  renderCalls();
+  pbxLogCall(`${name} · ${number}`);
   if (/^[0-9+\s]+$/.test(number) && number.length > 3) {
     window.location.href = `tel:${number.replace(/\s/g, "")}`;
   }
@@ -1496,6 +2185,13 @@ function renderCalls() {
     .join("") || "<p class='hint'>Çağrı yok.</p>";
 }
 
+$("#pbxCats").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-pbx-cat]");
+  if (!btn) return;
+  pbxCatFilter = btn.dataset.pbxCat || "all";
+  renderExt();
+});
+
 $("#extList").addEventListener("click", (event) => {
   const del = event.target.closest("[data-ext-del]");
   if (del) {
@@ -1505,61 +2201,259 @@ $("#extList").addEventListener("click", (event) => {
     renderExt();
     return;
   }
-  const btn = event.target.closest("[data-dial]");
+  const btn = event.target.closest("[data-ext]");
   if (!btn) return;
-  startCall(btn.dataset.name, btn.dataset.dial);
+  const found = (pbxCurrent()?.extensions || []).find((item) => item.ext === btn.dataset.ext);
+  if (found) pbxPlaceRtcCall(found);
 });
 
 $("#dialBtn").addEventListener("click", () => {
   const number = $("#dialNumber").value.trim();
   if (!number) return;
-  const found = (pbxCurrent()?.extensions || []).find((item) => item.ext === number);
-  startCall(found?.name || "Harici hat", number);
-});
-
-$("#pbxRegisterForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const name = $("#pbxRegName").value.trim();
-  const pin = $("#pbxRegPin").value;
-  if (!name || pin.length < 4) return;
-  const orgs = pbxOrgs();
-  if (orgs.some((org) => org.name.toLowerCase() === name.toLowerCase())) {
-    pbxAuthMsg("Bu şirket adı kayıtlı. Giriş yapın.");
+  if (pbxIsInbound(number)) {
+    pbxStartInbound();
     return;
   }
-  const org = {
-    id: Date.now(),
-    name,
-    city: $("#pbxRegCity").value.trim(),
-    phone: $("#pbxRegPhone").value.trim(),
-    pin,
-    extensions: defaultPbxExts(),
-    calls: [],
-  };
-  orgs.unshift(org);
-  store.set(PBX_ORGS, orgs);
-  store.set(PBX_SESSION, org.id);
+  const found = (pbxCurrent()?.extensions || []).find(
+    (item) => item.ext === number || posPhone(item.mobile) === posPhone(number)
+  );
+  if (found) pbxPlaceRtcCall(found);
+  else startCall(found?.name || "Harici hat", number);
+});
+
+$("#pbxGreetForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const greeting = $("#pbxGreetText").value.trim();
+  if (!greeting) return;
+  pbxPatch((org) => {
+    org.greeting = greeting;
+    const line = pbxDigits($("#pbxLineNo")?.value || "");
+    org.inbound = PBX_RETIRED_LINES.includes(line) ? "" : line;
+  });
   pbxAuthMsg("");
-  $("#pbxRegisterForm").reset();
-  renderPbx();
+  $("#pbxCompanyMeta").textContent = [pbxCurrent()?.city, PBX_RETIRED_LINES.includes(pbxDigits(pbxCurrent()?.phone)) ? "" : pbxCurrent()?.phone].filter(Boolean).join(" · ");
+  if ($("#pbxLineHint")) {
+    $("#pbxLineHint").textContent = pbxInboundLine()
+      ? `${pbxLineLabel()} arandığında yapay zeka karşılama metnini okur. Dahili tuşlanınca hat cevap verene kadar müzik çalar.`
+      : "Santral hattı kaldırıldı. Yeni numarayı yazıp kaydedin.";
+  }
+});
+
+$("#pbxGreetListen").addEventListener("click", () => {
+  const ctx = nfcAudio();
+  if (ctx?.state === "suspended") ctx.resume();
+  speakNiceTr(pbxGreetingText());
+});
+
+$("#pbxGreetTry").addEventListener("click", () => {
+  pbxStartInbound();
+});
+
+$("#pbxMusicForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const pick = $("#pbxMusicPick").value;
+  const file = $("#pbxMusicFile").files?.[0];
+  if (pick === "file" || file) {
+    if (!file && !pbxCurrent()?.holdMusic?.data) {
+      pbxAuthMsg("Müzik dosyası seçin.");
+      return;
+    }
+    if (file) {
+      if (file.size > 4 * 1024 * 1024) {
+        pbxAuthMsg("Müzik en fazla 4 MB olabilir.");
+        return;
+      }
+      try {
+        const data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Müzik okunamadı."));
+          reader.readAsDataURL(file);
+        });
+        pbxPatch((org) => {
+          org.holdMusic = { id: "file", name: file.name, data };
+        });
+      } catch (err) {
+        pbxAuthMsg(err.message || "Müzik kaydedilemedi.");
+        return;
+      }
+    } else {
+      pbxPatch((org) => {
+        org.holdMusic = { ...org.holdMusic, id: "file" };
+      });
+    }
+  } else {
+    const preset = pbxMusicPresets().find((item) => item.id === pick) || pbxMusicPresets()[0];
+    pbxPatch((org) => {
+      org.holdMusic = { id: preset.id, name: preset.name };
+    });
+  }
+  pbxAuthMsg("");
+  pbxFillMusicUi();
+});
+
+$("#pbxMusicPreview").addEventListener("click", () => {
+  const ctx = nfcAudio();
+  if (ctx?.state === "suspended") ctx.resume();
+  pbxStartHoldMusic();
+});
+
+$("#pbxMusicStop").addEventListener("click", () => pbxStopHoldMusic());
+
+$("#callPad").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-pbx-key]");
+  if (!btn) return;
+  pbxPressKey(btn.dataset.pbxKey);
+});
+
+$("#answerCall").addEventListener("click", () => pbxAnswer());
+
+$("#pbxRegisterForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const name = $("#pbxRegName").value.trim();
+    const city = $("#pbxRegCity").value.trim();
+    const phone = pbxDigits($("#pbxRegPhone").value);
+    const email = $("#pbxRegEmail").value.trim().toLowerCase();
+    const pin = $("#pbxRegPin").value;
+    const pin2 = $("#pbxRegPin2").value;
+    if (!name || !city || !phone || !email || !pin || !pin2) {
+      pbxAuthMsg("Tüm alanlar zorunludur.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      pbxAuthMsg("Geçerli e-posta girin.");
+      return;
+    }
+    if (phone.length < 10) {
+      pbxAuthMsg("Geçerli telefon girin.");
+      return;
+    }
+    if (pin.length < 4) {
+      pbxAuthMsg("Şifre en az 4 karakter olmalı.");
+      return;
+    }
+    if (pin !== pin2) {
+      pbxAuthMsg("Şifreler aynı olmalı.");
+      return;
+    }
+    if (!$("#pbxRegIkamet").files?.[0] || !$("#pbxRegImza").files?.[0]) {
+      pbxAuthMsg("İkametgah ve imza sirküleri zorunludur.");
+      return;
+    }
+    pbxEnsureOwner();
+    const orgs = pbxOrgs();
+    if (pbxMemberOrgs().length >= PBX_MAX_ORGS) {
+      pbxAuthMsg("En fazla 100 işletme üye olabilir.");
+      return;
+    }
+    if (orgs.some((org) => org.name.toLowerCase() === name.toLowerCase())) {
+      pbxAuthMsg("Bu işletme adı kayıtlı. Giriş yapın.");
+      return;
+    }
+    if (orgs.some((org) => org.email && org.email.toLowerCase() === email)) {
+      pbxAuthMsg("Bu e-posta ile üyelik var. Giriş yapın.");
+      return;
+    }
+    if (orgs.some((org) => pbxDigits(org.phone) === phone)) {
+      pbxAuthMsg("Bu telefon ile üyelik var. Giriş yapın.");
+      return;
+    }
+    const [ikamet, imza] = await Promise.all([posReadDoc($("#pbxRegIkamet")), posReadDoc($("#pbxRegImza"))]);
+    const org = {
+      id: Date.now(),
+      owner: false,
+      name,
+      city,
+      phone: $("#pbxRegPhone").value.trim(),
+      email,
+      inbound: "",
+      greeting: `${name} santraline hoş geldiniz. Dahili numarayı tuşlayınız.`,
+      pin,
+      docs: { ikamet, imza },
+      extensions: [],
+      calls: [],
+    };
+    orgs.unshift(org);
+    store.set(PBX_ORGS, orgs);
+    store.set(PBX_SESSION, org.id);
+    pbxRememberSave(email || name, pin, $("#pbxRegRemember").checked);
+    pbxAuthMsg("");
+    $("#pbxRegisterForm").reset();
+    renderPbx();
+  } catch (err) {
+    pbxAuthMsg(err.message || "Üyelik oluşturulamadı.");
+  }
 });
 
 $("#pbxLoginForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  const name = $("#pbxLoginName").value.trim().toLowerCase();
+  const login = $("#pbxLoginName").value.trim();
   const pin = $("#pbxLoginPin").value;
-  const org = pbxOrgs().find((item) => item.name.toLowerCase() === name && item.pin === pin);
-  if (!org) {
-    pbxAuthMsg("Şirket adı veya şifre hatalı.");
+  const org = pbxMatchOrg(login);
+  if (!org || org.pin !== pin) {
+    pbxAuthMsg("İşletme bilgisi veya şifre hatalı.");
     return;
   }
   store.set(PBX_SESSION, org.id);
+  pbxRememberSave(login, pin, $("#pbxLoginRemember").checked);
   pbxAuthMsg("");
   $("#pbxLoginForm").reset();
   renderPbx();
 });
 
+$("#pbxLoginShowPin").addEventListener("click", () => {
+  posTogglePins(["#pbxLoginPin"], $("#pbxLoginShowPin"));
+  const shown = $("#pbxLoginPin").type === "text";
+  $("#pbxLoginShowPin").textContent = shown ? "Şifreyi gizle" : "Şifreyi göster";
+});
+$("#pbxRegShowPin").addEventListener("click", () => {
+  posTogglePins(["#pbxRegPin", "#pbxRegPin2"], $("#pbxRegShowPin"));
+});
+$("#pbxForgotShowPin").addEventListener("click", () => {
+  posTogglePins(["#pbxForgotPin", "#pbxForgotPin2"], $("#pbxForgotShowPin"));
+});
+$("#pbxForgotOpen").addEventListener("click", () => {
+  $("#pbxForgot").hidden = false;
+  $("#pbxForgotPhone").value = $("#pbxRegPhone").value || $("#pbxLoginName").value;
+  $("#pbxForgotEmail").value = $("#pbxRegEmail").value;
+});
+$("#pbxForgotCancel").addEventListener("click", () => {
+  $("#pbxForgot").hidden = true;
+});
+$("#pbxForgot").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const phone = pbxDigits($("#pbxForgotPhone").value);
+  const email = $("#pbxForgotEmail").value.trim().toLowerCase();
+  const pin = $("#pbxForgotPin").value;
+  const pin2 = $("#pbxForgotPin2").value;
+  if (!phone || !email || !pin || !pin2) {
+    pbxAuthMsg("Tüm alanlar zorunludur.");
+    return;
+  }
+  if (pin !== pin2) {
+    pbxAuthMsg("Şifreler aynı olmalı.");
+    return;
+  }
+  const orgs = pbxOrgs();
+  const org = orgs.find(
+    (item) => pbxDigits(item.phone) === phone && item.email && item.email.toLowerCase() === email
+  );
+  if (!org) {
+    pbxAuthMsg("Telefon ve e-posta eşleşmedi.");
+    return;
+  }
+  org.pin = pin;
+  store.set(PBX_ORGS, orgs);
+  pbxRememberSave(email, pin, $("#pbxLoginRemember")?.checked !== false);
+  $("#pbxForgot").reset();
+  $("#pbxForgot").hidden = true;
+  pbxAuthMsg("Şifre güncellendi. Giriş yapın.");
+});
+
 $("#pbxLogout").addEventListener("click", () => {
+  pbxStopMedia();
+  pbxRtcWatch(false);
   store.set(PBX_SESSION, null);
   overlay.hidden = true;
   clearInterval(callTimer);
@@ -1570,8 +2464,17 @@ $("#pbxExtForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const ext = $("#pbxExtNo").value.trim();
   const name = $("#pbxExtName").value.trim();
-  const role = $("#pbxExtRole").value.trim();
-  if (!ext || !name) return;
+  const service = $("#pbxExtService").value;
+  const mobile = $("#pbxExtMobile").value.trim();
+  if (!ext || !name || !service || !mobile) return;
+  if (!PBX_SERVICES.some((svc) => svc.id === service)) {
+    pbxAuthMsg("Hizmet kategorisi seçin.");
+    return;
+  }
+  if (posPhone(mobile).length < 10) {
+    pbxAuthMsg("Geçerli cep numarası girin.");
+    return;
+  }
   const org = pbxCurrent();
   if (!org) return;
   if ((org.extensions || []).some((item) => item.ext === ext)) {
@@ -1580,19 +2483,33 @@ $("#pbxExtForm").addEventListener("submit", (event) => {
   }
   pbxPatch((item) => {
     item.extensions = item.extensions || [];
-    item.extensions.push({ ext, name, role, status: "ok" });
+    item.extensions.push({ ext, name, service, role: pbxServiceLabel(service), mobile, status: "ok" });
   });
+  pbxAuthMsg("");
   $("#pbxExtForm").reset();
   renderExt();
 });
 
+$("#pbxStationExt").addEventListener("change", () => {
+  const org = pbxCurrent();
+  if (org) sessionStorage.setItem("pbx-station-" + org.id, $("#pbxStationExt").value);
+  pbxRtcHello().catch(() => {});
+});
+
 $("#hangupCall").addEventListener("click", () => {
+  pbxStopMedia();
   overlay.hidden = true;
   clearInterval(callTimer);
 });
 
 $("#holdCall").addEventListener("click", () => {
   $("#pbxStatus").textContent = `${pbxCurrent()?.name || "Santral"} · bekletmede`;
+  if (pbxCall.phase === "talk") {
+    pbxCall.phase = "hold";
+    $("#answerCall").hidden = false;
+    pbxShowOverlay("Beklemede", $("#callTitle").textContent, "Hat bekletmede, müzik çalıyor.");
+    pbxStartHoldMusic();
+  }
 });
 
 function renderBookings(key, listId, emptyText) {
@@ -2614,6 +3531,7 @@ function renderGkSeller() {
 
 function renderGkAdmin() {
   gkProcessPayouts();
+  posEnsureGateway();
   const integ = gkIntegrations();
   $("#gkPosProvider").value = integ.pos.provider || "demo";
   $("#gkPosMerchant").value = integ.pos.merchant || "";
@@ -3019,11 +3937,42 @@ $("#gkBuyCancel").addEventListener("click", () => {
   gkOpenTab(back);
 });
 
+$("#gkBuyCardNumber").addEventListener("input", () => {
+  const num = $("#gkBuyCardNumber").value.replace(/\D/g, "");
+  const brand = posCardBrandFromNumber(num);
+  if (brand && [...$("#gkBuyBrand").options].some((o) => o.value === brand)) {
+    $("#gkBuyBrand").value = brand;
+  }
+});
+
+$("#gkBuyExp").addEventListener("input", () => {
+  let v = $("#gkBuyExp").value.replace(/\D/g, "").slice(0, 4);
+  if (v.length >= 3) v = v.slice(0, 2) + "/" + v.slice(2);
+  $("#gkBuyExp").value = v;
+});
+
 $("#gkBuyForm").addEventListener("submit", (event) => {
   event.preventDefault();
+  posEnsureGateway();
   const pos = gkIntegrations().pos;
-  if (!pos.active) {
-    gkMsg("Ödeme şu an kapalı. Lütfen daha sonra deneyin.");
+  if (!posPayOn("shop") || !pos.active || !pos.key || !pos.secret) {
+    gkMsg("Ürün ödemesi süper admin tarafından kapalı veya anahtar yok.");
+    return;
+  }
+  const num = $("#gkBuyCardNumber").value.replace(/\D/g, "");
+  const exp = $("#gkBuyExp").value.trim();
+  const cvc = $("#gkBuyCvc").value.replace(/\D/g, "");
+  const brand = $("#gkBuyBrand").value;
+  if (num.length < 13 || num.length > 19) {
+    gkMsg("Geçerli kart numarası girin.");
+    return;
+  }
+  if (!/^\d{2}\/\d{2}$/.test(exp)) {
+    gkMsg("Son kullanma AA/YY olsun.");
+    return;
+  }
+  if (cvc.length < 3) {
+    gkMsg("CVC girin.");
     return;
   }
   const buyer = {
@@ -3032,7 +3981,10 @@ $("#gkBuyForm").addEventListener("submit", (event) => {
     address: $("#gkBuyAddress").value.trim(),
     pos: pos.provider,
   };
+  const last4 = num.slice(-4);
   const orders = store.get(GK_ORDERS, []);
+  let total = 0;
+  let products = "";
   if (gkCheckoutCart) {
     const lines = gkCartLines();
     if (!lines.length) {
@@ -3042,19 +3994,55 @@ $("#gkBuyForm").addEventListener("submit", (event) => {
     lines.forEach((line, index) => {
       const order = gkOrderFromProduct(line.product, line.qty, buyer);
       order.id = Date.now() + index;
+      order.payIban = POS_SETTLE.iban;
+      order.posKey = pos.key;
       orders.unshift(order);
+      total += order.amount;
+      products += (products ? " · " : "") + line.product.name;
     });
     gkSetCart([]);
   } else {
     const product = store.get(GK_PRODUCTS, []).find((p) => p.id === gkBuyId);
     if (!product) return;
-    orders.unshift(gkOrderFromProduct(product, 1, buyer));
+    const order = gkOrderFromProduct(product, 1, buyer);
+    order.payIban = POS_SETTLE.iban;
+    order.posKey = pos.key;
+    orders.unshift(order);
+    total = order.amount;
+    products = product.name;
   }
   store.set(GK_ORDERS, orders);
+  const shopFee = posFee(total);
+  store.set(
+    POS_PAYS,
+    posPays().concat({
+      id: "pay_" + Date.now(),
+      phone: gkDigits(buyer.phone),
+      name: buyer.name,
+      amount: shopFee.gross,
+      commission: shopFee.commission,
+      net: shopFee.net,
+      feeRate: POS_FEE_RATE,
+      note: products,
+      method: "card",
+      detail: "Ürün · " + brand + " · **** " + last4 + " · " + products + " · " + (pos.key || ""),
+      apiKey: pos.key,
+      settleName: POS_SETTLE.name,
+      settleBranch: POS_SETTLE.branch,
+      settleIban: POS_SETTLE.iban,
+      at: Date.now(),
+    })
+  );
   gkBuyId = null;
   gkCheckoutCart = false;
   $("#gkBuyForm").reset();
-  gkMsg("Ödeme alındı. Satıcı tutarı ertesi gün IBAN’ına otomatik yatırılır.");
+  gkMsg(
+    "Kart ödemesi alındı. %0,95 komisyon " +
+      formatTry(shopFee.commission) +
+      " · net " +
+      formatTry(shopFee.net) +
+      " Tolkan Uğur IBAN’ına kabul edildi."
+  );
   gkOpenTab("shop");
 });
 
@@ -3110,16 +4098,19 @@ $("#gkAdminLogout").addEventListener("click", () => {
 $("#gkPosForm").addEventListener("submit", (event) => {
   event.preventDefault();
   if (!gkIsAdmin()) return;
+  const g = posGateway();
   const integ = gkIntegrations();
   integ.pos = {
     provider: $("#gkPosProvider").value,
-    merchant: $("#gkPosMerchant").value.trim(),
-    key: $("#gkPosKey").value.trim(),
-    secret: $("#gkPosSecret").value.trim(),
-    active: $("#gkPosOn").checked,
+    merchant: $("#gkPosMerchant").value.trim() || "HarbiGrup",
+    key: $("#gkPosKey").value.trim() || g.apiKey,
+    secret: $("#gkPosSecret").value.trim() || g.secretKey,
+    active: $("#gkPosOn").checked || Boolean(g.apiKey && g.secretKey),
+    settleIban: POS_SETTLE.iban,
   };
   store.set(GK_INTEG, integ);
-  gkMsg("POS kaydedildi.");
+  posFillKeyInputs();
+  gkMsg("POS kaydedildi. Anahtarlar ödeme sisteminde.");
 });
 
 $("#gkCargoForm").addEventListener("submit", (event) => {
@@ -3191,9 +4182,37 @@ const POS_MEMBERS = "pos-members";
 const POS_PAYS = "pos-pays";
 const POS_REMEMBER = "pos-remember";
 const POS_ADMIN_ON = "pos-admin-on";
+const POS_ADMIN_REMEMBER = "pos-admin-remember";
+const POS_ADMIN_PIN_STORE = "pos-admin-pin";
 const POS_SETTINGS = "pos-settings";
+const POS_SESSION = "pos-session";
 const POS_ADMIN_USER = "superadmin";
 const POS_ADMIN_PIN = "HarbiAdmin2026";
+const POS_GATEWAY = "pos-gateway-keys";
+const POS_SETTLE = {
+  name: "Tolkan Uğur",
+  branch: "Lüleburgaz Şubesi",
+  country: "Türkiye Cumhuriyeti",
+  iban: "TR54 0006 2000 1110 0006 2920 69",
+  ibanRaw: "TR540006200011100006292069",
+  ibanMasked: "TR54 0006 2000 1110 0006 ** **",
+};
+const POS_FEE_RATE = 0.0095;
+
+function posFee(amount) {
+  const gross = Math.round((Number(amount) || 0) * 100) / 100;
+  const commission = Math.round(gross * POS_FEE_RATE * 100) / 100;
+  const net = Math.round((gross - commission) * 100) / 100;
+  return { gross, commission, net };
+}
+
+function posMaskIban(value) {
+  const raw = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  if (raw.length <= 6) return "******";
+  return (raw.slice(0, -6) + "******").replace(/(.{4})/g, "$1 ").trim();
+}
 
 function posMembers() {
   return store.get(POS_MEMBERS, []);
@@ -3207,8 +4226,200 @@ function posPays() {
   return store.get(POS_PAYS, []);
 }
 
+function posIbanOk(value) {
+  const raw = String(value || "")
+    .toUpperCase()
+    .replace(/\s/g, "");
+  return /^TR\d{24}$/.test(raw);
+}
+
+function posFormatIban(value) {
+  const raw = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  return raw.replace(/(.{4})/g, "$1 ").trim();
+}
+
+function posCardBrandFromNumber(num) {
+  if (num.startsWith("4")) return "Visa";
+  if (/^5[1-5]/.test(num) || /^2[2-7]/.test(num)) return "Mastercard";
+  if (num.startsWith("9792")) return "Troy";
+  if (/^3[47]/.test(num)) return "American Express";
+  if (num.startsWith("62")) return "UnionPay";
+  if (num.startsWith("6")) return "Discover";
+  return "";
+}
+
+function posCanCharge(method) {
+  const member = posMember();
+  if (!member || member.status !== "active") {
+    posMsg("Yalnızca onaylı üyeler POS kullanabilir.");
+    return false;
+  }
+  if (!posPayOn(method || "global")) {
+    posMsg(posSettings().on === false ? "Sanal POS sistemi kapalı." : "Bu ödeme sistemi süper admin tarafından kapatıldı.");
+    return false;
+  }
+  return member;
+}
+
+function posRecordPay(extra) {
+  const member = posCanCharge(extra.method);
+  if (!member) return false;
+  const amount = extra.amount;
+  if (!Number.isFinite(amount) || amount <= 0) {
+    posMsg("Geçerli tutar girin.");
+    return false;
+  }
+  const fee = posFee(amount);
+  const pay = {
+    id: "pay_" + Date.now(),
+    phone: member.phone,
+    name: member.name,
+    amount: fee.gross,
+    commission: fee.commission,
+    net: fee.net,
+    feeRate: POS_FEE_RATE,
+    note: extra.note || "",
+    method: extra.method,
+    detail: extra.detail || "",
+    apiKey: posGateway().apiKey || "",
+    settleName: POS_SETTLE.name,
+    settleBranch: POS_SETTLE.branch,
+    settleIban: POS_SETTLE.iban,
+    at: Date.now(),
+  };
+  store.set(POS_PAYS, posPays().concat(pay));
+  posMsg(
+    formatTry(fee.gross) +
+      " alındı. %0,95 komisyon " +
+      formatTry(fee.commission) +
+      " · net " +
+      formatTry(fee.net) +
+      " aktarıldı."
+  );
+  posRenderDesk();
+  return true;
+}
+
+function posPayLine(p, who) {
+  const method =
+    p.method === "iban"
+      ? "IBAN"
+      : p.method === "card"
+        ? "Kredi kartı"
+        : p.method === "operator"
+          ? "Operatör faturası"
+          : p.method === "withdraw"
+            ? "Para çek"
+            : "Tahsilat";
+  const whoLine = who ? `<p>${escapeHtml(who)}</p>` : "";
+  const detail = String(p.detail || p.note || "Tahsilat")
+    .replace(/2920\s*69/g, "** **")
+    .replace(/292069/g, "******");
+  const fee = p.commission != null && p.net != null ? { commission: p.commission, net: p.net } : posFee(p.amount);
+  return `<article class="note"><header><strong>${escapeHtml(formatTry(p.amount))}</strong><time>${escapeHtml(
+    new Date(p.at).toLocaleString("tr-TR")
+  )}</time></header>${whoLine}<p>${escapeHtml(method)} · ${escapeHtml(detail)}</p><p class="hint">%0,95 komisyon ${escapeHtml(
+    formatTry(fee.commission)
+  )} · net ${escapeHtml(formatTry(fee.net))}</p><p class="hint">Aktarım: ${escapeHtml(
+    p.settleName || POS_SETTLE.name
+  )} · ${escapeHtml(p.settleBranch || POS_SETTLE.branch)} · ${escapeHtml(
+    posMaskIban(p.settleIban || POS_SETTLE.iban)
+  )}</p></article>`;
+}
+
 function posSettings() {
-  return store.get(POS_SETTINGS, { on: true });
+  return {
+    on: true,
+    withdrawShow: false,
+    payIban: true,
+    payCard: true,
+    payOperator: true,
+    payShop: true,
+    payWithdraw: true,
+    payGkPos: true,
+    ...store.get(POS_SETTINGS, {}),
+  };
+}
+
+function posPayOn(kind) {
+  const s = posSettings();
+  if (kind !== "global" && s.on === false) return false;
+  if (kind === "iban") return s.payIban !== false;
+  if (kind === "card") return s.payCard !== false;
+  if (kind === "operator") return s.payOperator !== false;
+  if (kind === "shop") return s.payShop !== false && s.payGkPos !== false;
+  if (kind === "withdraw") return s.payWithdraw !== false;
+  if (kind === "gkpos") return s.payGkPos !== false;
+  return s.on !== false;
+}
+
+function posApplySysFromForm(all) {
+  if (!posIsAdmin()) return;
+  const on = all == null ? $("#posGlobalOn").checked : all;
+  posPatchSettings({
+    on,
+    payIban: all == null ? $("#posSysIban").checked : all,
+    payCard: all == null ? $("#posSysCard").checked : all,
+    payShop: all == null ? $("#posSysShop").checked : all,
+    payWithdraw: all == null ? $("#posSysWithdraw").checked : all,
+    payGkPos: all == null ? $("#posSysGkPos").checked : all,
+  });
+  posWriteKeysToPay();
+  posRenderAdmin();
+  posMsg(all === false ? "Tüm ödeme sistemleri kapatıldı." : all === true ? "Tüm ödeme sistemleri açıldı." : "Ödeme sistemi komutları kaydedildi.");
+}
+
+function posRenderPaySystems() {
+  const s = posSettings();
+  const setChk = (id, val) => {
+    if ($(id)) $(id).checked = val;
+  };
+  setChk("#posGlobalOn", s.on !== false);
+  setChk("#posSysIban", s.payIban !== false);
+  setChk("#posSysCard", s.payCard !== false);
+  setChk("#posSysShop", s.payShop !== false);
+  setChk("#posSysWithdraw", s.payWithdraw !== false);
+  setChk("#posSysGkPos", s.payGkPos !== false);
+  const pays = posPays();
+  const n = (fn) => pays.filter(fn).length;
+  const row = (name, on, extra) =>
+    `<article class="note"><header><strong>${escapeHtml(name)}</strong><time>${on ? "Açık" : "Kapalı"}</time></header><p>${escapeHtml(extra)}</p></article>`;
+  const g = posGateway();
+  const integ = gkIntegrations();
+  if ($("#posSysStatus")) {
+    $("#posSysStatus").innerHTML = [
+      row("Sanal POS genel", s.on !== false, pays.length + " toplam işlem · %0,95 komisyon"),
+      row("IBAN ile ödeme", posPayOn("iban"), n((p) => p.method === "iban") + " işlem"),
+      row("Kredi kartı", posPayOn("card"), n((p) => p.method === "card") + " işlem"),
+      row("Siteden ürün ödemesi", posPayOn("shop"), n((p) => String(p.detail || "").startsWith("Ürün")) + " işlem"),
+      row("Para çek", posPayOn("withdraw") && s.withdrawShow, n((p) => p.method === "withdraw") + " işlem"),
+      row(
+        "Ürün POS entegrasyonu",
+        posPayOn("gkpos") && Boolean(integ.pos?.active),
+        (integ.pos?.provider || "demo") + " · " + (g.apiKey ? g.apiKey.slice(0, 11) + "…" : "anahtar yok")
+      ),
+    ].join("");
+  }
+}
+
+function posPatchSettings(patch) {
+  store.set(POS_SETTINGS, { on: true, withdrawShow: false, ...posSettings(), ...patch });
+}
+
+function posSyncWithdrawUi() {
+  const show = posIsAdmin() && posSettings().withdrawShow === true;
+  const card = $("#posWithdrawCard");
+  const btn = $("#posWithdrawToggle");
+  if (card) card.hidden = !show;
+  if (btn) {
+    btn.hidden = !posIsAdmin();
+    btn.textContent = show ? "Para çek alanını gizle" : "Para çek alanını göster";
+    btn.setAttribute("aria-pressed", String(show));
+  }
+  if ($("#posWithdrawTarget")) $("#posWithdrawTarget").value = POS_SETTLE.ibanMasked;
+  if ($("#posSettleIban")) $("#posSettleIban").value = POS_SETTLE.ibanMasked;
 }
 
 function posMsg(text) {
@@ -3247,6 +4458,19 @@ function posFillRemember() {
   if ($("#posRegRemember")) $("#posRegRemember").checked = true;
 }
 
+function posAdminPinValue() {
+  const saved = store.get(POS_ADMIN_PIN_STORE, "");
+  return saved || POS_ADMIN_PIN;
+}
+
+function posFillAdminRemember() {
+  const saved = store.get(POS_ADMIN_REMEMBER, null);
+  const remember = Boolean(saved?.remember);
+  if ($("#posAdminRemember")) $("#posAdminRemember").checked = saved ? remember : true;
+  if (remember && saved?.user && $("#posAdminUser")) $("#posAdminUser").value = saved.user;
+  if (remember && saved?.pin && $("#posAdminPin")) $("#posAdminPin").value = saved.pin;
+}
+
 function posSession() {
   return store.get(POS_SESSION, null);
 }
@@ -3267,6 +4491,96 @@ function posMakeKeys() {
     apiKey: "pk_live_" + raw.slice(0, 24),
     secretKey: "sk_live_" + raw.slice(24, 56),
   };
+}
+
+function posGateway() {
+  return store.get(POS_GATEWAY, { apiKey: "", secretKey: "" }) || { apiKey: "", secretKey: "" };
+}
+
+function posSaveGateway(next) {
+  store.set(POS_GATEWAY, next);
+  posWriteKeysToPay();
+  posFillKeyInputs();
+  return next;
+}
+
+function posWriteKeysToPay() {
+  const g = posGateway();
+  const integ = gkIntegrations();
+  integ.pos = {
+    provider: integ.pos?.provider || "demo",
+    merchant: integ.pos?.merchant || "HarbiGrup",
+    key: g.apiKey || integ.pos?.key || "",
+    secret: g.secretKey || integ.pos?.secret || "",
+    active: Boolean(g.apiKey && g.secretKey) && posPayOn("gkpos") && posPayOn("shop"),
+    settleIban: POS_SETTLE.iban,
+  };
+  store.set(GK_INTEG, integ);
+}
+
+function posFillKeyInputs() {
+  const g = posGateway();
+  [
+    ["#posGateApi", g.apiKey],
+    ["#posPayApiKey", g.apiKey],
+    ["#posCardApiKey", g.apiKey],
+    ["#gkPosKey", g.apiKey],
+  ].forEach(([sel, val]) => {
+    if ($(sel) && val) $(sel).value = val;
+  });
+  [
+    ["#posGateSecret", g.secretKey],
+    ["#posPaySecret", g.secretKey],
+    ["#posCardSecret", g.secretKey],
+    ["#gkPosSecret", g.secretKey],
+  ].forEach(([sel, val]) => {
+    if ($(sel) && val) $(sel).value = val;
+  });
+  if ($("#gkPosOn") && g.apiKey && g.secretKey) $("#gkPosOn").checked = true;
+  if ($("#gkPosMerchant") && !($("#gkPosMerchant").value || "").trim()) $("#gkPosMerchant").value = "HarbiGrup";
+}
+
+function posCreateApiKey() {
+  const g = posGateway();
+  if (g.apiKey) {
+    posWriteKeysToPay();
+    posFillKeyInputs();
+    posMsg("API anahtarı aynı kaldı ve ödeme sistemine yazıldı.");
+    return g;
+  }
+  const made = posMakeKeys();
+  g.apiKey = made.apiKey;
+  posSaveGateway(g);
+  posMsg("API anahtarı oluşturuldu ve ödeme sistemine yazıldı.");
+  return g;
+}
+
+function posCreateSecretKey() {
+  const g = posGateway();
+  if (g.secretKey) {
+    posWriteKeysToPay();
+    posFillKeyInputs();
+    posMsg("Gizli anahtar aynı kaldı ve ödeme sistemine yazıldı.");
+    return g;
+  }
+  const made = posMakeKeys();
+  g.secretKey = made.secretKey;
+  posSaveGateway(g);
+  posMsg("Gizli anahtar oluşturuldu ve ödeme sistemine yazıldı.");
+  return g;
+}
+
+function posEnsureGateway() {
+  const g = posGateway();
+  if (!g.apiKey || !g.secretKey) {
+    const made = posMakeKeys();
+    if (!g.apiKey) g.apiKey = made.apiKey;
+    if (!g.secretKey) g.secretKey = made.secretKey;
+    posSaveGateway(g);
+  } else {
+    posWriteKeysToPay();
+    posFillKeyInputs();
+  }
 }
 
 function posReadDoc(input) {
@@ -3300,7 +4614,7 @@ function posRenderDesk() {
   $("#posDeskTab").hidden = !member;
   if (!member) {
     $("#posHello").textContent = "";
-    ["posWaitCard", "posRejectCard", "posHoldCard", "posKeysCard", "posChargeCard"].forEach((id) => {
+    ["posWaitCard", "posRejectCard", "posHoldCard", "posKeysCard", "posChargeWrap"].forEach((id) => {
       $("#" + id).hidden = true;
     });
     return;
@@ -3314,7 +4628,9 @@ function posRenderDesk() {
   $("#posRejectReason").textContent = member.rejectReason || "Başvurunuz reddedildi.";
   $("#posHoldCard").hidden = member.status !== "held";
   $("#posKeysCard").hidden = !active || !member.apiKey;
-  $("#posChargeCard").hidden = !active || !posSettings().on;
+  $("#posChargeWrap").hidden = !active || !posSettings().on;
+  if ($("#posIbanCard")) $("#posIbanCard").hidden = !active || !posPayOn("iban");
+  if ($("#posCardCard")) $("#posCardCard").hidden = !active || !posPayOn("card");
   if (active && member.apiKey) {
     $("#posApiKey").value = member.apiKey;
     $("#posSecretKey").value = member.secretKey;
@@ -3324,23 +4640,17 @@ function posRenderDesk() {
     $("#posApiKey").value = "";
     $("#posSecretKey").value = "";
   }
+  posFillKeyInputs();
   const mine = posPays().filter((p) => p.phone === member.phone);
   $("#posPayList").innerHTML = mine.length
-    ? mine
-        .slice()
-        .reverse()
-        .map(
-          (p) =>
-            `<article class="note"><header><strong>${escapeHtml(formatTry(p.amount))}</strong><time>${escapeHtml(
-              new Date(p.at).toLocaleString("tr-TR")
-            )}</time></header><p>${escapeHtml(p.note || "Tahsilat")}</p></article>`
-        )
-        .join("")
+    ? mine.slice().reverse().map(posPayLine).join("")
     : "<p class='hint'>Henüz tahsilat yok.</p>";
 }
 
 function posRenderAdmin() {
-  $("#posGlobalOn").checked = posSettings().on !== false;
+  posFillKeyInputs();
+  posRenderPaySystems();
+  posSyncWithdrawUi();
   const list = posMembers().slice().reverse();
   $("#posAdminMembers").innerHTML = list.length
     ? list
@@ -3375,14 +4685,7 @@ function posRenderAdmin() {
     : "<p class='hint'>Başvuru yok.</p>";
   const pays = posPays().slice().reverse();
   $("#posAdminPays").innerHTML = pays.length
-    ? pays
-        .map(
-          (p) =>
-            `<article class="note"><header><strong>${escapeHtml(formatTry(p.amount))}</strong><time>${escapeHtml(
-              new Date(p.at).toLocaleString("tr-TR")
-            )}</time></header><p>${escapeHtml(p.name)} · ${escapeHtml(p.phone)} · ${escapeHtml(p.note || "Tahsilat")}</p></article>`
-        )
-        .join("")
+    ? pays.map((p) => posPayLine(p, `${p.name || "—"} · ${p.phone || "—"}`)).join("")
     : "<p class='hint'>Tahsilat yok.</p>";
 }
 
@@ -3391,6 +4694,7 @@ function renderPos() {
   const admin = posIsAdmin();
   $("#posDeskTab").hidden = !member;
   posFillRemember();
+  posFillAdminRemember();
   if (admin) {
     posRenderAdmin();
     posShow("posAdminPanel");
@@ -3423,7 +4727,10 @@ $$("[data-pos-tab]").forEach((btn) => {
       if (posIsAdmin()) {
         posRenderAdmin();
         posShow("posAdminPanel");
-      } else posShow("posAdminLogin");
+      } else {
+        posFillAdminRemember();
+        posShow("posAdminLogin");
+      }
     }
   });
 });
@@ -3567,57 +4874,245 @@ $("#posSecretToggle").addEventListener("click", () => {
   $("#posSecretToggle").textContent = show ? "Gizli anahtarı gizle" : "Gizli anahtarı göster";
 });
 
-$("#posChargeForm").addEventListener("submit", (event) => {
+function posToggleSecret(inputSel, btnSel, adminOnly) {
+  if (adminOnly && !posIsAdmin()) return;
+  const input = $(inputSel);
+  const btn = $(btnSel);
+  if (!input || !btn) return;
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  btn.textContent = show ? "Gizli anahtarı gizle" : "Gizli anahtarı göster";
+  btn.setAttribute("aria-pressed", String(show));
+}
+
+$("#posGateSecretToggle").addEventListener("click", () => posToggleSecret("#posGateSecret", "#posGateSecretToggle", true));
+$("#posPaySecretToggle").addEventListener("click", () => posToggleSecret("#posPaySecret", "#posPaySecretToggle", false));
+$("#gkPosSecretToggle").addEventListener("click", () => {
+  if (!gkIsAdmin()) return;
+  posToggleSecret("#gkPosSecret", "#gkPosSecretToggle", false);
+});
+
+$("#posCopyIban").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(POS_SETTLE.ibanMasked);
+    posMsg("IBAN kopyalandı.");
+  } catch {
+    posMsg(POS_SETTLE.ibanMasked);
+  }
+});
+
+$("#posIbanForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  const member = posMember();
-  if (!member || member.status !== "active") {
-    posMsg("Yalnızca onaylı üyeler POS kullanabilir.");
+  const from = posFormatIban($("#posIbanFrom").value);
+  if (!posIbanOk(from)) {
+    posMsg("Geçerli bir TR IBAN girin.");
     return;
   }
-  if (!posSettings().on) {
-    posMsg("Sanal POS sistemi kapalı.");
+  const payer = $("#posIbanPayer").value.trim();
+  const ok = posRecordPay({
+    amount: parseMoney($("#posIbanAmount").value),
+    method: "iban",
+    note: $("#posIbanNote").value.trim(),
+    detail: payer + " · " + from + " → " + POS_SETTLE.ibanMasked,
+  });
+  if (ok) $("#posIbanForm").reset();
+});
+
+$("#posCardNumber").addEventListener("input", () => {
+  const num = $("#posCardNumber").value.replace(/\D/g, "");
+  const brand = posCardBrandFromNumber(num);
+  if (brand && [...$("#posCardBrand").options].some((o) => o.value === brand)) {
+    $("#posCardBrand").value = brand;
+  }
+});
+
+$("#posCardExp").addEventListener("input", () => {
+  let v = $("#posCardExp").value.replace(/\D/g, "").slice(0, 4);
+  if (v.length >= 3) v = v.slice(0, 2) + "/" + v.slice(2);
+  $("#posCardExp").value = v;
+});
+
+$("#posCardForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const num = $("#posCardNumber").value.replace(/\D/g, "");
+  const exp = $("#posCardExp").value.trim();
+  const cvc = $("#posCardCvc").value.replace(/\D/g, "");
+  const brand = $("#posCardBrand").value;
+  if (num.length < 13 || num.length > 19) {
+    posMsg("Geçerli kart numarası girin.");
     return;
   }
-  const amount = parseMoney($("#posChargeAmount").value);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    posMsg("Geçerli tutar girin.");
+  if (!/^\d{2}\/\d{2}$/.test(exp)) {
+    posMsg("Son kullanma AA/YY olsun.");
     return;
   }
-  const pay = {
-    id: "pay_" + Date.now(),
-    phone: member.phone,
-    name: member.name,
-    amount,
-    note: $("#posChargeNote").value.trim(),
-    at: Date.now(),
-  };
-  store.set(POS_PAYS, posPays().concat(pay));
-  $("#posChargeForm").reset();
-  posMsg("Tahsilat alındı.");
-  posRenderDesk();
+  if (cvc.length < 3) {
+    posMsg("CVC girin.");
+    return;
+  }
+  const last4 = num.slice(-4);
+  const ok = posRecordPay({
+    amount: parseMoney($("#posCardAmount").value),
+    method: "card",
+    note: $("#posCardNote").value.trim(),
+    detail: brand + " · **** " + last4 + " · " + $("#posCardName").value.trim(),
+  });
+  if (ok) {
+    $("#posCardForm").reset();
+    $("#posCardCvc").value = "";
+    $("#posCardNumber").value = "";
+  }
 });
 
 $("#posAdminForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  if ($("#posAdminUser").value.trim() !== POS_ADMIN_USER || $("#posAdminPin").value !== POS_ADMIN_PIN) {
+  const user = $("#posAdminUser").value.trim();
+  const pin = $("#posAdminPin").value;
+  if (user !== POS_ADMIN_USER || pin !== posAdminPinValue()) {
     posMsg("Süper admin bilgileri hatalı.");
     return;
   }
+  const remember = $("#posAdminRemember").checked;
   store.set(POS_ADMIN_ON, true);
+  store.set(POS_ADMIN_REMEMBER, remember ? { remember: true, user, pin } : { remember: false });
   posMsg("");
   posRenderAdmin();
   posShow("posAdminPanel");
 });
 
+$("#posAdminShowPin").addEventListener("click", () => {
+  posTogglePins(["#posAdminPin"], $("#posAdminShowPin"));
+  const shown = $("#posAdminPin").type === "text";
+  $("#posAdminShowPin").textContent = shown ? "Şifreyi gizle" : "Şifreyi göster";
+});
+
+$("#posAdminForgotOpen").addEventListener("click", () => {
+  $("#posAdminForgot").hidden = false;
+  $("#posAdminForgotUser").value = $("#posAdminUser").value;
+});
+
+$("#posAdminForgotCancel").addEventListener("click", () => {
+  $("#posAdminForgot").hidden = true;
+});
+
+$("#posAdminForgotShowPin").addEventListener("click", () => {
+  posTogglePins(["#posAdminForgotPin", "#posAdminForgotPin2"], $("#posAdminForgotShowPin"));
+});
+
+$("#posAdminForgot").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const user = $("#posAdminForgotUser").value.trim();
+  const pin = $("#posAdminForgotPin").value;
+  const pin2 = $("#posAdminForgotPin2").value;
+  if (!user || !pin || !pin2) {
+    posMsg("Tüm alanlar zorunludur.");
+    return;
+  }
+  if (user !== POS_ADMIN_USER) {
+    posMsg("Kullanıcı adı eşleşmedi.");
+    return;
+  }
+  if (pin !== pin2) {
+    posMsg("Şifreler aynı olmalı.");
+    return;
+  }
+  store.set(POS_ADMIN_PIN_STORE, pin);
+  const remember = $("#posAdminRemember")?.checked !== false;
+  store.set(POS_ADMIN_REMEMBER, remember ? { remember: true, user, pin } : { remember: false });
+  $("#posAdminForgot").reset();
+  $("#posAdminForgot").hidden = true;
+  $("#posAdminUser").value = user;
+  $("#posAdminPin").value = remember ? pin : "";
+  posMsg("Süper admin şifresi güncellendi. Giriş yapın.");
+});
+
 $("#posAdminLogout").addEventListener("click", () => {
   store.set(POS_ADMIN_ON, false);
+  posFillAdminRemember();
+  posSyncWithdrawUi();
   posShow("posAdminLogin");
 });
 
-$("#posGlobalSave").addEventListener("click", () => {
-  if (!posIsAdmin()) return;
-  store.set(POS_SETTINGS, { on: $("#posGlobalOn").checked });
-  posMsg("Sistem komutu kaydedildi.");
+$("#posCreateApi").addEventListener("click", () => posCreateApiKey());
+$("#posCreateSecret").addEventListener("click", () => posCreateSecretKey());
+$("#posCreateApiDesk").addEventListener("click", () => posCreateApiKey());
+$("#posCreateSecretDesk").addEventListener("click", () => posCreateSecretKey());
+
+$("#posSysForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  posApplySysFromForm();
+});
+$("#posGlobalSave").addEventListener("click", (event) => {
+  event.preventDefault();
+  posApplySysFromForm();
+});
+$("#posSysAllOn").addEventListener("click", () => posApplySysFromForm(true));
+$("#posSysAllOff").addEventListener("click", () => posApplySysFromForm(false));
+
+$("#posWithdrawToggle").addEventListener("click", () => {
+  if (!posIsAdmin()) {
+    posMsg("Bu komut yalnızca süper adminde.");
+    posSyncWithdrawUi();
+    return;
+  }
+  const next = posSettings().withdrawShow !== true;
+  posPatchSettings({ withdrawShow: next });
+  posSyncWithdrawUi();
+  posMsg(next ? "Para çek alanı gösterildi." : "Para çek alanı gizlendi.");
+});
+
+$("#posWithdrawForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!posIsAdmin()) {
+    posMsg("Para çek yalnızca süper adminde.");
+    posSyncWithdrawUi();
+    return;
+  }
+  if (posSettings().withdrawShow !== true) {
+    posMsg("Para çek alanı gizli. Önce göster komutunu kullanın.");
+    return;
+  }
+  if (!posPayOn("withdraw")) {
+    posMsg("Para çek sistemi süper admin tarafından kapatıldı.");
+    return;
+  }
+  const owner = $("#posWithdrawName").value.trim();
+  const from = posFormatIban($("#posWithdrawIban").value);
+  const amount = parseMoney($("#posWithdrawAmount").value);
+  if (!owner) {
+    posMsg("Hesap sahibinin adını yazın.");
+    return;
+  }
+  if (!posIbanOk(from)) {
+    posMsg("Geçerli bir kaynak TR IBAN girin.");
+    return;
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    posMsg("Geçerli tutar girin.");
+    return;
+  }
+  const fee = posFee(amount);
+  const pay = {
+    id: "pay_" + Date.now(),
+    phone: "admin",
+    name: owner,
+    amount: fee.gross,
+    commission: fee.commission,
+    net: fee.net,
+    feeRate: POS_FEE_RATE,
+    note: $("#posWithdrawNote").value.trim(),
+    method: "withdraw",
+    detail: owner + " · " + from + " → " + POS_SETTLE.ibanMasked,
+    settleName: POS_SETTLE.name,
+    settleBranch: POS_SETTLE.branch,
+    settleIban: POS_SETTLE.iban,
+    at: Date.now(),
+  };
+  store.set(POS_PAYS, posPays().concat(pay));
+  $("#posWithdrawForm").reset();
+  $("#posWithdrawTarget").value = POS_SETTLE.ibanMasked;
+  posMsg(formatTry(amount) + " " + from + " hesabından Tolkan Uğur IBAN’ına çekildi.");
+  posRenderAdmin();
 });
 
 $("#posAdminMembers").addEventListener("click", (event) => {
@@ -3667,6 +5162,7 @@ $("#posAdminMembers").addEventListener("click", (event) => {
 resumeRestoreCam();
 resumeRestoreFields();
 renderGallery();
+posEnsureGateway();
 renderNotes();
 renderHygiene();
 renderNfc();
