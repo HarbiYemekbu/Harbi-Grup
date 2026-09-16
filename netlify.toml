@@ -1,0 +1,17 @@
+[[redirects]]
+  from = "https://tolkanugur.com/*"
+  to = "https://www.tolkanugur.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://tolkanugur.com/*"
+  to = "https://www.tolkanugur.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.tolkanugur.com/*"
+  to = "https://www.tolkanugur.com/:splat"
+  status = 301
+  force = true

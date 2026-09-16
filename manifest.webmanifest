@@ -1,10 +1,10 @@
 {
-  "id": "./",
+  "id": "https://www.tolkanugur.com/",
   "name": "Harbi Grup",
   "short_name": "Harbi Grup",
   "description": "Kamera, not defteri, NFC kontrol ve sanal santral",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "https://www.tolkanugur.com/",
+  "scope": "https://www.tolkanugur.com/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",

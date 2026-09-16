@@ -9,6 +9,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PORT = int(__import__("os").environ.get("PORT", "4173"))
+CANONICAL_HOST = "www.tolkanugur.com"
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def _hostname(host_header: str) -> str:
+    host = (host_header or "").split(",")[0].strip().lower()
+    if host.startswith("["):
+        end = host.find("]")
+        return host[: end + 1] if end != -1 else host
+    return host.split(":")[0]
+
+
+def _is_local_host(host: str) -> bool:
+    if host in LOCAL_HOSTS or host.endswith(".local"):
+        return True
+    parts = host.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        a, b = int(parts[0]), int(parts[1])
+        return a == 10 or a == 127 or (a == 192 and b == 168) or (a == 172 and 16 <= b <= 31)
+    return False
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -30,6 +50,26 @@ class Handler(SimpleHTTPRequestHandler):
         ".html": "text/html; charset=utf-8",
         ".woff2": "font/woff2",
     }
+
+    def _redirect_canonical(self) -> bool:
+        host = _hostname(self.headers.get("Host", ""))
+        if _is_local_host(host) or host == CANONICAL_HOST:
+            return False
+        self.send_response(301)
+        self.send_header("Location", f"https://{CANONICAL_HOST}{self.path}")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        return True
+
+    def do_GET(self):
+        if self._redirect_canonical():
+            return
+        super().do_GET()
+
+    def do_HEAD(self):
+        if self._redirect_canonical():
+            return
+        super().do_HEAD()
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")

@@ -1,0 +1,4 @@
+RewriteEngine On
+RewriteCond %{HTTPS} off [OR]
+RewriteCond %{HTTP_HOST} !^www\.tolkanugur\.com$ [NC]
+RewriteRule ^ https://www.tolkanugur.com%{REQUEST_URI} [L,R=301]
