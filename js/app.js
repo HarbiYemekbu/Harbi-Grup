@@ -1666,8 +1666,9 @@ async function pbxRtcPost(body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("sinyal");
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) throw new Error("sinyal");
+  return data;
 }
 
 function pbxRtcDesc(desc) {
@@ -1776,7 +1777,9 @@ async function pbxRtcMakePc(remotePeer) {
   pbxRtcHangup(true);
   pbxRtc.offer = keepOffer;
   const stream = await pbxRtcMic();
-  const pc = new RTCPeerConnection({ iceServers: [] });
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  });
   pbxRtc.pc = pc;
   pbxRtc.remote = remotePeer;
   stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -2231,12 +2234,7 @@ $("#pbxGreetForm").addEventListener("submit", (event) => {
     org.inbound = PBX_RETIRED_LINES.includes(line) ? "" : line;
   });
   pbxAuthMsg("");
-  $("#pbxCompanyMeta").textContent = [pbxCurrent()?.city, PBX_RETIRED_LINES.includes(pbxDigits(pbxCurrent()?.phone)) ? "" : pbxCurrent()?.phone].filter(Boolean).join(" · ");
-  if ($("#pbxLineHint")) {
-    $("#pbxLineHint").textContent = pbxInboundLine()
-      ? `${pbxLineLabel()} arandığında yapay zeka karşılama metnini okur. Dahili tuşlanınca hat cevap verene kadar müzik çalar.`
-      : "Santral hattı kaldırıldı. Yeni numarayı yazıp kaydedin.";
-  }
+  renderPbx();
 });
 
 $("#pbxGreetListen").addEventListener("click", () => {
