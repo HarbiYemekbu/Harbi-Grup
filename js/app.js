@@ -47,7 +47,7 @@ function resumeSaveFields() {
     state.fields = {};
     $$("#views input, #views textarea, #views select").forEach((el) => {
       if (!el.id || el.type === "password" || el.type === "file") return;
-      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey") return;
+      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey" || el.id === "eimzaCardNumber" || el.id === "eimzaCardCvc" || el.id === "eimzaHavaleIban") return;
       state.fields[el.id] = el.type === "checkbox" ? el.checked : el.value;
     });
     if ($("#nfcResult")) state.nfcResult = $("#nfcResult").textContent || "";
@@ -159,6 +159,7 @@ function showView(name) {
   else startCamera();
   if (name === "women") renderGk();
   if (name === "pos") renderPos();
+  if (name === "eimza") renderEimza();
   resumeSaveView(name);
   resumeRestoreScroll(name);
 }
@@ -230,7 +231,7 @@ confirmInstall.addEventListener("click", async () => {
 });
 
 let stream = null;
-let facingMode = "environment";
+let facingMode = "user";
 let zoomLevel = 0.5;
 let nativeZoomMax = 1;
 let torchOn = false;
@@ -245,11 +246,11 @@ function resumeSaveCam() {
 function resumeRestoreCam() {
   const cam = resumeGet().cam || {};
   if (cam.mode) camMode = cam.mode;
-  if (cam.facing) facingMode = cam.facing;
-  if (Number.isFinite(Number(cam.zoom))) zoomLevel = Number(cam.zoom);
+  facingMode = "user";
+  zoomLevel = minZoom();
   if (cam.flash) flashMode = cam.flash;
-  $("#switchCamera")?.classList.toggle("front", facingMode === "user");
-  cameraFrame?.classList.toggle("front-cam", facingMode === "user");
+  camApplyFacingUi();
+  camSyncModeChrome(camMode);
 }
 let recorder = null;
 let recording = false;
@@ -377,17 +378,13 @@ function isoBrightness() {
 }
 
 function previewFlipX() {
-  return facingMode === "user" ? 1 : -1;
+  return -1;
 }
 
 function applyPreviewZoom() {
   const z = sensorCrop();
-  if (facingMode === "user") {
-    video.style.transform = `scale(${z}) matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0.0036, 0,0,0,1)`;
-  } else {
-    video.style.transform = `scale(${previewFlipX() * z}, ${z})`;
-  }
-  video.style.filter = `brightness(${isoBrightness()})`;
+  video.style.transform = `scale(${z}) perspective(420px) rotateY(180deg)`;
+  video.style.filter = camMode === "cinema" ? "none" : `brightness(${isoBrightness()})`;
 }
 
 function drawCameraVideo(ctx, sx, sy, sw, sh, dw, dh) {
@@ -463,40 +460,115 @@ async function setZoom(value) {
 
 let camStartSeq = 0;
 
+async function camVideoInputs() {
+  try {
+    return (await navigator.mediaDevices.enumerateDevices()).filter((item) => item.kind === "videoinput");
+  } catch (_) {
+    return [];
+  }
+}
+
+function camIsFrontLabel(label) {
+  return /front|user|ön|selfie|facetime|isight/i.test(label || "") && !/back|rear|arka/i.test(label || "");
+}
+
+function camIsBackLabel(label) {
+  return /back|rear|environment|arka/i.test(label || "");
+}
+
+async function camPickDeviceId(wantFront) {
+  const cams = await camVideoInputs();
+  if (!cams.length) return "";
+  if (wantFront) {
+    return cams.find((item) => camIsFrontLabel(item.label))?.deviceId || cams[0].deviceId || "";
+  }
+  const backs = cams.filter((item) => camIsBackLabel(item.label));
+  const main =
+    backs.find((item) => /back camera|arka kamera/i.test(item.label) && !/ultra|tele|wide|ultra-wide/i.test(item.label)) ||
+    backs.find((item) => /back camera|arka kamera/i.test(item.label)) ||
+    backs[0];
+  if (main?.deviceId) return main.deviceId;
+  const notFront = cams.find((item) => !camIsFrontLabel(item.label));
+  if (notFront?.deviceId && cams.length > 1) return notFront.deviceId;
+  if (cams.length > 1) return cams[1].deviceId;
+  return "";
+}
+
+function camTrackLooksFront(track) {
+  if (!track) return false;
+  const mode = track.getSettings?.().facingMode;
+  if (mode === "user") return true;
+  if (mode === "environment") return false;
+  const label = String(track.label || "");
+  if (camIsBackLabel(label)) return false;
+  return camIsFrontLabel(label);
+}
+
+function camApplyFacingUi() {
+  $("#switchCamera")?.classList.toggle("front", facingMode === "user");
+  cameraFrame?.classList.toggle("front-cam", facingMode === "user");
+  if ($("#camFacingLabel")) $("#camFacingLabel").textContent = facingMode === "user" ? "ön" : "arka";
+  if ($("#switchCamera")) {
+    $("#switchCamera").setAttribute("aria-label", facingMode === "user" ? "Ön kamera" : "Arka kamera");
+  }
+  syncCaptureMp();
+  applyPreviewZoom();
+}
+
+function camAdoptOpenedTrack(requested) {
+  const track = videoTrack();
+  const mode = track?.getSettings?.().facingMode;
+  if (mode === "environment" || mode === "user") facingMode = mode;
+  else if (camTrackLooksFront(track)) facingMode = "user";
+  else if (camIsBackLabel(track?.label || "")) facingMode = "environment";
+  else if (requested) facingMode = requested;
+  camApplyFacingUi();
+}
+
+async function camGetStream(wantFront) {
+  const audio = needsAudio() ? iphoneAudioConstraints() : false;
+  const deviceId = await camPickDeviceId(wantFront);
+  const facing = wantFront ? "user" : "environment";
+  const tries = [];
+  if (deviceId) tries.push({ audio, video: { deviceId: { exact: deviceId } } });
+  tries.push({ audio, video: { facingMode: { exact: facing } } });
+  tries.push({ audio, video: { facingMode: { ideal: facing } } });
+  tries.push({ audio: Boolean(audio), video: { facingMode: facing } });
+  let lastErr = null;
+  for (const spec of tries) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(spec);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("kamera");
+}
+
 async function startCamera({ preserve = false } = {}) {
   const seq = ++camStartSeq;
   const keepZoom = zoomLevel;
   const keepIso = isoLevel;
+  const requested = facingMode === "environment" ? "environment" : "user";
   stopCamera();
   syncCaptureMp();
   if (!preserve) cameraStatus.textContent = "İzin bekleniyor...";
   nativeZoomMax = 1;
+  await new Promise((done) => setTimeout(done, 160));
+  if (seq !== camStartSeq) return;
   try {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: needsAudio() ? iphoneAudioConstraints() : false,
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 3840 },
-          height: { ideal: 2880 },
-        },
-      });
-    } catch {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: needsAudio(),
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 3840 },
-            height: { ideal: 2880 },
-          },
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: needsAudio(),
-          video: { facingMode: { ideal: facingMode } },
-        });
-      }
+    stream = await camGetStream(requested === "user");
+    if (seq !== camStartSeq) {
+      stream.getTracks().forEach((track) => track.stop());
+      stream = null;
+      return;
+    }
+    if (requested === "environment" && camTrackLooksFront(videoTrack())) {
+      stream.getTracks().forEach((track) => track.stop());
+      stream = null;
+      await new Promise((done) => setTimeout(done, 160));
+      if (seq !== camStartSeq) return;
+      stream = await camGetStream(false);
     }
     if (seq !== camStartSeq) {
       stream.getTracks().forEach((track) => track.stop());
@@ -506,12 +578,14 @@ async function startCamera({ preserve = false } = {}) {
     const track = videoTrack();
     const caps = track?.getCapabilities?.() || {};
     nativeZoomMax = caps.zoom?.max || 1;
-    await track
-      ?.applyConstraints({
-        width: { ideal: Math.min(8064, caps.width?.max || 3840) },
-        height: { ideal: Math.min(6048, caps.height?.max || 2880) },
-      })
-      .catch(() => {});
+    if (requested === "environment") {
+      await track
+        ?.applyConstraints({
+          width: { ideal: Math.min(8064, caps.width?.max || 3840) },
+          height: { ideal: Math.min(6048, caps.height?.max || 2880) },
+        })
+        .catch(() => {});
+    }
     if (needsAudio()) await applyIphoneAudio(stream);
     video.setAttribute("playsinline", "true");
     video.setAttribute("webkit-playsinline", "true");
@@ -519,6 +593,7 @@ async function startCamera({ preserve = false } = {}) {
     video.srcObject = stream;
     await video.play().catch(() => {});
     if (seq !== camStartSeq) return;
+    camAdoptOpenedTrack(requested);
     if (preserve) {
       zoomLevel = keepZoom;
       isoLevel = keepIso;
@@ -557,7 +632,7 @@ function drawRecFrame() {
     const ctx = recCanvas.getContext("2d", { alpha: false });
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.filter = video.style.filter || "none";
+    ctx.filter = camMode === "cinema" ? "none" : video.style.filter || "none";
     drawCameraVideo(ctx, crop.sx, crop.sy, crop.sw, crop.sh, recCanvas.width, recCanvas.height);
   }
   recRaf = requestAnimationFrame(drawRecFrame);
@@ -574,8 +649,15 @@ function stopCamera() {
   }
   recording = false;
   $("#capturePhoto")?.classList.remove("recording");
-  stream?.getTracks().forEach((track) => track.stop());
+  stream?.getTracks().forEach((track) => {
+    try {
+      track.stop();
+    } catch (_) {}
+  });
   stream = null;
+  try {
+    video.pause();
+  } catch (_) {}
   video.srcObject = null;
   video.style.transform = "none";
   torchOn = false;
@@ -612,9 +694,7 @@ function outputSize() {
 $("#switchCamera").addEventListener("click", (event) => {
   event.stopPropagation();
   facingMode = facingMode === "environment" ? "user" : "environment";
-  $("#switchCamera").classList.toggle("front", facingMode === "user");
-  cameraFrame.classList.toggle("front-cam", facingMode === "user");
-  syncCaptureMp();
+  camApplyFacingUi();
   resumeSaveCam();
   startCamera();
 });
@@ -667,6 +747,13 @@ async function syncModeStream() {
   return false;
 }
 
+function camSyncModeChrome(mode) {
+  cameraFrame.classList.toggle("portrait-mode", mode === "portrait");
+  if ($("#cinemaMask")) $("#cinemaMask").hidden = true;
+  if ($("#isoRail")) $("#isoRail").hidden = mode === "cinema";
+  if ($("#zoomBar")) $("#zoomBar").hidden = mode === "cinema";
+}
+
 async function setCamMode(mode, fromScroll = false) {
   if (!fromScroll) {
     ignoreModeScroll = true;
@@ -682,8 +769,8 @@ async function setCamMode(mode, fromScroll = false) {
     el.classList.toggle("active", el.dataset.mode === mode);
   });
   if (!fromScroll) centerModeBtn(mode);
-  cameraFrame.classList.toggle("portrait-mode", mode === "portrait" || mode === "cinema");
-  $("#cinemaMask").hidden = mode !== "cinema";
+  camSyncModeChrome(mode);
+  applyPreviewZoom();
   const rec = needsAudio();
   $("#capturePhoto").classList.toggle("video-shutter", rec);
   $("#capturePhoto").classList.toggle("recording", rec && recording);
@@ -932,7 +1019,7 @@ $("#capturePhoto").addEventListener("click", async () => {
   const ctx = canvas.getContext("2d", { alpha: false });
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  if (camMode === "portrait" || camMode === "cinema") {
+  if (camMode === "portrait") {
     ctx.filter = "blur(18px) saturate(1.05)";
     drawCameraVideo(ctx, crop.sx, crop.sy, crop.sw, crop.sh, outW, outH);
     ctx.filter = styleFilter();
@@ -4687,6 +4774,328 @@ function posRenderAdmin() {
     : "<p class='hint'>Tahsilat yok.</p>";
 }
 
+function eimzaProductLabel(value) {
+  if (value === "eimza-1y") return "1 Yıllık E-İmza";
+  if (value === "eimza-3y") return "3 Yıllık E-İmza";
+  if (value === "muhur") return "Mali Mühür";
+  return "E-İmza";
+}
+
+function eimzaPayLabel(method) {
+  if (method === "havale") return "Havale";
+  if (method === "card") return "Kredi kartı";
+  if (method === "iban") return "IBAN";
+  return method || "Ödeme";
+}
+
+function eimzaPrices() {
+  return store.get("eimza-prices", {});
+}
+
+function eimzaCartItems() {
+  return store.get("eimza-cart", []);
+}
+
+function eimzaSetCart(items) {
+  store.set("eimza-cart", items);
+  eimzaRenderCartBadge();
+}
+
+function eimzaCartCount() {
+  return eimzaCartItems().reduce((n, item) => n + Math.max(1, Number(item.qty) || 1), 0);
+}
+
+function eimzaRenderCartBadge() {
+  const btn = $("#eimzaCartTabBtn");
+  if (!btn) return;
+  const n = eimzaCartCount();
+  btn.textContent = n ? `Alışveriş Sepeti (${n})` : "Alışveriş Sepeti";
+}
+
+function eimzaMsg(text) {
+  if ($("#eimzaMsg")) $("#eimzaMsg").textContent = text || "";
+}
+
+function eimzaShow(tab) {
+  if ($("#eimzaShop")) $("#eimzaShop").hidden = tab !== "shop";
+  if ($("#eimzaCart")) $("#eimzaCart").hidden = tab !== "cart";
+  $$("[data-eimza-tab]").forEach((btn) => {
+    const on = btn.dataset.eimzaTab === tab;
+    btn.classList.toggle("gold", on);
+    btn.classList.toggle("secondary", !on);
+  });
+  if (tab === "cart") renderEimzaCart();
+}
+
+function eimzaFillPrices() {
+  const prices = eimzaPrices();
+  $$("[data-eimza-id]").forEach((card) => {
+    const input = card.querySelector(".product-price-input");
+    if (!input || document.activeElement === input) return;
+    input.value = prices[card.dataset.eimzaId] || "";
+  });
+}
+
+function eimzaCartLines() {
+  const prices = eimzaPrices();
+  return eimzaCartItems()
+    .map((line) => {
+      const price = parseMoney(prices[line.id]);
+      if (!Number.isFinite(price) || price === Number.POSITIVE_INFINITY || price <= 0) return null;
+      return {
+        id: line.id,
+        name: eimzaProductLabel(line.id),
+        qty: Math.max(1, Number(line.qty) || 1),
+        price,
+      };
+    })
+    .filter(Boolean);
+}
+
+function eimzaCartTotal() {
+  return eimzaCartLines().reduce((sum, line) => sum + line.price * line.qty, 0);
+}
+
+function eimzaApps() {
+  return store.get("eimza-apps", []);
+}
+
+function renderEimzaCart() {
+  eimzaRenderCartBadge();
+  const box = $("#eimzaCartList");
+  if (!box) return;
+  const items = eimzaCartLines();
+  if (!items.length) {
+    box.innerHTML = "<p class='hint'>Sepetiniz boş. Ürünlerden + ile ekleyin.</p>";
+    $("#eimzaCartTotal").textContent = "";
+    return;
+  }
+  box.innerHTML = items
+    .map(
+      (line) => `
+      <article class="note">
+        <strong>${escapeHtml(line.name)}</strong>
+        <p class="price">${formatTry(line.price)} × ${line.qty} = ${formatTry(line.price * line.qty)}</p>
+        <div class="row">
+          <button class="secondary" type="button" data-eimza-qty="${line.id}" data-delta="-1">−</button>
+          <button class="secondary" type="button" data-eimza-qty="${line.id}" data-delta="1">+</button>
+          <button class="linkish" type="button" data-eimza-cart-del="${line.id}">Kaldır</button>
+        </div>
+      </article>`
+    )
+    .join("");
+  $("#eimzaCartTotal").textContent = `Toplam ${formatTry(eimzaCartTotal())}`;
+}
+
+function renderEimzaOrders() {
+  const list = $("#eimzaList");
+  if (!list) return;
+  const apps = eimzaApps().slice().reverse();
+  list.innerHTML = apps.length
+    ? apps
+        .map((item) => {
+          const products = Array.isArray(item.products)
+            ? item.products.map((p) => eimzaProductLabel(p.id) + (p.qty > 1 ? ` ×${p.qty}` : "")).join(" · ")
+            : eimzaProductLabel(item.product);
+          const price = item.total ? ` · ${formatTry(item.total)}` : item.price ? ` · ₺${item.price}` : "";
+          const pay = item.method ? ` · ${eimzaPayLabel(item.method)}` : "";
+          return `<article class="card"><p><strong>${escapeHtml(products)}</strong>${escapeHtml(price)}${escapeHtml(pay)}</p><p>${escapeHtml(item.company || "")}</p><p class="hint">${escapeHtml(item.name || "")} · ${escapeHtml(item.phone || "")} · ${escapeHtml(item.city || "")}</p></article>`;
+        })
+        .join("")
+    : "<p class='hint'>Henüz sipariş yok.</p>";
+}
+
+function renderEimza() {
+  eimzaFillPrices();
+  eimzaRenderCartBadge();
+  renderEimzaCart();
+  renderEimzaOrders();
+}
+
+function eimzaShowPay(method) {
+  const map = { havale: "eimzaHavaleForm", card: "eimzaCardForm", iban: "eimzaIbanForm" };
+  ["eimzaHavaleForm", "eimzaCardForm", "eimzaIbanForm"].forEach((id) => {
+    const el = $("#" + id);
+    if (el) el.hidden = id !== map[method];
+  });
+}
+
+function eimzaBuyer() {
+  return {
+    company: $("#eimzaCompany")?.value.trim() || "",
+    tax: $("#eimzaTax")?.value.trim() || "",
+    name: $("#eimzaName")?.value.trim() || "",
+    phone: $("#eimzaPhone")?.value.trim() || "",
+    mail: $("#eimzaMail")?.value.trim() || "",
+    city: $("#eimzaCity")?.value.trim() || "",
+  };
+}
+
+function eimzaNeedBuyer() {
+  const buyer = eimzaBuyer();
+  if (!buyer.company || !buyer.name || !buyer.phone) {
+    eimzaMsg("Ödeme için firma, yetkili ad soyad ve telefon yazın.");
+    return null;
+  }
+  return buyer;
+}
+
+function eimzaFinishPay(method, extra) {
+  const lines = eimzaCartLines();
+  if (!lines.length) {
+    eimzaMsg("Sepet boş. Önce ürün ekleyin.");
+    return false;
+  }
+  const buyer = eimzaNeedBuyer();
+  if (!buyer) return false;
+  const apps = eimzaApps();
+  apps.push({
+    id: Date.now(),
+    method,
+    products: lines.map((line) => ({ id: line.id, qty: line.qty, price: line.price })),
+    total: eimzaCartTotal(),
+    ...buyer,
+    ...extra,
+  });
+  store.set("eimza-apps", apps);
+  eimzaSetCart([]);
+  $("#eimzaHavaleForm")?.reset();
+  $("#eimzaCardForm")?.reset();
+  $("#eimzaIbanForm")?.reset();
+  if ($("#eimzaHavaleIban")) $("#eimzaHavaleIban").value = POS_SETTLE.ibanMasked;
+  eimzaShowPay("");
+  renderEimza();
+  eimzaMsg("Ödeme alındı. Siparişiniz kaydedildi.");
+  return true;
+}
+
+$("#eimzaNav")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-eimza-tab]");
+  if (!btn) return;
+  eimzaShow(btn.dataset.eimzaTab);
+});
+
+$("#eimzaProducts")?.addEventListener("input", (event) => {
+  const card = event.target.closest("[data-eimza-id]");
+  if (!card || !event.target.classList.contains("product-price-input")) return;
+  const prices = eimzaPrices();
+  prices[card.dataset.eimzaId] = event.target.value;
+  store.set("eimza-prices", prices);
+});
+
+$("#eimzaProducts")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-eimza-add]");
+  if (!btn) return;
+  const id = btn.dataset.eimzaAdd;
+  const price = parseMoney(eimzaPrices()[id]);
+  if (!Number.isFinite(price) || price === Number.POSITIVE_INFINITY || price <= 0) {
+    eimzaMsg("Sepete eklemek için önce fiyat yazın.");
+    return;
+  }
+  const items = eimzaCartItems();
+  const hit = items.find((item) => item.id === id);
+  if (hit) hit.qty = Math.min(99, Math.max(1, Number(hit.qty) || 1) + 1);
+  else items.push({ id, qty: 1 });
+  eimzaSetCart(items);
+  eimzaMsg(`${eimzaProductLabel(id)} sepete eklendi.`);
+});
+
+$("#eimzaCartList")?.addEventListener("click", (event) => {
+  const del = event.target.closest("[data-eimza-cart-del]");
+  if (del) {
+    eimzaSetCart(eimzaCartItems().filter((item) => item.id !== del.dataset.eimzaCartDel));
+    renderEimzaCart();
+    return;
+  }
+  const qty = event.target.closest("[data-eimza-qty]");
+  if (!qty) return;
+  const items = eimzaCartItems();
+  const hit = items.find((item) => item.id === qty.dataset.eimzaQty);
+  if (!hit) return;
+  hit.qty = Math.max(0, Math.max(1, Number(hit.qty) || 1) + Number(qty.dataset.delta));
+  eimzaSetCart(hit.qty ? items : items.filter((item) => item.id !== hit.id));
+  renderEimzaCart();
+});
+
+$("#eimzaCartClear")?.addEventListener("click", () => {
+  eimzaSetCart([]);
+  renderEimzaCart();
+  eimzaMsg("Sepet boşaltıldı.");
+});
+
+$$("[data-eimza-pay]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!eimzaCartLines().length) {
+      eimzaMsg("Sepet boş. Önce ürün ekleyin.");
+      return;
+    }
+    if (!eimzaNeedBuyer()) return;
+    eimzaShowPay(btn.dataset.eimzaPay);
+    eimzaMsg("");
+  });
+});
+
+$("#eimzaCopyIban")?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(POS_SETTLE.ibanMasked);
+    eimzaMsg("IBAN kopyalandı.");
+  } catch {
+    eimzaMsg(POS_SETTLE.ibanMasked);
+  }
+});
+
+$("#eimzaHavaleForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  eimzaFinishPay("havale", { iban: POS_SETTLE.ibanMasked });
+});
+
+$("#eimzaCardNumber")?.addEventListener("input", () => {
+  const num = $("#eimzaCardNumber").value.replace(/\D/g, "");
+  const brand = posCardBrandFromNumber(num);
+  if (brand && [...$("#eimzaCardBrand").options].some((o) => o.value === brand)) {
+    $("#eimzaCardBrand").value = brand;
+  }
+});
+
+$("#eimzaCardExp")?.addEventListener("input", () => {
+  let v = $("#eimzaCardExp").value.replace(/\D/g, "").slice(0, 4);
+  if (v.length >= 3) v = v.slice(0, 2) + "/" + v.slice(2);
+  $("#eimzaCardExp").value = v;
+});
+
+$("#eimzaCardForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const num = $("#eimzaCardNumber").value.replace(/\D/g, "");
+  const exp = $("#eimzaCardExp").value.trim();
+  const cvc = $("#eimzaCardCvc").value.replace(/\D/g, "");
+  if (num.length < 13 || num.length > 19) {
+    eimzaMsg("Geçerli kart numarası girin.");
+    return;
+  }
+  if (!/^\d{2}\/\d{2}$/.test(exp)) {
+    eimzaMsg("Son kullanma AA/YY olsun.");
+    return;
+  }
+  if (cvc.length < 3) {
+    eimzaMsg("CVC girin.");
+    return;
+  }
+  eimzaFinishPay("card", { brand: $("#eimzaCardBrand").value, last4: num.slice(-4) });
+});
+
+$("#eimzaIbanFrom")?.addEventListener("input", () => {
+  $("#eimzaIbanFrom").value = posFormatIban($("#eimzaIbanFrom").value);
+});
+
+$("#eimzaIbanForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!posIbanOk($("#eimzaIbanFrom").value)) {
+    eimzaMsg("Geçerli TR IBAN yazın.");
+    return;
+  }
+  eimzaFinishPay("iban", { from: posFormatIban($("#eimzaIbanFrom").value), iban: POS_SETTLE.ibanMasked });
+});
+
 function renderPos() {
   const member = posMember();
   const admin = posIsAdmin();
@@ -5172,6 +5581,7 @@ renderHomes();
 renderBikes();
 renderGk();
 renderPos();
+renderEimza();
 renderIso();
 renderFlash();
 resumeRestoreSearches();

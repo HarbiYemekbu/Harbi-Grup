@@ -65,7 +65,7 @@
       .tile-sponsored { grid-column: 1 / -1; min-height: 52px; align-items: center; justify-content: center; text-align: center; }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=129" />
+    <link rel="stylesheet" href="css/app.css?v=142" />
   </head>
   <body>
     <div class="app">
@@ -110,18 +110,23 @@
                 <strong>Sanal Pos</strong>
                 <span>%0,95 Komisyon Oranı</span>
               </button>
+              <button class="tile" data-go="eimza" type="button">
+                <span class="tile-icon">🔏</span>
+                <strong>E-İmza & Mali Mühür</strong>
+                <span>Sertifika başvurusu</span>
+              </button>
               <button class="tile" data-go="notes" type="button">
                 <span class="tile-icon">🗒</span>
                 <strong>Not Defteri</strong>
                 <span>Saha notları</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="pbx" type="button">
                 <span class="tile-icon">☎</span>
                 <strong>Sanal Santral</strong>
                 <span>Dahili ve çağrı</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="hygiene" type="button">
                 <span class="tile-icon">🧴</span>
                 <strong>Hijyen Deryası</strong>
@@ -131,13 +136,13 @@
                 <span class="tile-icon">🍽</span>
                 <strong>Harbi Yemek 7</strong>
               </a>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="flights" type="button">
                 <span class="tile-icon">✈</span>
                 <strong>Uçak Bileti</strong>
                 <span>Rezervasyon</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="holiday" type="button">
                 <span class="tile-icon">🏖</span>
                 <strong>Tatil Rezervasyonu</strong>
@@ -148,13 +153,13 @@
                 <strong>Oto Kiralama</strong>
                 <span>Araç ve fiyat</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="homes" type="button">
                 <span class="tile-icon">🏠</span>
                 <strong>Satılık ve Kiralık Ev</strong>
                 <span>Adresle ara</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="bikes" type="button">
                 <span class="tile-icon">🏍</span>
                 <strong>Motorsiklet Kiralama</strong>
@@ -198,8 +203,9 @@
                 <span class="neon-bar neon-purple-2"></span>
                 <span class="neon-bar neon-white-2"></span>
               </div>
-            <div class="camera-frame" id="cameraFrame">
+            <div class="camera-frame front-cam" id="cameraFrame">
               <video id="cameraVideo" autoplay playsinline muted webkit-playsinline></video>
+              <p class="cam-facing" id="camFacingLabel">ön</p>
               <div class="cam-grid" id="camGrid" hidden></div>
               <div class="focus-box" id="focusBox" hidden></div>
               <div class="cam-top" id="camTop">
@@ -242,7 +248,7 @@
                   <button type="button" data-mode="cinema">Sinema Modu</button>
                 </div>
               </div>
-              <button type="button" class="cam-flip" id="switchCamera" aria-label="Ön veya arka kamera">
+              <button type="button" class="cam-flip front" id="switchCamera" aria-label="Ön veya arka kamera">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
                   <path
                     stroke="currentColor"
@@ -1020,6 +1026,112 @@
             </article>
           </div>
         </section>
+
+        <section class="view" data-view="eimza" hidden>
+          <h2>E-İmza & Mali Mühür</h2>
+          <p class="lede">Nitelikli elektronik imza ve mali mühür</p>
+          <p class="hint">Fiyatı yazın, yanındaki + ile sepete ekleyin. Ödeme alışveriş sepetinde havale, kredi kartı veya IBAN ile yapılır.</p>
+          <div class="row" id="eimzaNav">
+            <button class="gold" type="button" data-eimza-tab="shop">Ürünler</button>
+            <button class="secondary" type="button" data-eimza-tab="cart" id="eimzaCartTabBtn">Alışveriş Sepeti</button>
+          </div>
+          <p class="hint" id="eimzaMsg"></p>
+
+          <div id="eimzaShop">
+            <div class="hygiene-list" id="eimzaProducts">
+              <article class="product-card" data-eimza-id="eimza-1y">
+                <strong>1 Yıllık E-İmza</strong>
+                <div class="product-card-row">
+                  <label class="product-price">
+                    <span>₺</span>
+                    <input class="product-price-input" inputmode="decimal" placeholder="Fiyat yazın" maxlength="20" />
+                  </label>
+                  <button class="gold eimza-add" type="button" data-eimza-add="eimza-1y" aria-label="1 Yıllık E-İmza sepete ekle">+</button>
+                </div>
+              </article>
+              <article class="product-card" data-eimza-id="eimza-3y">
+                <strong>3 Yıllık E-İmza</strong>
+                <div class="product-card-row">
+                  <label class="product-price">
+                    <span>₺</span>
+                    <input class="product-price-input" inputmode="decimal" placeholder="Fiyat yazın" maxlength="20" />
+                  </label>
+                  <button class="gold eimza-add" type="button" data-eimza-add="eimza-3y" aria-label="3 Yıllık E-İmza sepete ekle">+</button>
+                </div>
+              </article>
+              <article class="product-card" data-eimza-id="muhur">
+                <strong>Mali Mühür</strong>
+                <div class="product-card-row">
+                  <label class="product-price">
+                    <span>₺</span>
+                    <input class="product-price-input" inputmode="decimal" placeholder="Fiyat yazın" maxlength="20" />
+                  </label>
+                  <button class="gold eimza-add" type="button" data-eimza-add="muhur" aria-label="Mali Mühür sepete ekle">+</button>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div id="eimzaCart" hidden>
+            <article class="card">
+              <h3>Alışveriş sepeti</h3>
+              <div class="log-list" id="eimzaCartList"></div>
+              <p class="price" id="eimzaCartTotal"></p>
+              <button class="secondary" id="eimzaCartClear" type="button">Sepeti boşalt</button>
+            </article>
+            <article class="card">
+              <h3>Ödeme</h3>
+              <p class="hint">Ödemeyi sepette tamamlayın. Tahsilat Tolkan Uğur · Lüleburgaz Şubesi IBAN’ına aktarılır.</p>
+              <div class="note-form" id="eimzaPayInfo">
+                <input id="eimzaCompany" placeholder="Firma / unvan" maxlength="120" />
+                <input id="eimzaTax" inputmode="numeric" placeholder="VKN veya TCKN" maxlength="11" />
+                <input id="eimzaName" placeholder="Yetkili ad soyad" maxlength="80" />
+                <input id="eimzaPhone" inputmode="tel" placeholder="Telefon" maxlength="20" />
+                <input id="eimzaMail" type="email" placeholder="E-posta" maxlength="80" />
+                <input id="eimzaCity" placeholder="İl" maxlength="40" />
+              </div>
+              <div class="row">
+                <button class="secondary" type="button" data-eimza-pay="havale">Havale ile öde</button>
+                <button class="gold" type="button" data-eimza-pay="card">Kredi kartı ile öde</button>
+                <button class="secondary" type="button" data-eimza-pay="iban">IBAN ile öde</button>
+              </div>
+              <form id="eimzaHavaleForm" class="note-form" hidden>
+                <p><strong>Alıcı</strong> Tolkan Uğur</p>
+                <p><strong>Şube</strong> Lüleburgaz Şubesi</p>
+                <p><strong>IBAN</strong></p>
+                <input id="eimzaHavaleIban" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <button class="secondary" id="eimzaCopyIban" type="button">IBAN kopyala</button>
+                <button class="gold" type="submit">Havale yaptım</button>
+              </form>
+              <form id="eimzaCardForm" class="note-form" hidden>
+                <select id="eimzaCardBrand" required>
+                  <option value="">Kart tipi</option>
+                  <option value="Visa">Visa</option>
+                  <option value="Mastercard">Mastercard</option>
+                  <option value="Troy">Troy</option>
+                  <option value="American Express">American Express</option>
+                  <option value="Discover">Discover</option>
+                  <option value="UnionPay">UnionPay</option>
+                  <option value="Diğer">Diğer kredi kartı</option>
+                </select>
+                <input id="eimzaCardName" placeholder="Kart üzerindeki isim" required maxlength="80" />
+                <input id="eimzaCardNumber" inputmode="numeric" placeholder="Kart numarası" required maxlength="23" autocomplete="off" />
+                <div class="row">
+                  <input id="eimzaCardExp" placeholder="SKT AA/YY" required maxlength="5" />
+                  <input id="eimzaCardCvc" inputmode="numeric" placeholder="CVC" required maxlength="4" autocomplete="off" />
+                </div>
+                <button class="gold" type="submit">Kredi kartı ile öde</button>
+              </form>
+              <form id="eimzaIbanForm" class="note-form" hidden>
+                <p class="hint">Ödeyen IBAN’dan tutar Tolkan Uğur IBAN’ına geçer.</p>
+                <input id="eimzaIbanFrom" placeholder="Ödeyen IBAN (TR…)" required maxlength="32" />
+                <button class="gold" type="submit">IBAN ile öde</button>
+              </form>
+            </article>
+            <h3 class="subhead">Siparişlerim</h3>
+            <div class="log-list" id="eimzaList"></div>
+          </div>
+        </section>
       </main>
 
       <nav class="tabbar">
@@ -1075,6 +1187,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=129"></script>
+    <script src="js/app.js?v=142"></script>
   </body>
 </html>

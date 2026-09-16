@@ -622,6 +622,8 @@ body.camera-open .tabbar {
     0 0 18px rgba(255, 255, 255, 0.2);
   z-index: 1;
   touch-action: none;
+  perspective: 420px;
+  perspective-origin: 50% 50%;
 }
 
 .camera-frame.portrait-mode #cameraVideo {
@@ -655,23 +657,52 @@ body.camera-open .tabbar {
 }
 
 .camera-frame.front-cam {
-  perspective: 440px;
-  perspective-origin: 50% 42%;
+  perspective: 420px;
+  perspective-origin: 50% 50%;
 }
 
 .camera-frame.front-cam #cameraVideo {
-  transform: none;
   transform-origin: center center;
+}
+
+.cam-facing {
+  position: absolute;
+  left: calc(50% - 38px - 1.5cm);
+  bottom: calc(10px + 38px);
+  top: auto;
+  z-index: 5;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+  transform: translate(-100%, 50%);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+.view[data-view="camera"].active .cam-facing {
+  bottom: calc(18px + 38px + env(safe-area-inset-bottom));
 }
 
 .cam-overlay-bottom {
   position: absolute;
   left: 8px;
   right: 48px;
-  bottom: 96px;
+  bottom: calc(10px + 76px + 5mm);
   z-index: 3;
   display: grid;
   gap: 2px;
+}
+
+.view[data-view="camera"].active .cam-overlay-bottom {
+  bottom: calc(18px + 76px + 5mm + env(safe-area-inset-bottom));
 }
 
 .mode-row {
@@ -1087,10 +1118,27 @@ select {
   border: 1px solid var(--line);
 }
 
+.product-card strong {
+  display: block;
+  padding-top: 8px;
+  font-size: 16px;
+}
+
 .product-card-row {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.eimza-add {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 700;
 }
 
 .product-price {
