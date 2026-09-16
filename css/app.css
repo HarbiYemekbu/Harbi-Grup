@@ -72,6 +72,16 @@ textarea,
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+}
+
+body:not(.owner-on) .owner-app,
+body:not(.owner-on) .owner-app-row {
+  display: none !important;
+}
+
+.owner-app-row {
+  grid-template-columns: 1fr 1fr;
 }
 
 .brand-mark {
@@ -1244,6 +1254,10 @@ pre {
   padding: 10px max(6px, env(safe-area-inset-right)) calc(14px + var(--safe-b))
     max(6px, env(safe-area-inset-left));
   z-index: 15;
+}
+
+body:not(.owner-on) .tabbar {
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .tab {

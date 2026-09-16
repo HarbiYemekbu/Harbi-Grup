@@ -47,7 +47,7 @@ function resumeSaveFields() {
     state.fields = {};
     $$("#views input, #views textarea, #views select").forEach((el) => {
       if (!el.id || el.type === "password" || el.type === "file") return;
-      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey" || el.id === "eimzaCardNumber" || el.id === "eimzaCardCvc" || el.id === "eimzaHavaleIban") return;
+      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey" || el.id === "eimzaCardNumber" || el.id === "eimzaCardCvc" || el.id === "eimzaHavaleIban" || el.id === "ownerPin") return;
       state.fields[el.id] = el.type === "checkbox" ? el.checked : el.value;
     });
     if ($("#nfcResult")) state.nfcResult = $("#nfcResult").textContent || "";
@@ -145,7 +145,19 @@ views.forEach((view) => {
   view.prepend(btn);
 });
 
+function ownerAppsOn() {
+  return store.get("pos-admin-on", false) === true;
+}
+
+function syncOwnerApps() {
+  document.body.classList.toggle("owner-on", ownerAppsOn());
+  if (!ownerAppsOn() && (resumeActiveView() === "pos" || resumeActiveView() === "pbx")) {
+    showView("home");
+  }
+}
+
 function showView(name) {
+  if ((name === "pos" || name === "pbx") && !ownerAppsOn()) name = "home";
   const prev = resumeActiveView();
   if (prev && prev !== name) resumeSaveScroll(prev);
   views.forEach((view) => {
@@ -5385,6 +5397,7 @@ $("#posAdminForm").addEventListener("submit", (event) => {
   posMsg("");
   posRenderAdmin();
   posShow("posAdminPanel");
+  syncOwnerApps();
 });
 
 $("#posAdminShowPin").addEventListener("click", () => {
@@ -5438,6 +5451,7 @@ $("#posAdminLogout").addEventListener("click", () => {
   posFillAdminRemember();
   posSyncWithdrawUi();
   posShow("posAdminLogin");
+  syncOwnerApps();
 });
 
 $("#posCreateApi").addEventListener("click", () => posCreateApiKey());
@@ -5566,6 +5580,43 @@ $("#posAdminMembers").addEventListener("click", (event) => {
   if (posMember()) posRenderDesk();
 });
 
+let ownerTaps = 0;
+let ownerTapTimer = 0;
+$(".brand")?.addEventListener("click", () => {
+  if (ownerAppsOn()) return;
+  ownerTaps += 1;
+  clearTimeout(ownerTapTimer);
+  ownerTapTimer = setTimeout(() => {
+    ownerTaps = 0;
+  }, 1800);
+  if (ownerTaps < 5) return;
+  ownerTaps = 0;
+  const saved = store.get(POS_ADMIN_REMEMBER, null);
+  if (saved?.remember && saved.user && $("#ownerUser")) $("#ownerUser").value = saved.user;
+  if ($("#ownerMsg")) $("#ownerMsg").textContent = "Sanal POS ve Sanal Santral yalnızca sizin için.";
+  if ($("#ownerModal")) $("#ownerModal").hidden = false;
+});
+
+$("#ownerClose")?.addEventListener("click", () => {
+  if ($("#ownerModal")) $("#ownerModal").hidden = true;
+});
+
+$("#ownerForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const user = $("#ownerUser").value.trim();
+  const pin = $("#ownerPin").value;
+  if (user !== POS_ADMIN_USER || pin !== posAdminPinValue()) {
+    if ($("#ownerMsg")) $("#ownerMsg").textContent = "Bilgiler hatalı.";
+    return;
+  }
+  const remember = $("#ownerRemember")?.checked !== false;
+  store.set(POS_ADMIN_ON, true);
+  store.set(POS_ADMIN_REMEMBER, remember ? { remember: true, user, pin } : { remember: false });
+  $("#ownerPin").value = "";
+  if ($("#ownerModal")) $("#ownerModal").hidden = true;
+  syncOwnerApps();
+});
+
 resumeRestoreCam();
 resumeRestoreFields();
 renderGallery();
@@ -5585,6 +5636,7 @@ renderEimza();
 renderIso();
 renderFlash();
 resumeRestoreSearches();
+syncOwnerApps();
 const resumeView = resumeGet().view || "home";
 showView(resumeView);
 requestAnimationFrame(() => {

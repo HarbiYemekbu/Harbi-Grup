@@ -64,8 +64,9 @@
       }
       .tile-sponsored { grid-column: 1 / -1; min-height: 52px; align-items: center; justify-content: center; text-align: center; }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
+      body:not(.owner-on) .tabbar { grid-template-columns: repeat(5, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=142" />
+    <link rel="stylesheet" href="css/app.css?v=143" />
   </head>
   <body>
     <div class="app">
@@ -104,12 +105,19 @@
                 <span>Etiket oku / yaz</span>
               </button>
             </div>
-            <div class="tile-row-3">
-              <button class="tile" data-go="pos" type="button">
+            <div class="tile-row-3 owner-app-row">
+              <button class="tile owner-app" data-go="pos" type="button">
                 <span class="tile-icon">💳</span>
                 <strong>Sanal Pos</strong>
                 <span>%0,95 Komisyon Oranı</span>
               </button>
+              <button class="tile owner-app" data-go="pbx" type="button">
+                <span class="tile-icon">☎</span>
+                <strong>Sanal Santral</strong>
+                <span>Dahili ve çağrı</span>
+              </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="eimza" type="button">
                 <span class="tile-icon">🔏</span>
                 <strong>E-İmza & Mali Mühür</strong>
@@ -120,24 +128,17 @@
                 <strong>Not Defteri</strong>
                 <span>Saha notları</span>
               </button>
-            </div>
-            <div class="tile-row-3">
-              <button class="tile" data-go="pbx" type="button">
-                <span class="tile-icon">☎</span>
-                <strong>Sanal Santral</strong>
-                <span>Dahili ve çağrı</span>
-              </button>
               <button class="tile" data-go="hygiene" type="button">
                 <span class="tile-icon">🧴</span>
                 <strong>Hijyen Deryası</strong>
                 <span>Ürün ve fiyat</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <a class="tile" href="https://www.harbiyemek7.com" rel="noopener noreferrer">
                 <span class="tile-icon">🍽</span>
                 <strong>Harbi Yemek 7</strong>
               </a>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="flights" type="button">
                 <span class="tile-icon">✈</span>
                 <strong>Uçak Bileti</strong>
@@ -148,13 +149,13 @@
                 <strong>Tatil Rezervasyonu</strong>
                 <span>Otel ve tur</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="cars" type="button">
                 <span class="tile-icon">🚗</span>
                 <strong>Oto Kiralama</strong>
                 <span>Araç ve fiyat</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="homes" type="button">
                 <span class="tile-icon">🏠</span>
                 <strong>Satılık ve Kiralık Ev</strong>
@@ -1139,7 +1140,7 @@
         <button class="tab" data-go="camera" type="button">Kamera</button>
         <button class="tab" data-go="notes" type="button">Not</button>
         <button class="tab" data-go="nfc" type="button">NFC</button>
-        <button class="tab" data-go="pbx" type="button">Santral</button>
+        <button class="tab owner-app" data-go="pbx" type="button">Santral</button>
         <button class="tab" data-go="hygiene" type="button">Hijyen</button>
       </nav>
     </div>
@@ -1148,6 +1149,21 @@
       <strong id="nfcIdentityName"></strong>
     </div>
 
+    <div class="modal" id="ownerModal" hidden>
+      <div class="modal-card">
+        <h2>Yönetici</h2>
+        <p class="hint" id="ownerMsg">Sanal POS ve Sanal Santral yalnızca sizin için.</p>
+        <form id="ownerForm" class="note-form">
+          <input id="ownerUser" name="username" autocomplete="username" placeholder="Kullanıcı adı" required />
+          <input id="ownerPin" name="password" autocomplete="current-password" type="password" placeholder="Şifre" required />
+          <label class="field"><input type="checkbox" id="ownerRemember" checked /> Beni hatırla</label>
+          <div class="row">
+            <button class="gold" type="submit">Aç</button>
+            <button class="secondary" id="ownerClose" type="button">Kapat</button>
+          </div>
+        </form>
+      </div>
+    </div>
     <div class="modal" id="installModal" hidden>
       <div class="modal-card">
         <h2>Ana ekrana ekle</h2>
@@ -1187,6 +1203,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=142"></script>
+    <script src="js/app.js?v=143"></script>
   </body>
 </html>
