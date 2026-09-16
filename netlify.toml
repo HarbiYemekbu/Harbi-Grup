@@ -15,3 +15,15 @@
   to = "https://www.tolkanugur.com/:splat"
   status = 301
   force = true
+
+[[redirects]]
+  from = "https://harbi-grup.pages.dev/*"
+  to = "https://www.tolkanugur.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://harbi-grup.pages.dev/*"
+  to = "https://www.tolkanugur.com/:splat"
+  status = 301
+  force = true

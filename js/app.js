@@ -2928,6 +2928,14 @@ setInterval(() => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
+    const host = location.hostname;
+    const local =
+      !host ||
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "[::1]" ||
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+    if (!local && host !== "www.tolkanugur.com") return;
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   });
 }

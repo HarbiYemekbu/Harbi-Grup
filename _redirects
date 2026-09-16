@@ -1,3 +1,6 @@
 https://tolkanugur.com/* https://www.tolkanugur.com/:splat 301
 http://tolkanugur.com/* https://www.tolkanugur.com/:splat 301
 http://www.tolkanugur.com/* https://www.tolkanugur.com/:splat 301
+https://harbi-grup.pages.dev/* https://www.tolkanugur.com/:splat 301
+http://harbi-grup.pages.dev/* https://www.tolkanugur.com/:splat 301
+https://*.harbi-grup.pages.dev/* https://www.tolkanugur.com/:splat 301
