@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
-    <meta name="theme-color" content="#070b14" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#070b14" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Harbi Grup" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="Harbi Grup" />
@@ -32,9 +32,9 @@
       })();
     </script>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon-192.png" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+    <link rel="icon" href="icons/icon-192.png?v=89" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=89" />
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=89" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -45,35 +45,36 @@
       .view[hidden] { display: none !important; }
       .view { display: none; }
       .view.active:not([hidden]) { display: block; }
-      .brand-mark { width: 46px; height: 46px; border-radius: 14px; object-fit: cover; }
+      .brand-mark { width: 62px; height: 62px; border-radius: 16px; object-fit: cover; }
       .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      .tile-row-3 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+      .tile-row-3 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
       .tile {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
         width: 100%;
-        min-height: 108px;
-        padding: 12px 10px;
+        min-height: 100px;
+        padding: 8px 8px;
         text-align: left;
-        color: inherit;
+        color: #f6f1e6;
         text-decoration: none;
         border: 1px solid rgba(212, 175, 55, 0.22);
-        border-radius: 22px;
-        background: #101826;
+        border-radius: 16px;
+        background: #4a1858;
       }
-      .tile-sponsored { grid-column: 1 / -1; min-height: 72px; align-items: center; justify-content: center; text-align: center; }
+      .tile-sponsored { grid-column: 1 / -1; min-height: 52px; align-items: center; justify-content: center; text-align: center; }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=71" />
+    <link rel="stylesheet" href="css/app.css?v=104" />
   </head>
   <body>
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <img src="icons/icon-192.png" alt="" class="brand-mark" />
-          <div>
+          <img src="icons/icon-192.png?v=89" alt="HG" class="brand-mark" />
+          <div class="brand-title">
             <h1>Harbi Grup</h1>
+            <span class="recycle-mark" title="Geri dönüşüm" aria-hidden="true">♻</span>
           </div>
         </div>
         <button class="ghost-btn" id="installBtn" type="button">Ana ekrana ekle</button>
@@ -153,6 +154,13 @@
                 <span>Motor ve fiyat</span>
               </button>
             </div>
+            <div class="tile-row-3">
+              <button class="tile" data-go="pos" type="button">
+                <span class="tile-icon">💳</span>
+                <strong>Sanal POS</strong>
+                <span>Üye ol, ödeme al</span>
+              </button>
+            </div>
           </div>
           <article class="card install-card" id="installCard">
             <h2>Telefonuna Uygulamayı Kısayol İndirmek İçin Alt Kısımdaki Adımları Uygula</h2>
@@ -212,6 +220,7 @@
                   </div>
                 </div>
                 <button type="button" id="styleBtn" class="cam-icon" aria-label="Stil">◐</button>
+                <button type="button" id="closeCamera" class="cam-close">Kapat</button>
               </div>
               <canvas id="cameraCanvas" hidden></canvas>
               <p class="camera-status" id="cameraStatus"></p>
@@ -224,7 +233,7 @@
                 <span class="iso-value" id="isoValue">ISO 405</span>
               </div>
               <label class="zoom-bar" id="zoomBar">
-                <input id="zoomRange" type="range" min="0.5" max="300" step="0.1" value="0.5" />
+                <input id="zoomRange" type="range" min="0.5" max="10" step="0.1" value="0.5" />
               </label>
               <div class="cam-overlay-bottom" id="camOverlayBottom">
                 <div class="mode-row" id="modeRow">
@@ -278,15 +287,10 @@
 
         <section class="view" data-view="nfc" hidden>
           <h2>NFC Kontrol</h2>
-          <p class="hint" id="nfcHint">Android Chrome’da Web NFC ile etiket okunur ve yazılır.</p>
+          <p class="hint" id="nfcHint">Android Chrome’da Web NFC ile etiket okunur.</p>
           <div class="row">
             <button class="primary" id="nfcScan" type="button">Tara</button>
-            <button class="secondary" id="nfcWrite" type="button">Yaz</button>
           </div>
-          <label class="field">
-            Yazılacak metin / URL
-            <input id="nfcPayload" placeholder="https://harbigrup.local veya görev kodu" />
-          </label>
           <article class="card">
             <h3>Son okuma</h3>
             <pre id="nfcResult">Henüz tarama yok.</pre>
@@ -680,6 +684,137 @@
             </article>
           </div>
         </section>
+
+        <section class="view" data-view="pos" hidden>
+          <h2>Sanal POS</h2>
+          <p class="hint">Üye olun. İkametgah, imza sirküleri ve Findeks raporu incelenir. Onaylanmadan POS kullanılamaz; API ve gizli anahtar gösterilmez.</p>
+          <div class="row" id="posNav">
+            <button class="secondary" type="button" data-pos-tab="apply">Üye ol</button>
+            <button class="secondary" type="button" data-pos-tab="login">Giriş</button>
+            <button class="secondary" type="button" data-pos-tab="desk" id="posDeskTab" hidden>POS panelim</button>
+            <button class="secondary" type="button" data-pos-tab="admin">Süper Admin</button>
+          </div>
+          <p class="hint" id="posMsg"></p>
+
+          <div id="posApply">
+            <article class="card">
+              <h3>Üye ol</h3>
+              <form id="posRegister" class="note-form">
+                <input id="posRegName" placeholder="Ad soyad" required maxlength="80" />
+                <input id="posRegEmail" type="email" placeholder="E-posta" required maxlength="120" />
+                <input id="posRegPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                <textarea id="posRegAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                <label class="field">İkametgah
+                  <input id="posRegIkamet" type="file" accept="image/*,.pdf" required />
+                </label>
+                <label class="field">İmza sirküleri
+                  <input id="posRegImza" type="file" accept="image/*,.pdf" required />
+                </label>
+                <label class="field">Findeks raporu
+                  <input id="posRegFindeks" type="file" accept="image/*,.pdf" required />
+                </label>
+                <input id="posRegPin" type="password" placeholder="Şifre" required minlength="4" />
+                <input id="posRegPin2" type="password" placeholder="Şifre tekrar" required minlength="4" />
+                <button class="pw-toggle" id="posRegShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
+                <label class="field"><input type="checkbox" id="posRegRemember" checked /> Beni hatırla</label>
+                <button class="gold" type="submit">Başvuruyu gönder</button>
+                <button class="pw-toggle" id="posForgotOpen" type="button">Şifremi unuttum</button>
+              </form>
+              <form id="posForgot" class="note-form" hidden>
+                <p class="hint">Şifre sıfırlamak için kayıtlı telefon ve e-posta gerekir. Tüm alanlar zorunludur.</p>
+                <input id="posForgotPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                <input id="posForgotEmail" type="email" placeholder="E-posta" required maxlength="120" />
+                <input id="posForgotPin" type="password" placeholder="Yeni şifre" required minlength="4" />
+                <input id="posForgotPin2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
+                <button class="pw-toggle" id="posForgotShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
+                <button class="gold" type="submit">Şifreyi sıfırla</button>
+                <button class="secondary" id="posForgotCancel" type="button">Vazgeç</button>
+              </form>
+            </article>
+          </div>
+
+          <div id="posLogin" hidden>
+            <article class="card">
+              <h3>Üye girişi</h3>
+              <form id="posLoginForm" class="note-form">
+                <input id="posLoginPhone" placeholder="Telefon veya e-posta" required />
+                <input id="posLoginPin" type="password" placeholder="Şifre" required />
+                <button class="pw-toggle" id="posLoginShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
+                <label class="field"><input type="checkbox" id="posLoginRemember" checked /> Beni hatırla</label>
+                <button class="primary" type="submit">Giriş</button>
+              </form>
+            </article>
+          </div>
+
+          <div id="posDesk" hidden>
+            <div class="pbx-head">
+              <p class="hint" id="posHello"></p>
+              <button class="secondary" id="posLogout" type="button">Çıkış</button>
+            </div>
+            <article class="card" id="posWaitCard" hidden>
+              <h3>Onay bekleniyor</h3>
+              <p class="hint">Başvurunuz süper admin incelemesinde. Üyelik aktif edilmeden Sanal POS kullanılamaz. API anahtarı ve gizli anahtar bu aşamada gösterilmez.</p>
+            </article>
+            <article class="card" id="posRejectCard" hidden>
+              <h3>Başvuru reddedildi</h3>
+              <p class="hint" id="posRejectReason"></p>
+            </article>
+            <article class="card" id="posHoldCard" hidden>
+              <h3>Üyelik durduruldu</h3>
+              <p class="hint">Süper admin üyeliğinizi askıya aldı. POS kullanılamaz.</p>
+            </article>
+            <article class="card" id="posKeysCard" hidden>
+              <h3>API bilgileri</h3>
+              <p class="hint">Yalnızca onaylı üyeye gösterilir. Gizli anahtarı kimseyle paylaşmayın.</p>
+              <p><strong>API anahtarı</strong></p>
+              <input id="posApiKey" readonly />
+              <p><strong>Gizli anahtar</strong></p>
+              <input id="posSecretKey" type="password" readonly />
+              <button class="pw-toggle" id="posSecretToggle" type="button">Gizli anahtarı göster</button>
+            </article>
+            <article class="card" id="posChargeCard" hidden>
+              <h3>Ödeme al</h3>
+              <form id="posChargeForm" class="note-form">
+                <input id="posChargeAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
+                <input id="posChargeNote" placeholder="Açıklama" maxlength="80" />
+                <button class="gold" type="submit">Sanal POS ile tahsil et</button>
+              </form>
+              <div class="log-list" id="posPayList"></div>
+            </article>
+          </div>
+
+          <div id="posAdminLogin" hidden>
+            <article class="card">
+              <h3>Süper admin girişi</h3>
+              <p class="hint">Süper admin üyeleri onaylar, askıya alır ve tüm POS komutlarını verir.</p>
+              <form id="posAdminForm" class="note-form">
+                <input id="posAdminUser" autocomplete="username" placeholder="Kullanıcı adı" required />
+                <input id="posAdminPin" autocomplete="current-password" type="password" placeholder="Şifre" required />
+                <button class="gold" type="submit">Giriş</button>
+              </form>
+            </article>
+          </div>
+
+          <div id="posAdminPanel" hidden>
+            <div class="pbx-head">
+              <p class="hint">Süper admin — tüm Sanal POS komutları</p>
+              <button class="secondary" id="posAdminLogout" type="button">Admin çıkış</button>
+            </div>
+            <article class="card">
+              <h3>Genel komut</h3>
+              <label class="field"><input type="checkbox" id="posGlobalOn" /> Sanal POS sistemi açık</label>
+              <button class="primary" id="posGlobalSave" type="button">Kaydet</button>
+            </article>
+            <article class="card">
+              <h3>Üyelik başvuruları</h3>
+              <div class="log-list" id="posAdminMembers"></div>
+            </article>
+            <article class="card">
+              <h3>Tahsilatlar</h3>
+              <div class="log-list" id="posAdminPays"></div>
+            </article>
+          </div>
+        </section>
       </main>
 
       <nav class="tabbar">
@@ -690,6 +825,10 @@
         <button class="tab" data-go="pbx" type="button">Santral</button>
         <button class="tab" data-go="hygiene" type="button">Hijyen</button>
       </nav>
+    </div>
+    <div class="nfc-identity" id="nfcIdentity" hidden>
+      <p class="nfc-identity-label">NFC okundu</p>
+      <strong id="nfcIdentityName"></strong>
     </div>
 
     <div class="modal" id="installModal" hidden>
@@ -713,6 +852,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=71"></script>
+    <script src="js/app.js?v=104"></script>
   </body>
 </html>

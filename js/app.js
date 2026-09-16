@@ -132,7 +132,7 @@ const views = $$(".view");
 const tabs = $$(".tab");
 
 views.forEach((view) => {
-  if (view.dataset.view === "home") return;
+  if (view.dataset.view === "home" || view.dataset.view === "camera") return;
   const btn = document.createElement("button");
   btn.className = "secondary home-back";
   btn.type = "button";
@@ -150,9 +150,11 @@ function showView(name) {
     view.toggleAttribute("hidden", !on);
   });
   tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.go === name));
+  document.body.classList.toggle("camera-open", name === "camera");
   if (name !== "camera") stopCamera();
   else startCamera();
   if (name === "women") renderGk();
+  if (name === "pos") renderPos();
   resumeSaveView(name);
   resumeRestoreScroll(name);
 }
@@ -243,6 +245,7 @@ function resumeRestoreCam() {
   if (Number.isFinite(Number(cam.zoom))) zoomLevel = Number(cam.zoom);
   if (cam.flash) flashMode = cam.flash;
   $("#switchCamera")?.classList.toggle("front", facingMode === "user");
+  cameraFrame?.classList.toggle("front-cam", facingMode === "user");
 }
 let recorder = null;
 let recording = false;
@@ -289,12 +292,58 @@ function styleFilter() {
   return base;
 }
 
+function iphoneAudioConstraints() {
+  return {
+    echoCancellation: { ideal: true },
+    noiseSuppression: { ideal: true },
+    autoGainControl: { ideal: true },
+    sampleRate: { ideal: 48000 },
+    channelCount: { ideal: 2 },
+    sampleSize: { ideal: 16 },
+  };
+}
+
+async function applyIphoneAudio(media) {
+  const tracks = media?.getAudioTracks?.() || [];
+  for (const track of tracks) {
+    await track
+      .applyConstraints({
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 48000,
+        channelCount: 2,
+      })
+      .catch(() => {});
+  }
+}
+
+async function ensureIphoneAudio() {
+  if (!stream) await startCamera({ preserve: true });
+  if (!stream) return;
+  const live = stream.getAudioTracks().some((track) => track.readyState === "live");
+  if (!live) {
+    try {
+      const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: iphoneAudioConstraints() });
+      audioOnly.getAudioTracks().forEach((track) => stream.addTrack(track));
+    } catch {
+      try {
+        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioOnly.getAudioTracks().forEach((track) => stream.addTrack(track));
+      } catch {
+        /* mikrofon yok */
+      }
+    }
+  }
+  await applyIphoneAudio(stream);
+}
+
 function videoTrack() {
   return stream?.getVideoTracks()[0] || null;
 }
 
 function maxZoom() {
-  if (camMode === "cinema") return facingMode === "environment" ? 300 : 30;
+  if (camMode === "photo" || camMode === "video" || camMode === "cinema") return 10;
   return facingMode === "environment" ? 100 : 15;
 }
 
@@ -323,9 +372,28 @@ function isoBrightness() {
   return 0.62 + isoT() * 0.9;
 }
 
+function previewFlipX() {
+  return facingMode === "user" ? 1 : -1;
+}
+
 function applyPreviewZoom() {
-  video.style.transform = `scale(${sensorCrop()})`;
+  const z = sensorCrop();
+  if (facingMode === "user") {
+    video.style.transform = `scale(${z}) matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0.0036, 0,0,0,1)`;
+  } else {
+    video.style.transform = `scale(${previewFlipX() * z}, ${z})`;
+  }
   video.style.filter = `brightness(${isoBrightness()})`;
+}
+
+function drawCameraVideo(ctx, sx, sy, sw, sh, dw, dh) {
+  ctx.save();
+  if (previewFlipX() < 0) {
+    ctx.translate(dw, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
+  ctx.restore();
 }
 
 function renderIso() {
@@ -402,7 +470,7 @@ async function startCamera({ preserve = false } = {}) {
   try {
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: needsAudio(),
+        audio: needsAudio() ? iphoneAudioConstraints() : false,
         video: {
           facingMode: { ideal: facingMode },
           width: { ideal: 3840 },
@@ -410,10 +478,21 @@ async function startCamera({ preserve = false } = {}) {
         },
       });
     } catch {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: needsAudio(),
-        video: { facingMode: { ideal: facingMode } },
-      });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: needsAudio(),
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 3840 },
+            height: { ideal: 2880 },
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: needsAudio(),
+          video: { facingMode: { ideal: facingMode } },
+        });
+      }
     }
     if (seq !== camStartSeq) {
       stream.getTracks().forEach((track) => track.stop());
@@ -429,6 +508,7 @@ async function startCamera({ preserve = false } = {}) {
         height: { ideal: Math.min(6048, caps.height?.max || 2880) },
       })
       .catch(() => {});
+    if (needsAudio()) await applyIphoneAudio(stream);
     video.setAttribute("playsinline", "true");
     video.setAttribute("webkit-playsinline", "true");
     video.muted = true;
@@ -474,7 +554,7 @@ function drawRecFrame() {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.filter = video.style.filter || "none";
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, recCanvas.width, recCanvas.height);
+    drawCameraVideo(ctx, crop.sx, crop.sy, crop.sw, crop.sh, recCanvas.width, recCanvas.height);
   }
   recRaf = requestAnimationFrame(drawRecFrame);
 }
@@ -529,6 +609,7 @@ $("#switchCamera").addEventListener("click", (event) => {
   event.stopPropagation();
   facingMode = facingMode === "environment" ? "user" : "environment";
   $("#switchCamera").classList.toggle("front", facingMode === "user");
+  cameraFrame.classList.toggle("front-cam", facingMode === "user");
   syncCaptureMp();
   resumeSaveCam();
   startCamera();
@@ -605,11 +686,16 @@ async function setCamMode(mode, fromScroll = false) {
   $("#capturePhoto").setAttribute("aria-label", rec ? "Video kaydı" : "Fotoğraf çek");
   cameraStatus.textContent = rec
     ? mode === "cinema"
-      ? "Sinema Modu · 24 fps"
+      ? "Sinema Modu · 24 fps · iPhone ses"
       : "Video · kayıt için tuşa bas"
     : "";
-  const restarted = await syncModeStream();
-  if (!restarted) await setZoom(zoomLevel);
+  if (mode === "cinema") {
+    if (!stream || !stream.getAudioTracks().length) await startCamera({ preserve: true });
+    else await applyIphoneAudio(stream);
+  } else {
+    const restarted = await syncModeStream();
+    if (!restarted) await setZoom(zoomLevel);
+  }
 }
 
 $("#modeRow").addEventListener("scrollend", () => {
@@ -677,6 +763,11 @@ $("#flashBtn").addEventListener("click", (event) => {
   event.stopPropagation();
   const menu = $("#flashMenu");
   menu.hidden = !menu.hidden;
+});
+
+$("#closeCamera").addEventListener("click", (event) => {
+  event.stopPropagation();
+  showView("home");
 });
 
 $("#flashMenu").addEventListener("click", async (event) => {
@@ -762,6 +853,62 @@ cameraFrame.addEventListener("click", (event) => {
   }, 900);
 });
 
+function mediaFileName(ext) {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `IMG_Harbi_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
+}
+
+function photoFileName() {
+  return mediaFileName("jpg");
+}
+
+function videoFileName(mime) {
+  const type = String(mime || "");
+  if (/mp4/i.test(type)) return mediaFileName("mp4");
+  if (/quicktime|mov/i.test(type)) return mediaFileName("mov");
+  if (/webm/i.test(type)) return mediaFileName("webm");
+  return mediaFileName("mp4");
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function blobFromCanvas() {
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
+  if (blob) return blob;
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+  const res = await fetch(dataUrl);
+  return res.blob();
+}
+
+async function dataUrlFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function savePhotoToPhoneGallery(blob) {
+  downloadBlob(blob, photoFileName());
+}
+
+function saveVideoToPhoneGallery(blob) {
+  downloadBlob(blob, videoFileName(blob.type));
+}
+
 $("#capturePhoto").addEventListener("click", async () => {
   if (!stream) {
     await startCamera();
@@ -783,31 +930,45 @@ $("#capturePhoto").addEventListener("click", async () => {
   ctx.imageSmoothingQuality = "high";
   if (camMode === "portrait" || camMode === "cinema") {
     ctx.filter = "blur(18px) saturate(1.05)";
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, outW, outH);
+    drawCameraVideo(ctx, crop.sx, crop.sy, crop.sw, crop.sh, outW, outH);
     ctx.filter = styleFilter();
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(outW / 2, outH / 2.1, outW * 0.28, outH * 0.38, 0, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, outW, outH);
+    drawCameraVideo(ctx, crop.sx, crop.sy, crop.sw, crop.sh, outW, outH);
     ctx.restore();
   } else {
     ctx.filter = styleFilter();
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, outW, outH);
+    drawCameraVideo(ctx, crop.sx, crop.sy, crop.sw, crop.sh, outW, outH);
   }
   ctx.filter = "none";
   const info = lensInfo(zoomLevel);
   cameraStatus.textContent = `${outW}×${outH} · ${captureMp}MP · ${info.name} ${info.mm}mm`;
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-  await db.put({
-    id: Date.now(),
-    dataUrl,
-    w: outW,
-    h: outH,
-    zoom: zoomLevel,
-    mm: info.mm,
-  });
+  try {
+    const blob = await blobFromCanvas();
+    const dataUrl = await dataUrlFromBlob(blob);
+    await db.put({
+      id: Date.now(),
+      dataUrl,
+      w: outW,
+      h: outH,
+      zoom: zoomLevel,
+      mm: info.mm,
+    });
+    await savePhotoToPhoneGallery(blob);
+  } catch {
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+    await db.put({
+      id: Date.now(),
+      dataUrl,
+      w: outW,
+      h: outH,
+      zoom: zoomLevel,
+      mm: info.mm,
+    });
+  }
   renderGallery();
   if (flashMode !== "on") await setTorch(false);
 });
@@ -817,7 +978,16 @@ async function toggleRecord() {
     recorder.stop();
     return;
   }
-  const types = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm"];
+  if (camMode === "cinema" || camMode === "video") await ensureIphoneAudio();
+  const types = [
+    "video/mp4;codecs=avc1.640028,mp4a.40.2",
+    "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+    "video/mp4;codecs=mp4a.40.2",
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=opus",
+    "video/webm",
+  ];
   const mime = types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
   recChunks = [];
   recCanvas = recCanvas || document.createElement("canvas");
@@ -827,17 +997,23 @@ async function toggleRecord() {
   const fps = camMode === "cinema" ? 24 : 30;
   const recStream = recCanvas.captureStream(fps);
   stream?.getAudioTracks().forEach((track) => {
-    if (!recStream.getAudioTracks().some((existing) => existing.id === track.id)) {
-      recStream.addTrack(track);
+    const audio = camMode === "cinema" ? track : track.clone ? track.clone() : track;
+    if (!recStream.getAudioTracks().some((existing) => existing.id === audio.id)) {
+      recStream.addTrack(audio);
     }
   });
+  const recOpts = mime
+    ? { mimeType: mime, videoBitsPerSecond: 16_000_000, audioBitsPerSecond: 256_000 }
+    : { videoBitsPerSecond: 16_000_000, audioBitsPerSecond: 256_000 };
   try {
-    recorder = mime
-      ? new MediaRecorder(recStream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
-      : new MediaRecorder(recStream);
+    recorder = new MediaRecorder(recStream, recOpts);
   } catch {
-    cameraStatus.textContent = "Bu tarayıcı video kaydını desteklemiyor.";
-    return;
+    try {
+      recorder = mime ? new MediaRecorder(recStream, { mimeType: mime }) : new MediaRecorder(recStream);
+    } catch {
+      cameraStatus.textContent = "Bu tarayıcı video kaydını desteklemiyor.";
+      return;
+    }
   }
   recorder.ondataavailable = (event) => {
     if (event.data.size) recChunks.push(event.data);
@@ -846,7 +1022,8 @@ async function toggleRecord() {
     stopRecLoop();
     recording = false;
     $("#capturePhoto").classList.remove("recording");
-    const blob = new Blob(recChunks, { type: recorder.mimeType || "video/webm" });
+    const blob = new Blob(recChunks, { type: recorder.mimeType || "video/mp4" });
+    saveVideoToPhoneGallery(blob);
     const dataUrl = await new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -859,12 +1036,12 @@ async function toggleRecord() {
       mode: camMode,
       zoom: zoomLevel,
     });
-    cameraStatus.textContent = camMode === "cinema" ? "Sinema klibi kaydedildi" : "Video kaydedildi";
+    cameraStatus.textContent = camMode === "cinema" ? "Sinema klibi galeriye kaydedildi" : "Video galeriye kaydedildi";
     renderGallery();
   };
   recording = true;
   drawRecFrame();
-  recorder.start();
+  recorder.start(100);
   $("#capturePhoto").classList.add("recording");
   cameraStatus.textContent = "Kayıt... durdurmak için tuşa bas";
 }
@@ -1091,6 +1268,66 @@ if (!nfcSupported()) {
     "Bu tarayıcı Web NFC desteklemiyor. Android’de Chrome ile HTTPS üzerinden açın.";
 }
 
+function twoPartName(name) {
+  const parts = String(name || "")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/[^\p{L}\p{N}\s'-]/gu, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length >= 2) return `${parts[0]} ${parts[parts.length - 1]}`;
+  return parts[0] || "";
+}
+
+function nfcPersonName(raw) {
+  const text = String(raw || "")
+    .replace(/^(text|url|absolute-url):\s*/gim, "")
+    .trim();
+  if (!text) return "";
+  try {
+    const json = JSON.parse(text);
+    const ad = String(json.ad || json.isim || json.firstName || "").trim();
+    const soy = String(json.soyad || json.soyisim || json.lastName || json.surname || "").trim();
+    if (ad && soy) return `${ad} ${soy}`;
+    if (json.name) return twoPartName(json.name);
+  } catch {
+    /* düz metin */
+  }
+  const fn = text.match(/FN[;:][^\n]+/i);
+  if (fn) {
+    const named = fn[0].replace(/^FN[;:][^:]*:?/i, "").trim();
+    if (named) return twoPartName(named);
+  }
+  try {
+    const url = new URL(text);
+    const ad = url.searchParams.get("ad") || url.searchParams.get("isim") || url.searchParams.get("name") || "";
+    const soy = url.searchParams.get("soyad") || url.searchParams.get("soyisim") || "";
+    if (ad && soy) return `${ad} ${soy}`.trim();
+    if (ad) return twoPartName(ad);
+  } catch {
+    /* url değil */
+  }
+  const line = text.split(/[\n|;]/)[0];
+  return twoPartName(line);
+}
+
+let nfcNameTimer = 0;
+
+function showNfcPersonName(raw) {
+  const name = nfcPersonName(raw);
+  const overlay = $("#nfcIdentity");
+  const label = $("#nfcIdentityName");
+  if (!overlay || !label || !name) return false;
+  label.textContent = name;
+  overlay.hidden = false;
+  clearTimeout(nfcNameTimer);
+  nfcNameTimer = setTimeout(() => {
+    overlay.hidden = true;
+    label.textContent = "";
+  }, 5000);
+  return true;
+}
+
 function saveNfc(entry) {
   const history = store.get("nfc", []);
   history.unshift({ id: Date.now(), ...entry });
@@ -1114,9 +1351,11 @@ function renderNfc() {
 $("#nfcScan").addEventListener("click", async () => {
   nfcAudio()?.resume?.();
   if (!nfcSupported()) {
-    nfcResult.textContent = "NFC teması simüle edildi.";
+    const sim = "Ali Yılmaz";
+    nfcResult.textContent = "";
+    showNfcPersonName(sim);
     await nfcContactSound();
-    saveNfc({ type: "Okuma (simülasyon)", detail: "NFC teması" });
+    saveNfc({ type: "Okuma (simülasyon)", detail: sim });
     return;
   }
   try {
@@ -1126,35 +1365,20 @@ $("#nfcScan").addEventListener("click", async () => {
     reader.onreading = (event) => {
       const records = [...event.message.records].map((record) => {
         const decoder = new TextDecoder(record.encoding || "utf-8");
-        return record.recordType + ": " + decoder.decode(record.data);
+        try {
+          return decoder.decode(record.data);
+        } catch {
+          return record.recordType;
+        }
       });
       const detail = records.join("\n") || "Boş etiket";
-      nfcResult.textContent = detail;
+      nfcResult.textContent = "";
+      if (!showNfcPersonName(detail)) nfcResult.textContent = "İsim bulunamadı";
       saveNfc({ type: "Okuma", detail });
       nfcContactSound();
     };
   } catch (error) {
     nfcResult.textContent = "NFC okunamadı: " + error.message;
-  }
-});
-
-$("#nfcWrite").addEventListener("click", async () => {
-  nfcAudio()?.resume?.();
-  const payload = $("#nfcPayload").value.trim() || "Harbi Grup";
-  if (!nfcSupported()) {
-    nfcResult.textContent = "Yazma simüle edildi: " + payload;
-    saveNfc({ type: "Yazma (simülasyon)", detail: payload });
-    await nfcContactSound();
-    return;
-  }
-  try {
-    const writer = new NDEFReader();
-    await writer.write({ records: [{ recordType: "text", data: payload }] });
-    nfcResult.textContent = "Yazıldı: " + payload;
-    saveNfc({ type: "Yazma", detail: payload });
-    await nfcContactSound();
-  } catch (error) {
-    nfcResult.textContent = "NFC yazılamadı: " + error.message;
   }
 });
 
@@ -2963,6 +3187,483 @@ window.addEventListener("pagehide", () => {
   resumeSaveScroll(resumeActiveView());
 });
 
+const POS_MEMBERS = "pos-members";
+const POS_PAYS = "pos-pays";
+const POS_REMEMBER = "pos-remember";
+const POS_ADMIN_ON = "pos-admin-on";
+const POS_SETTINGS = "pos-settings";
+const POS_ADMIN_USER = "superadmin";
+const POS_ADMIN_PIN = "HarbiAdmin2026";
+
+function posMembers() {
+  return store.get(POS_MEMBERS, []);
+}
+
+function posSaveMembers(list) {
+  store.set(POS_MEMBERS, list);
+}
+
+function posPays() {
+  return store.get(POS_PAYS, []);
+}
+
+function posSettings() {
+  return store.get(POS_SETTINGS, { on: true });
+}
+
+function posMsg(text) {
+  const el = $("#posMsg");
+  if (el) el.textContent = text || "";
+}
+
+function posPhone(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function posTogglePins(ids, btn) {
+  const show = $(ids[0]).type === "password";
+  ids.forEach((id) => {
+    $(id).type = show ? "text" : "password";
+  });
+  btn.textContent = show ? "Şifreleri gizle" : "Şifreleri göster";
+  btn.setAttribute("aria-pressed", String(show));
+}
+
+function posRememberGet() {
+  return store.get(POS_REMEMBER, null);
+}
+
+function posRememberSave(login, pin, on) {
+  if (on) store.set(POS_REMEMBER, { login, pin });
+  else store.set(POS_REMEMBER, null);
+}
+
+function posFillRemember() {
+  const saved = posRememberGet();
+  if (!saved) return;
+  if ($("#posLoginPhone") && saved.login) $("#posLoginPhone").value = saved.login;
+  if ($("#posLoginPin") && saved.pin) $("#posLoginPin").value = saved.pin;
+  if ($("#posLoginRemember")) $("#posLoginRemember").checked = true;
+  if ($("#posRegRemember")) $("#posRegRemember").checked = true;
+}
+
+function posSession() {
+  return store.get(POS_SESSION, null);
+}
+
+function posMember() {
+  const session = posSession();
+  if (!session?.phone) return null;
+  return posMembers().find((m) => m.phone === session.phone) || null;
+}
+
+function posIsAdmin() {
+  return store.get(POS_ADMIN_ON, false) === true;
+}
+
+function posMakeKeys() {
+  const raw = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+  return {
+    apiKey: "pk_live_" + raw.slice(0, 24),
+    secretKey: "sk_live_" + raw.slice(24, 56),
+  };
+}
+
+function posReadDoc(input) {
+  const file = input.files?.[0];
+  if (!file) return Promise.reject(new Error("Belge seçin."));
+  if (file.size > 3 * 1024 * 1024) return Promise.reject(new Error("Her belge en fazla 3 MB olabilir."));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, type: file.type, dataUrl: reader.result });
+    reader.onerror = () => reject(new Error("Belge okunamadı."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function posShow(id) {
+  ["posApply", "posLogin", "posDesk", "posAdminLogin", "posAdminPanel"].forEach((key) => {
+    const el = $("#" + key);
+    if (el) el.hidden = key !== id;
+  });
+}
+
+function posStatusLabel(status) {
+  if (status === "active") return "Aktif";
+  if (status === "rejected") return "Reddedildi";
+  if (status === "held") return "Askıda";
+  return "Onay bekliyor";
+}
+
+function posRenderDesk() {
+  const member = posMember();
+  $("#posDeskTab").hidden = !member;
+  if (!member) {
+    $("#posHello").textContent = "";
+    ["posWaitCard", "posRejectCard", "posHoldCard", "posKeysCard", "posChargeCard"].forEach((id) => {
+      $("#" + id).hidden = true;
+    });
+    return;
+  }
+  $("#posHello").textContent =
+    member.name + (member.email ? " · " + member.email : "") + " · " + posStatusLabel(member.status);
+  const pending = member.status === "pending";
+  const active = member.status === "active";
+  $("#posWaitCard").hidden = !pending;
+  $("#posRejectCard").hidden = member.status !== "rejected";
+  $("#posRejectReason").textContent = member.rejectReason || "Başvurunuz reddedildi.";
+  $("#posHoldCard").hidden = member.status !== "held";
+  $("#posKeysCard").hidden = !active || !member.apiKey;
+  $("#posChargeCard").hidden = !active || !posSettings().on;
+  if (active && member.apiKey) {
+    $("#posApiKey").value = member.apiKey;
+    $("#posSecretKey").value = member.secretKey;
+    $("#posSecretKey").type = "password";
+    $("#posSecretToggle").textContent = "Gizli anahtarı göster";
+  } else {
+    $("#posApiKey").value = "";
+    $("#posSecretKey").value = "";
+  }
+  const mine = posPays().filter((p) => p.phone === member.phone);
+  $("#posPayList").innerHTML = mine.length
+    ? mine
+        .slice()
+        .reverse()
+        .map(
+          (p) =>
+            `<article class="note"><header><strong>${escapeHtml(formatTry(p.amount))}</strong><time>${escapeHtml(
+              new Date(p.at).toLocaleString("tr-TR")
+            )}</time></header><p>${escapeHtml(p.note || "Tahsilat")}</p></article>`
+        )
+        .join("")
+    : "<p class='hint'>Henüz tahsilat yok.</p>";
+}
+
+function posRenderAdmin() {
+  $("#posGlobalOn").checked = posSettings().on !== false;
+  const list = posMembers().slice().reverse();
+  $("#posAdminMembers").innerHTML = list.length
+    ? list
+        .map((m) => {
+          const docs = ["ikamet", "imza", "findeks"]
+            .map((key) => {
+              const doc = m.docs?.[key];
+              if (!doc?.dataUrl) return "";
+              const label = key === "ikamet" ? "İkametgah" : key === "imza" ? "İmza sirküleri" : "Findeks";
+              return `<a class="ghost-btn" href="${doc.dataUrl}" download="${escapeHtml(doc.name || label)}" target="_blank" rel="noopener">${label}</a>`;
+            })
+            .join(" ");
+          const keys =
+            m.status === "active" && m.apiKey
+              ? `<p class="hint">API: ${escapeHtml(m.apiKey)}<br>Gizli: ${escapeHtml(m.secretKey)}</p>`
+              : `<p class="hint">API ve gizli anahtar üyelik onaylanmadan üretildi / gösterilmez.</p>`;
+          return `<article class="note" data-pos-id="${escapeHtml(m.id)}">
+            <header><strong>${escapeHtml(m.name)}</strong><time>${escapeHtml(posStatusLabel(m.status))}</time></header>
+            <p>${escapeHtml(m.email || "—")} · ${escapeHtml(m.phone)} · ${escapeHtml(m.address)}</p>
+            <div class="row">${docs}</div>
+            ${keys}
+            <div class="row">
+              <button class="gold" type="button" data-pos-cmd="approve">Onayla / Aktif et</button>
+              <button class="secondary" type="button" data-pos-cmd="hold">Askıya al</button>
+              <button class="danger" type="button" data-pos-cmd="reject">Reddet</button>
+              <button class="secondary" type="button" data-pos-cmd="keys">Anahtar yenile</button>
+              <button class="danger" type="button" data-pos-cmd="delete">Sil</button>
+            </div>
+          </article>`;
+        })
+        .join("")
+    : "<p class='hint'>Başvuru yok.</p>";
+  const pays = posPays().slice().reverse();
+  $("#posAdminPays").innerHTML = pays.length
+    ? pays
+        .map(
+          (p) =>
+            `<article class="note"><header><strong>${escapeHtml(formatTry(p.amount))}</strong><time>${escapeHtml(
+              new Date(p.at).toLocaleString("tr-TR")
+            )}</time></header><p>${escapeHtml(p.name)} · ${escapeHtml(p.phone)} · ${escapeHtml(p.note || "Tahsilat")}</p></article>`
+        )
+        .join("")
+    : "<p class='hint'>Tahsilat yok.</p>";
+}
+
+function renderPos() {
+  const member = posMember();
+  const admin = posIsAdmin();
+  $("#posDeskTab").hidden = !member;
+  posFillRemember();
+  if (admin) {
+    posRenderAdmin();
+    posShow("posAdminPanel");
+    return;
+  }
+  if (member) {
+    posRenderDesk();
+    posShow("posDesk");
+    return;
+  }
+  posShow("posApply");
+}
+
+$$("[data-pos-tab]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const tab = btn.dataset.posTab;
+    posMsg("");
+    if (tab === "apply") posShow("posApply");
+    if (tab === "login") posShow("posLogin");
+    if (tab === "desk") {
+      if (!posMember()) {
+        posMsg("Önce giriş yapın.");
+        posShow("posLogin");
+        return;
+      }
+      posRenderDesk();
+      posShow("posDesk");
+    }
+    if (tab === "admin") {
+      if (posIsAdmin()) {
+        posRenderAdmin();
+        posShow("posAdminPanel");
+      } else posShow("posAdminLogin");
+    }
+  });
+});
+
+$("#posRegister").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const phone = posPhone($("#posRegPhone").value);
+    const email = $("#posRegEmail").value.trim().toLowerCase();
+    const name = $("#posRegName").value.trim();
+    const address = $("#posRegAddress").value.trim();
+    const pin = $("#posRegPin").value;
+    if (!name || !address || !phone || !email || !pin || !$("#posRegPin2").value) {
+      posMsg("Tüm alanlar zorunludur.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      posMsg("Geçerli e-posta girin.");
+      return;
+    }
+    if (phone.length < 10) {
+      posMsg("Geçerli telefon girin.");
+      return;
+    }
+    if (pin !== $("#posRegPin2").value) {
+      posMsg("Şifreler aynı olmalı.");
+      return;
+    }
+    if (posMembers().some((m) => m.phone === phone || (m.email && m.email.toLowerCase() === email))) {
+      posMsg("Bu telefon veya e-posta ile başvuru var. Giriş yapın.");
+      posShow("posLogin");
+      return;
+    }
+    const [ikamet, imza, findeks] = await Promise.all([
+      posReadDoc($("#posRegIkamet")),
+      posReadDoc($("#posRegImza")),
+      posReadDoc($("#posRegFindeks")),
+    ]);
+    const member = {
+      id: "pos_" + Date.now(),
+      name,
+      email,
+      phone,
+      address,
+      pin,
+      status: "pending",
+      docs: { ikamet, imza, findeks },
+      at: Date.now(),
+    };
+    posSaveMembers(posMembers().concat(member));
+    store.set(POS_SESSION, { phone });
+    posRememberSave(email, pin, $("#posRegRemember").checked);
+    $("#posRegister").reset();
+    if ($("#posRegRemember")) $("#posRegRemember").checked = !!posRememberGet();
+    posMsg("Başvuru alındı. Onay bekleniyor.");
+    posRenderDesk();
+    posShow("posDesk");
+  } catch (err) {
+    posMsg(err.message || "Başvuru gönderilemedi.");
+  }
+});
+
+$("#posLoginForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const login = $("#posLoginPhone").value.trim();
+  const pin = $("#posLoginPin").value;
+  const phone = posPhone(login);
+  const member = posMembers().find(
+    (m) => m.pin === pin && (m.phone === phone || (m.email && m.email.toLowerCase() === login.toLowerCase()))
+  );
+  if (!member) {
+    posMsg("Telefon, e-posta veya şifre hatalı.");
+    return;
+  }
+  store.set(POS_SESSION, { phone: member.phone });
+  posRememberSave(login, pin, $("#posLoginRemember").checked);
+  posMsg("");
+  posRenderDesk();
+  posShow("posDesk");
+});
+
+$("#posRegShowPin").addEventListener("click", () => {
+  posTogglePins(["#posRegPin", "#posRegPin2"], $("#posRegShowPin"));
+});
+$("#posLoginShowPin").addEventListener("click", () => {
+  posTogglePins(["#posLoginPin"], $("#posLoginShowPin"));
+});
+$("#posForgotShowPin").addEventListener("click", () => {
+  posTogglePins(["#posForgotPin", "#posForgotPin2"], $("#posForgotShowPin"));
+});
+$("#posForgotOpen").addEventListener("click", () => {
+  $("#posForgot").hidden = false;
+  $("#posForgotPhone").value = $("#posRegPhone").value || $("#posLoginPhone").value;
+  $("#posForgotEmail").value = $("#posRegEmail").value;
+  posShow("posApply");
+});
+$("#posForgotCancel").addEventListener("click", () => {
+  $("#posForgot").hidden = true;
+});
+$("#posForgot").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const phone = posPhone($("#posForgotPhone").value);
+  const email = $("#posForgotEmail").value.trim().toLowerCase();
+  const pin = $("#posForgotPin").value;
+  const pin2 = $("#posForgotPin2").value;
+  if (!phone || !email || !pin || !pin2) {
+    posMsg("Tüm alanlar zorunludur.");
+    return;
+  }
+  if (pin !== pin2) {
+    posMsg("Şifreler aynı olmalı.");
+    return;
+  }
+  const list = posMembers();
+  const member = list.find((m) => m.phone === phone && m.email && m.email.toLowerCase() === email);
+  if (!member) {
+    posMsg("Telefon ve e-posta eşleşmedi.");
+    return;
+  }
+  member.pin = pin;
+  posSaveMembers(list);
+  $("#posForgot").reset();
+  $("#posForgot").hidden = true;
+  posMsg("Şifre güncellendi. Giriş yapın.");
+  posShow("posLogin");
+});
+
+$("#posLogout").addEventListener("click", () => {
+  store.set(POS_SESSION, null);
+  posMsg("Çıkış yapıldı.");
+  posShow("posLogin");
+  $("#posDeskTab").hidden = true;
+});
+
+$("#posSecretToggle").addEventListener("click", () => {
+  const member = posMember();
+  if (!member || member.status !== "active") return;
+  const input = $("#posSecretKey");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  $("#posSecretToggle").textContent = show ? "Gizli anahtarı gizle" : "Gizli anahtarı göster";
+});
+
+$("#posChargeForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const member = posMember();
+  if (!member || member.status !== "active") {
+    posMsg("Yalnızca onaylı üyeler POS kullanabilir.");
+    return;
+  }
+  if (!posSettings().on) {
+    posMsg("Sanal POS sistemi kapalı.");
+    return;
+  }
+  const amount = parseMoney($("#posChargeAmount").value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    posMsg("Geçerli tutar girin.");
+    return;
+  }
+  const pay = {
+    id: "pay_" + Date.now(),
+    phone: member.phone,
+    name: member.name,
+    amount,
+    note: $("#posChargeNote").value.trim(),
+    at: Date.now(),
+  };
+  store.set(POS_PAYS, posPays().concat(pay));
+  $("#posChargeForm").reset();
+  posMsg("Tahsilat alındı.");
+  posRenderDesk();
+});
+
+$("#posAdminForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if ($("#posAdminUser").value.trim() !== POS_ADMIN_USER || $("#posAdminPin").value !== POS_ADMIN_PIN) {
+    posMsg("Süper admin bilgileri hatalı.");
+    return;
+  }
+  store.set(POS_ADMIN_ON, true);
+  posMsg("");
+  posRenderAdmin();
+  posShow("posAdminPanel");
+});
+
+$("#posAdminLogout").addEventListener("click", () => {
+  store.set(POS_ADMIN_ON, false);
+  posShow("posAdminLogin");
+});
+
+$("#posGlobalSave").addEventListener("click", () => {
+  if (!posIsAdmin()) return;
+  store.set(POS_SETTINGS, { on: $("#posGlobalOn").checked });
+  posMsg("Sistem komutu kaydedildi.");
+});
+
+$("#posAdminMembers").addEventListener("click", (event) => {
+  if (!posIsAdmin()) return;
+  const cmd = event.target.closest("[data-pos-cmd]")?.dataset.posCmd;
+  const id = event.target.closest("[data-pos-id]")?.dataset.posId;
+  if (!cmd || !id) return;
+  let list = posMembers();
+  const member = list.find((m) => m.id === id);
+  if (!member && cmd !== "delete") return;
+  if (cmd === "approve") {
+    const keys = member.apiKey ? { apiKey: member.apiKey, secretKey: member.secretKey } : posMakeKeys();
+    member.status = "active";
+    member.apiKey = keys.apiKey;
+    member.secretKey = keys.secretKey;
+    member.rejectReason = "";
+    posMsg(member.name + " üyeliği aktif edildi.");
+  }
+  if (cmd === "hold") {
+    member.status = "held";
+    posMsg(member.name + " askıya alındı.");
+  }
+  if (cmd === "reject") {
+    member.status = "rejected";
+    member.rejectReason = "Belgeler yetersiz veya inceleme olumsuz.";
+    member.apiKey = "";
+    member.secretKey = "";
+    posMsg(member.name + " reddedildi. Anahtarlar kapatıldı.");
+  }
+  if (cmd === "keys") {
+    if (member.status !== "active") {
+      posMsg("Anahtar yalnızca aktif üyede üretilir.");
+      return;
+    }
+    Object.assign(member, posMakeKeys());
+    posMsg("Anahtarlar yenilendi.");
+  }
+  if (cmd === "delete") {
+    list = list.filter((m) => m.id !== id);
+    posMsg("Üye silindi.");
+  }
+  posSaveMembers(list);
+  posRenderAdmin();
+  if (posMember()) posRenderDesk();
+});
+
 resumeRestoreCam();
 resumeRestoreFields();
 renderGallery();
@@ -2976,6 +3677,7 @@ renderCars();
 renderHomes();
 renderBikes();
 renderGk();
+renderPos();
 renderIso();
 renderFlash();
 resumeRestoreSearches();
