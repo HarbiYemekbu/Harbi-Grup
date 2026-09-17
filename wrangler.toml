@@ -1,3 +1,11 @@
 name = "harbi-grup"
 compatibility_date = "2026-09-16"
 pages_build_output_dir = "."
+
+# Kart tahsilatı: Cloudflare Pages → Settings → Environment variables
+# IYZICO_API_KEY, IYZICO_SECRET_KEY
+# Deneme paneli için IYZICO_SANDBOX=1
+# Müzik e-fatura: TRENDYOL_SELLER_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET
+# Fatura e-posta: RESEND_API_KEY, MUSIC_MAIL_FROM
+# İsteğe bağlı: MUSIC_INVOICE_SECRET, TRENDYOL_BASE_URL
+# Anahtarları koda veya sohbete yazmayın.

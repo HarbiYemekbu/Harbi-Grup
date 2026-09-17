@@ -60,13 +60,12 @@
         text-decoration: none;
         border: 1px solid rgba(212, 175, 55, 0.22);
         border-radius: 16px;
-        background: #4a1858;
+        background: #6b2288;
       }
       .tile-sponsored { grid-column: 1 / -1; min-height: 52px; align-items: center; justify-content: center; text-align: center; }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
-      body:not(.owner-on) .tabbar { grid-template-columns: repeat(5, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=144" />
+    <link rel="stylesheet" href="css/app.css?v=177" />
   </head>
   <body>
     <div class="app">
@@ -105,31 +104,29 @@
                 <span>Etiket oku / yaz</span>
               </button>
             </div>
-            <div class="tile-row-3 owner-app-row">
-              <button class="tile owner-app" data-go="pbx" type="button">
-                <span class="tile-icon">☎</span>
-                <strong>Sanal Santral</strong>
-                <span>Dahili ve çağrı</span>
-              </button>
-            </div>
             <div class="tile-row-3">
+              <button class="tile" data-go="music" type="button">
+                <span class="tile-icon">🎵</span>
+                <strong>Müzik Veya Şarkı Yap</strong>
+                <span>Beste ve söz</span>
+              </button>
+              <button class="tile" data-go="aiclip" type="button">
+                <span class="tile-icon">🎬</span>
+                <strong>Yapay Zeka İle Klip Yap</strong>
+                <span>Görüntü ve söz</span>
+              </button>
               <button class="tile" data-go="eimza" type="button">
                 <span class="tile-icon">🔏</span>
                 <strong>E-İmza & Mali Mühür</strong>
                 <span>Sertifika başvurusu</span>
               </button>
-              <button class="tile" data-go="pos" type="button">
-                <span class="tile-icon">💳</span>
-                <strong>Sanal Pos</strong>
-                <span>%0,95 Komisyon Oranı</span>
-              </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="notes" type="button">
                 <span class="tile-icon">🗒</span>
                 <strong>Not Defteri</strong>
                 <span>Saha notları</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="hygiene" type="button">
                 <span class="tile-icon">🧴</span>
                 <strong>Hijyen Deryası</strong>
@@ -139,13 +136,13 @@
                 <span class="tile-icon">🍽</span>
                 <strong>Harbi Yemek 7</strong>
               </a>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="flights" type="button">
                 <span class="tile-icon">✈</span>
                 <strong>Uçak Bileti</strong>
                 <span>Rezervasyon</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="holiday" type="button">
                 <span class="tile-icon">🏖</span>
                 <strong>Tatil Rezervasyonu</strong>
@@ -156,13 +153,13 @@
                 <strong>Oto Kiralama</strong>
                 <span>Araç ve fiyat</span>
               </button>
+            </div>
+            <div class="tile-row-3">
               <button class="tile" data-go="homes" type="button">
                 <span class="tile-icon">🏠</span>
                 <strong>Satılık ve Kiralık Ev</strong>
                 <span>Adresle ara</span>
               </button>
-            </div>
-            <div class="tile-row-3">
               <button class="tile" data-go="bikes" type="button">
                 <span class="tile-icon">🏍</span>
                 <strong>Motorsiklet Kiralama</strong>
@@ -712,7 +709,7 @@
                 <input id="gkBuyName" placeholder="Ad soyad" required maxlength="60" />
                 <input id="gkBuyPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
                 <input id="gkBuyAddress" placeholder="Teslimat adresi" required maxlength="160" />
-                <p class="hint">Tüm kredi kartları ile öde. Tahsilat Tolkan Uğur IBAN’ına (TR54 0006 2000 1110 0006 ** **) kabul edilir.</p>
+                <p class="hint">Tüm kredi kartları ile öde. Tahsilat Tolkan Uğur Özel IBAN’ına (TR54 0006 2000 1110 0006 ** **) kabul edilir.</p>
                 <select id="gkBuyBrand" required>
                   <option value="">Kart tipi</option>
                   <option value="Visa">Visa</option>
@@ -888,16 +885,15 @@
             <div id="posChargeWrap" hidden>
               <article class="card pos-settle">
                 <h3>Aktarım hesabı</h3>
-                <p class="hint">Yapılan tüm tahsilatlar Türkiye Cumhuriyeti’nde bulunan Lüleburgaz Şubesi’ne, Tolkan Uğur adına kayıtlı özel IBAN’a aktarılır.</p>
-                <p><strong>Alıcı</strong> Tolkan Uğur</p>
-                <p><strong>Şube</strong> Lüleburgaz Şubesi</p>
+                <p class="hint">Yapılan tüm tahsilatlar Tolkan Uğur Özel adına kayıtlı özel IBAN’a aktarılır.</p>
+                <p><strong>Alıcı</strong> Tolkan Uğur Özel</p>
                 <p><strong>IBAN</strong></p>
-                <input id="posSettleIban" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <input id="posSettleIban" class="iban-text" readonly value="TR54 0006 2000 1110 0006 ** **" />
                 <button class="secondary" id="posCopyIban" type="button">IBAN kopyala</button>
               </article>
               <article class="card" id="posIbanCard">
                 <h3>IBAN ile ödeme al</h3>
-                <p class="hint">Müşteri IBAN’ından tahsil edilir, tutar Tolkan Uğur IBAN’ına geçer.</p>
+                <p class="hint">Müşteri IBAN havalesi kaydı. Otomatik çekim iyzico kart formunda değildir; havale ayrıca yapılır.</p>
                 <form id="posIbanForm" class="note-form">
                   <input id="posIbanAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
                   <input id="posIbanPayer" placeholder="Ödeyen ad soyad" required maxlength="80" />
@@ -908,29 +904,12 @@
               </article>
               <article class="card" id="posCardCard">
                 <h3>Tüm kredi kartları ile ödeme</h3>
-                <p class="hint">Visa, Mastercard, Troy, American Express ve diğer kartlarla tahsilat. Anahtarlar ödeme sistemine otomatik yazılır.</p>
+                <p class="hint" id="posIyzicoHint">Kart numarası bu uygulamada yazılmaz. Tahsilat iyzico 3D Secure sayfasında alınır.</p>
                 <form id="posCardForm" class="note-form">
-                  <input id="posCardApiKey" readonly placeholder="API anahtarı" />
-                  <input id="posCardSecret" type="password" readonly placeholder="Gizli anahtar" />
                   <input id="posCardAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
-                  <select id="posCardBrand" required>
-                    <option value="">Kart tipi</option>
-                    <option value="Visa">Visa</option>
-                    <option value="Mastercard">Mastercard</option>
-                    <option value="Troy">Troy</option>
-                    <option value="American Express">American Express</option>
-                    <option value="Discover">Discover</option>
-                    <option value="UnionPay">UnionPay</option>
-                    <option value="Diğer">Diğer kredi kartı</option>
-                  </select>
-                  <input id="posCardName" placeholder="Kart üzerindeki isim" required maxlength="80" />
-                  <input id="posCardNumber" inputmode="numeric" placeholder="Kart numarası" required maxlength="23" autocomplete="off" />
-                  <div class="row">
-                    <input id="posCardExp" placeholder="SKT AA/YY" required maxlength="5" />
-                    <input id="posCardCvc" inputmode="numeric" placeholder="CVC" required maxlength="4" autocomplete="off" />
-                  </div>
                   <input id="posCardNote" placeholder="Açıklama" maxlength="80" />
-                  <button class="gold" type="submit">Kart ile tahsil et</button>
+                  <input id="posCardTc" inputmode="numeric" placeholder="Müşteri TC (canlı iyzico)" maxlength="11" />
+                  <button class="gold" type="submit">iyzico ile tahsil et</button>
                 </form>
               </article>
               <article class="card">
@@ -972,7 +951,7 @@
             </div>
             <article class="card">
               <h3>Ödeme sistemi anahtarları</h3>
-              <p class="hint">API ve gizli anahtar ödeme sistemine otomatik yazılır. Oluşturulmuş kodlar değişmez.</p>
+              <p class="hint">Kart tahsilatı iyzico üzerinden yapılır. API anahtarını buraya yazmayın; Cloudflare Pages ortam değişkenlerine IYZICO_API_KEY ve IYZICO_SECRET_KEY ekleyin. Deneme için IYZICO_SANDBOX=1 kullanın.</p>
               <p><strong>API anahtarı</strong></p>
               <input id="posGateApi" readonly />
               <button class="gold" id="posCreateApi" type="button">API Anahtarı oluştur</button>
@@ -1002,15 +981,15 @@
             </article>
             <article class="card" id="posWithdrawCard" hidden>
               <h3>Para çek</h3>
-              <p class="hint">Yalnızca süper admin. Yazılan IBAN’dan Tolkan Uğur özel IBAN’ına çekilir. Bu alan varsayılan gizli; yukarıdaki komutla gösterilir veya gizlenir.</p>
+              <p class="hint">Yalnızca süper admin. Yazılan IBAN’dan Tolkan Uğur Özel IBAN’ına çekilir. Bu alan varsayılan gizli; yukarıdaki komutla gösterilir veya gizlenir.</p>
               <form id="posWithdrawForm" class="note-form">
                 <input id="posWithdrawName" placeholder="Hesap sahibinin adı soyadı" required maxlength="80" />
                 <input id="posWithdrawIban" placeholder="Kaynak IBAN (TR…)" required maxlength="32" />
                 <input id="posWithdrawAmount" inputmode="decimal" placeholder="Çekilecek tutar (₺)" required />
                 <input id="posWithdrawNote" placeholder="Açıklama" maxlength="80" />
                 <p><strong>Hedef IBAN</strong></p>
-                <input id="posWithdrawTarget" readonly value="TR54 0006 2000 1110 0006 ** **" />
-                <p class="hint">Alıcı: Tolkan Uğur · Lüleburgaz Şubesi</p>
+                <input id="posWithdrawTarget" class="iban-text" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <p class="hint">Alıcı: Tolkan Uğur Özel</p>
                 <button class="gold" type="submit">Bu IBAN’dan para çek</button>
               </form>
             </article>
@@ -1020,7 +999,7 @@
             </article>
             <article class="card pos-settle">
               <h3>Aktarım hesabı</h3>
-              <p><strong>TR54 0006 2000 1110 0006 ** **</strong></p>
+              <p class="iban-text"><strong>TR54 0006 2000 1110 0006 ** **</strong></p>
             </article>
             <article class="card">
               <h3>Yapılan tüm ödemeler</h3>
@@ -1028,6 +1007,295 @@
               <div class="log-list" id="posAdminPays"></div>
             </article>
           </div>
+        </section>
+
+        <section class="view" data-view="music" hidden>
+          <h2>Müzik Veya Şarkı Yap</h2>
+          <p class="lede">Kendi sesinizle vokal kaydedin. Tarz ve sözlere göre ritim uygulanır: 1. vokal, 2. vokal, sonra ikisi birlikte. Önizleyin, kaydetince video galeriye gider.</p>
+          <p class="hint" id="musicMsg"></p>
+          <p class="hint" id="musicTrialHint"></p>
+          <div id="musicNoCap" class="music-nocap" hidden>Ekran videosu alınamaz</div>
+          <div id="musicBuyBox">
+            <article class="card pos-settle">
+              <h2 class="music-gate-title" id="musicExpiredHead" hidden>Üye ol hesabını aktifleştir eğlenmeye başla</h2>
+              <p class="lede" id="musicBuyLede">14 günlük deneme dışında doğrudan satın alın. Fiyatlar aşağıdadır.</p>
+              <div class="music-price-row">
+                <button class="music-price is-on" type="button" data-music-plan="month">
+                  <strong>Aylık Abonelik</strong>
+                  <span>49 Türk Lirası</span>
+                </button>
+                <button class="music-price" type="button" data-music-plan="year">
+                  <strong>Yıllık Abonelik</strong>
+                  <span>750 Türk Lirası</span>
+                </button>
+              </div>
+              <h3>Üye ol ve havale ile öde</h3>
+              <form id="musicJoinForm" class="note-form">
+                <input id="musicSubFirst" placeholder="İsim" required maxlength="40" autocomplete="given-name" />
+                <input id="musicSubLast" placeholder="Soy isim" required maxlength="40" autocomplete="family-name" />
+                <input id="musicSubPhone" placeholder="Telefon" required maxlength="16" inputmode="tel" autocomplete="tel" />
+                <input id="musicSubEmail" type="email" placeholder="E-posta (fatura buraya gelir)" required maxlength="80" autocomplete="email" />
+                <input id="musicSubTax" inputmode="numeric" placeholder="TCKN veya VKN (isteğe bağlı)" maxlength="11" />
+                <textarea id="musicSubAddress" placeholder="Adres" required maxlength="240" rows="3" autocomplete="street-address"></textarea>
+                <h3>Havale ile ödeme yap</h3>
+                <p><strong>Alıcı</strong> Tolkan Uğur Özel</p>
+                <p class="hint">Tutar seçtiğiniz abonelikle aynı olmalı. Fatura KDV’si %20’dir. Ödeme sonrası e-Fatura kesilir ve e-postanıza gider.</p>
+                <p><strong>IBAN</strong></p>
+                <input id="musicPayIban" class="iban-text" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <button class="secondary" id="musicCopyIban" type="button">IBAN kopyala</button>
+                <label class="field"><input type="radio" name="musicPlan" value="month" checked /> Aylık Abonelik 49 Türk Lirası (KDV dahil)</label>
+                <label class="field"><input type="radio" name="musicPlan" value="year" /> Yıllık Abonelik 750 Türk Lirası (KDV dahil)</label>
+                <input id="musicPayAmount" inputmode="decimal" placeholder="Havale tutarı (₺)" required value="49" />
+                <p class="hint" id="musicDekontHint">Aylık havale: dekont yükleyin. Dekont ve fatura numarası doğrulanınca üyelik açılır.</p>
+                <label class="field" id="musicDekontField">Dekont
+                  <input id="musicDekont" type="file" accept="image/*,.pdf,application/pdf" />
+                </label>
+                <p class="hint" id="musicJoinMsg"></p>
+                <button class="gold" type="submit">Öde, e-fatura kes ve incelemeye gönder</button>
+              </form>
+              <div id="musicReviewBox" hidden>
+                <h2 class="music-gate-title">Üyelik süreci inceleniyor</h2>
+                <p class="lede" id="musicReviewLede">Faturanız e-posta ile gönderildi. Fatura numarasını girin, doğrulayın ve üyeliğinizi aktif edin.</p>
+                <form id="musicActivateForm" class="note-form">
+                  <input id="musicInvoiceNo" placeholder="Fatura numarası" required maxlength="24" autocomplete="off" />
+                  <p class="hint" id="musicActivateMsg"></p>
+                  <button class="gold" type="submit">Fatura numarasını gir ve üyeliğini aktif et</button>
+                </form>
+              </div>
+            </article>
+            <article class="card">
+              <h3>Süper admin girişi</h3>
+              <p class="hint">Süper admin müzik uygulamasının tüm özelliklerinden ücretsiz yararlanır.</p>
+              <form id="musicAdminForm" class="note-form">
+                <input id="musicAdminUser" autocomplete="username" placeholder="Kullanıcı adı" required />
+                <input id="musicAdminPin" autocomplete="current-password" type="password" placeholder="Şifre" required />
+                <label class="field"><input type="checkbox" id="musicAdminRemember" checked /> Beni hatırla</label>
+                <button class="gold" type="submit">Giriş</button>
+              </form>
+              <p class="hint" id="musicAdminMsg"></p>
+            </article>
+          </div>
+          <div id="musicStudio">
+          <canvas id="musicStage" class="music-stage" width="720" height="1280" aria-label="Şarkı önizleme"></canvas>
+          <article class="card">
+            <form id="musicForm" class="note-form">
+              <input id="musicTitle" placeholder="Şarkı adı" maxlength="80" required />
+              <select id="musicStyle">
+                <option value="pop">Pop</option>
+                <option value="slow">Slow</option>
+                <option value="arabesk">Arabesk</option>
+                <option value="turku">Türkü</option>
+                <option value="rap">Rap</option>
+                <option value="dans">Dans</option>
+              </select>
+              <label class="field">Tempo <span id="musicTempoVal">100</span>
+                <input id="musicTempo" type="range" min="70" max="150" value="100" />
+              </label>
+              <textarea id="musicLyrics" placeholder="Şarkı sözleri... Her satır bir dize. İlk dizeler 1. vokalde, sonrakiler 2. vokalde, hepsi düette." rows="4" maxlength="4000"></textarea>
+              <div class="row">
+                <button class="gold" id="musicPlay" type="button">Önizle</button>
+                <button class="secondary" id="musicStop" type="button">Durdur</button>
+                <button class="primary" type="submit" id="musicSaveBtn">Galeriye video kaydet</button>
+              </div>
+              <article class="music-vox">
+                <h3>1. Vokal</h3>
+                <p class="hint">İlk bölümde bu ses söyler. Kayıt veya dosya yükleyin.</p>
+                <div class="row">
+                  <button class="gold" id="musicRec1" type="button">Ses kaydet</button>
+                  <button class="secondary" id="musicStopRec1" type="button">Kaydı bitir</button>
+                </div>
+                <input id="musicFile1" type="file" accept="audio/*,video/*" />
+                <p class="hint" id="musicVox1">Henüz kayıt yok.</p>
+              </article>
+              <article class="music-vox">
+                <h3>2. Vokal</h3>
+                <p class="hint">İkinci kişi için. İkinci bölümde bu ses, sonda ikisi birden.</p>
+                <div class="row">
+                  <button class="gold" id="musicRec2" type="button">Ses kaydet</button>
+                  <button class="secondary" id="musicStopRec2" type="button">Kaydı bitir</button>
+                </div>
+                <input id="musicFile2" type="file" accept="audio/*,video/*" />
+                <p class="hint" id="musicVox2">İsteğe bağlı. Yoksa 1. vokal uyumla çoğaltılır.</p>
+              </article>
+              <h3>Tuşlar</h3>
+              <div class="music-pad" id="musicPad"></div>
+            </form>
+          </article>
+          <h3 class="subhead">Kayıtlı şarkılar</h3>
+          <div class="note-list" id="musicList"></div>
+          </div>
+          <article class="card" id="musicAdminPanel" hidden>
+            <h3>Müzik aboneleri</h3>
+            <p class="hint">Süper admin görünümü. Tüm müzik özellikleri ücretsiz.</p>
+            <div class="log-list" id="musicMemberList"></div>
+            <button class="secondary" id="musicAdminOut" type="button">Admin çıkış</button>
+          </article>
+        </section>
+
+        <section class="view" data-view="aiclip" hidden>
+          <article class="card pos-settle" id="clipLiveCard">
+            <h3>Kamera</h3>
+            <p class="hint">Üyelik veya deneme açıkken kamerayı açın. Fatura ve dekont kanıtı aşağıdaki ödeme alanındadır. Filtreler yalnızca yüze uygulanır; kayıt durmaz.</p>
+            <button class="gold" id="clipLiveOpen" type="button">Kamerayı aç</button>
+            <p class="hint" id="clipLiveMsg"></p>
+            <div class="clip-live front-cam" id="clipLiveStage" hidden>
+              <video id="clipLiveVideo" playsinline muted autoplay></video>
+              <canvas id="clipLiveCanvas" aria-label="Kamera görüntüsü"></canvas>
+              <button class="clip-live-close" id="clipLiveClose" type="button">Kamerayı kapat</button>
+              <div class="clip-live-iso" id="clipLiveIso">
+                <span>Hassasiyet</span>
+                <input id="clipLiveIsoRange" type="range" min="50" max="3200" step="5" value="405" orient="vertical" />
+              </div>
+              <div class="clip-live-fx" id="clipLiveFx">
+                <div class="clip-live-fx-tabs" id="clipLiveFxTabs">
+                  <button type="button" class="is-on" data-clip-fx="shots">Çekim filtreleri</button>
+                  <button type="button" data-clip-fx="beauty">Güzelleştirme</button>
+                  <button type="button" data-clip-fx="makeup">Makyaj</button>
+                  <button type="button" data-clip-fx="hair">Saç</button>
+                </div>
+                <div class="clip-live-fx-pane is-on" data-clip-pane="shots">
+                  <div class="clip-live-chips" id="clipLiveShots"></div>
+                </div>
+                <div class="clip-live-fx-pane" data-clip-pane="beauty" hidden>
+                  <div class="clip-live-chips" id="clipLiveBeautyRow"></div>
+                </div>
+                <div class="clip-live-fx-pane" data-clip-pane="makeup" hidden>
+                  <div class="clip-live-chips" id="clipLiveMakeup"></div>
+                </div>
+                <div class="clip-live-fx-pane" data-clip-pane="hair" hidden>
+                  <div class="clip-live-chips" id="clipLiveHair"></div>
+                  <div class="clip-live-chips" id="clipLiveHairColor"></div>
+                </div>
+              </div>
+              <label class="clip-live-zoom">
+                <span id="clipLiveZoomVal">0,5×</span>
+                <input id="clipLiveZoom" type="range" min="0.5" max="10" step="0.1" value="0.5" />
+              </label>
+              <div class="clip-live-facing" id="clipLiveFacing">ön</div>
+              <button class="shutter" id="clipLiveShutter" type="button" aria-label="Video çek"></button>
+              <button type="button" class="clip-live-flip front" id="clipLiveFlip" aria-label="Ön veya arka kamera">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                  <path stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 8.2A8 8 0 0 0 6.4 6.4L5 5m-1 10.8A8 8 0 0 0 17.6 17.6L19 19" />
+                  <path fill="currentColor" d="M15.4 9H14.6l-.55-.75A1.2 1.2 0 0 0 13.1 8h-2.2c-.4 0-.76.2-.95.5L9.4 9H8.6A1.6 1.6 0 0 0 7 10.6v4.8A1.6 1.6 0 0 0 8.6 17h6.8a1.6 1.6 0 0 0 1.6-1.6v-4.8A1.6 1.6 0 0 0 15.4 9zM12 15.1a1.9 1.9 0 1 1 0-3.8 1.9 1.9 0 0 1 0 3.8z" />
+                </svg>
+              </button>
+            </div>
+            <div id="clipLiveDone" hidden>
+              <h3>Önizleme</h3>
+              <video id="clipLivePreview" class="clip-live-preview" controls playsinline></video>
+              <p class="hint" id="clipLiveDoneMsg">Kaydı galeriye almak için kaydet’e basın.</p>
+              <button class="gold" id="clipLiveSave" type="button">Kaydet</button>
+            </div>
+          </article>
+          <h2>Yapay Zeka İle Klip Yap</h2>
+          <p class="lede">Konuyu yazın, fotoğraf ekleyin. Yapay zeka sahne, yazı ve ritim üretir. Önizleyin, klip galeriye video olarak kaydedilir.</p>
+          <p class="hint" id="clipMsg"></p>
+          <p class="hint" id="clipTrialHint"></p>
+          <div id="clipBuyBox">
+            <article class="card pos-settle">
+              <h2 class="music-gate-title" id="clipExpiredHead" hidden>Üye ol hesabını aktifleştir klip yapmaya başla</h2>
+              <p class="lede" id="clipBuyLede">14 günlük deneme dışında doğrudan satın alın. Fiyatlar aşağıdadır.</p>
+              <div class="music-price-row">
+                <button class="music-price is-on" type="button" data-clip-plan="month">
+                  <strong>Aylık Abonelik</strong>
+                  <span>49 Türk Lirası</span>
+                </button>
+                <button class="music-price" type="button" data-clip-plan="year">
+                  <strong>Yıllık Abonelik</strong>
+                  <span>750 Türk Lirası</span>
+                </button>
+              </div>
+              <h3>Üye ol ve havale ile öde</h3>
+              <form id="clipJoinForm" class="note-form">
+                <input id="clipSubFirst" placeholder="İsim" required maxlength="40" autocomplete="given-name" />
+                <input id="clipSubLast" placeholder="Soy isim" required maxlength="40" autocomplete="family-name" />
+                <input id="clipSubPhone" placeholder="Telefon" required maxlength="16" inputmode="tel" autocomplete="tel" />
+                <input id="clipSubEmail" type="email" placeholder="E-posta (fatura buraya gelir)" required maxlength="80" autocomplete="email" />
+                <input id="clipSubTax" inputmode="numeric" placeholder="TCKN veya VKN (isteğe bağlı)" maxlength="11" />
+                <textarea id="clipSubAddress" placeholder="Adres" required maxlength="240" rows="3" autocomplete="street-address"></textarea>
+                <h3>Havale ile ödeme yap</h3>
+                <p><strong>Alıcı</strong> Tolkan Uğur Özel</p>
+                <p class="hint">Tutar seçtiğiniz abonelikle aynı olmalı. Fatura KDV’si %20’dir. Ödeme sonrası e-Fatura kesilir ve e-postanıza gider.</p>
+                <p><strong>IBAN</strong></p>
+                <input id="clipPayIban" class="iban-text" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <button class="secondary" id="clipCopyIban" type="button">IBAN kopyala</button>
+                <label class="field"><input type="radio" name="clipPlan" value="month" checked /> Aylık Abonelik 49 Türk Lirası (KDV dahil)</label>
+                <label class="field"><input type="radio" name="clipPlan" value="year" /> Yıllık Abonelik 750 Türk Lirası (KDV dahil)</label>
+                <input id="clipPayAmount" inputmode="decimal" placeholder="Havale tutarı (₺)" required value="49" />
+                <p class="hint" id="clipDekontHint">Aylık havale: dekont yükleyin. Dekont ve fatura numarası doğrulanınca üyelik açılır.</p>
+                <label class="field">Dekont
+                  <input id="clipDekont" type="file" accept="image/*,.pdf,application/pdf" />
+                </label>
+                <p class="hint" id="clipJoinMsg"></p>
+                <button class="gold" type="submit">Öde, e-fatura kes ve incelemeye gönder</button>
+              </form>
+              <div id="clipReviewBox" hidden>
+                <h2 class="music-gate-title">Üyelik süreci inceleniyor</h2>
+                <p class="lede" id="clipReviewLede">Faturanız e-posta ile gönderildi. Fatura numarasını girin, doğrulayın ve üyeliğinizi aktif edin.</p>
+                <form id="clipActivateForm" class="note-form">
+                  <input id="clipInvoiceNo" placeholder="Fatura numarası" required maxlength="24" autocomplete="off" />
+                  <p class="hint" id="clipActivateMsg"></p>
+                  <button class="gold" type="submit">Fatura numarasını gir ve üyeliğini aktif et</button>
+                </form>
+              </div>
+            </article>
+            <article class="card">
+              <h3>Süper admin girişi</h3>
+              <p class="hint">Süper admin klip uygulamasının tüm özelliklerinden ücretsiz yararlanır.</p>
+              <form id="clipAdminForm" class="note-form">
+                <input id="clipAdminUser" autocomplete="username" placeholder="Kullanıcı adı" required />
+                <input id="clipAdminPin" autocomplete="current-password" type="password" placeholder="Şifre" required />
+                <label class="field"><input type="checkbox" id="clipAdminRemember" checked /> Beni hatırla</label>
+                <button class="gold" type="submit">Giriş</button>
+              </form>
+              <p class="hint" id="clipAdminMsg"></p>
+            </article>
+          </div>
+          <div id="clipStudio">
+          <canvas id="clipStage" class="music-stage" width="720" height="1280" aria-label="Klip önizleme"></canvas>
+          <article class="card pos-settle">
+            <form id="clipForm" class="note-form">
+              <input id="clipTitle" placeholder="Klip adı" maxlength="80" required />
+              <select id="clipStyle">
+                <option value="sarki">Şarkı klibi</option>
+                <option value="reklam">Reklam</option>
+                <option value="hikaye">Hikaye</option>
+                <option value="urun">Ürün tanıtımı</option>
+                <option value="duyuru">Duyuru</option>
+              </select>
+              <select id="clipDur">
+                <option value="15">15 saniye</option>
+                <option value="30">30 saniye</option>
+                <option value="60">1 dakika</option>
+                <option value="120">2 dakika</option>
+                <option value="180">3 dakika</option>
+                <option value="300">5 dakika</option>
+                <option value="600">10 dakika</option>
+              </select>
+              <textarea id="clipPrompt" placeholder="Ne anlatsın? Örnek: Gece Lüleburgaz’da arkadaşlarla eğlence, altın ışık, hızlı kesitler." rows="4" maxlength="800" required></textarea>
+              <label class="field">Fotoğraflar
+                <input id="clipPhotos" type="file" accept="image/*" multiple />
+              </label>
+              <p class="hint" id="clipPhotoHint">Fotoğraf yoksa yapay zeka renk ve yazı ile sahne üretir.</p>
+              <label class="field">Müzik veya ses (isteğe bağlı)
+                <input id="clipAudio" type="file" accept="audio/*" />
+              </label>
+              <div class="row">
+                <button class="gold" id="clipPlay" type="button">Klip üret ve önizle</button>
+                <button class="secondary" id="clipStop" type="button">Durdur</button>
+                <button class="primary" id="clipSave" type="button">Galeriye video kaydet</button>
+              </div>
+            </form>
+          </article>
+          <h3 class="subhead">Kayıtlı klipler</h3>
+          <div class="note-list" id="clipList"></div>
+          </div>
+          <article class="card" id="clipAdminPanel" hidden>
+            <h3>Klip aboneleri</h3>
+            <p class="hint">Süper admin görünümü. Tüm klip özellikleri ücretsiz.</p>
+            <div class="log-list" id="clipMemberList"></div>
+            <button class="secondary" id="clipAdminOut" type="button">Admin çıkış</button>
+          </article>
         </section>
 
         <section class="view" data-view="eimza" hidden>
@@ -1082,9 +1350,9 @@
               <p class="price" id="eimzaCartTotal"></p>
               <button class="secondary" id="eimzaCartClear" type="button">Sepeti boşalt</button>
             </article>
-            <article class="card">
+            <article class="card pos-settle">
               <h3>Ödeme</h3>
-              <p class="hint">Ödemeyi sepette tamamlayın. Tahsilat Tolkan Uğur · Lüleburgaz Şubesi IBAN’ına aktarılır.</p>
+              <p class="hint">Ödemeyi sepette tamamlayın. Tahsilat Tolkan Uğur Özel IBAN’ına aktarılır.</p>
               <div class="note-form" id="eimzaPayInfo">
                 <input id="eimzaCompany" placeholder="Firma / unvan" maxlength="120" />
                 <input id="eimzaTax" inputmode="numeric" placeholder="VKN veya TCKN" maxlength="11" />
@@ -1099,10 +1367,9 @@
                 <button class="secondary" type="button" data-eimza-pay="iban">IBAN ile öde</button>
               </div>
               <form id="eimzaHavaleForm" class="note-form" hidden>
-                <p><strong>Alıcı</strong> Tolkan Uğur</p>
-                <p><strong>Şube</strong> Lüleburgaz Şubesi</p>
+                <p><strong>Alıcı</strong> Tolkan Uğur Özel</p>
                 <p><strong>IBAN</strong></p>
-                <input id="eimzaHavaleIban" readonly value="TR54 0006 2000 1110 0006 ** **" />
+                <input id="eimzaHavaleIban" class="iban-text" readonly value="TR54 0006 2000 1110 0006 ** **" />
                 <button class="secondary" id="eimzaCopyIban" type="button">IBAN kopyala</button>
                 <button class="gold" type="submit">Havale yaptım</button>
               </form>
@@ -1126,7 +1393,7 @@
                 <button class="gold" type="submit">Kredi kartı ile öde</button>
               </form>
               <form id="eimzaIbanForm" class="note-form" hidden>
-                <p class="hint">Ödeyen IBAN’dan tutar Tolkan Uğur IBAN’ına geçer.</p>
+                <p class="hint">Ödeyen IBAN’dan tutar Tolkan Uğur Özel IBAN’ına geçer.</p>
                 <input id="eimzaIbanFrom" placeholder="Ödeyen IBAN (TR…)" required maxlength="32" />
                 <button class="gold" type="submit">IBAN ile öde</button>
               </form>
@@ -1142,7 +1409,7 @@
         <button class="tab" data-go="camera" type="button">Kamera</button>
         <button class="tab" data-go="notes" type="button">Not</button>
         <button class="tab" data-go="nfc" type="button">NFC</button>
-        <button class="tab owner-app" data-go="pbx" type="button">Santral</button>
+        <button class="tab" data-go="pbx" type="button">Santral</button>
         <button class="tab" data-go="hygiene" type="button">Hijyen</button>
       </nav>
     </div>
@@ -1205,6 +1472,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=144"></script>
+    <script src="js/app.js?v=177"></script>
   </body>
 </html>

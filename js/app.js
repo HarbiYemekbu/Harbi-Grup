@@ -151,13 +151,9 @@ function ownerAppsOn() {
 
 function syncOwnerApps() {
   document.body.classList.toggle("owner-on", ownerAppsOn());
-  if (!ownerAppsOn() && resumeActiveView() === "pbx") {
-    showView("home");
-  }
 }
 
 function showView(name) {
-  if (name === "pbx" && !ownerAppsOn()) name = "home";
   const prev = resumeActiveView();
   if (prev && prev !== name) resumeSaveScroll(prev);
   views.forEach((view) => {
@@ -169,9 +165,18 @@ function showView(name) {
   document.body.classList.toggle("camera-open", name === "camera");
   if (name !== "camera") stopCamera();
   else startCamera();
+  if (name !== "music") stopMusicMaker();
+  if (name !== "aiclip") {
+    stopAiClip();
+    if (typeof clipLiveHalt === "function") clipLiveHalt();
+  }
+  if (name === "music") musicBeginTrial();
+  if (name === "aiclip") clipBeginTrial();
   if (name === "women") renderGk();
   if (name === "pos") renderPos();
   if (name === "eimza") renderEimza();
+  if (name === "music") renderMusic();
+  if (name === "aiclip") renderAiClip();
   resumeSaveView(name);
   resumeRestoreScroll(name);
 }
@@ -1352,27 +1357,40 @@ function speakVoice(text, opts) {
   });
 }
 
+function nfcVibrate() {
+  try {
+    navigator.vibrate?.([50, 30, 70]);
+  } catch {
+    /* titreşim yok */
+  }
+}
+
 function playTlink() {
   return new Promise((resolve) => {
     const ctx = nfcAudio();
+    nfcVibrate();
     if (!ctx) {
       resolve();
       return;
     }
     const play = () => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(2093, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1568, ctx.currentTime + 0.16);
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.32);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.34);
-      setTimeout(resolve, 360);
+      const now = ctx.currentTime;
+      const ding = (freq, start, dur, peak) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + start);
+        gain.gain.setValueAtTime(0.0001, now + start);
+        gain.gain.exponentialRampToValueAtTime(peak, now + start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + dur + 0.02);
+      };
+      ding(1760, 0, 0.12, 0.42);
+      ding(2349, 0.07, 0.16, 0.32);
+      setTimeout(resolve, 280);
     };
     if (ctx.state === "suspended") ctx.resume().then(play).catch(play);
     else play();
@@ -1380,9 +1398,8 @@ function playTlink() {
 }
 
 async function nfcContactSound() {
-  await speakTr("NFC çalışıyor");
   await playTlink();
-  await speakTr("NFC'niz başarılı");
+  speakTr("NFC'niz başarılı");
 }
 
 if ("speechSynthesis" in window) {
@@ -1502,11 +1519,2617 @@ $("#nfcScan").addEventListener("click", async () => {
       nfcResult.textContent = "";
       if (!showNfcPersonName(detail)) nfcResult.textContent = "İsim bulunamadı";
       saveNfc({ type: "Okuma", detail });
+      nfcAudio()?.resume?.();
       nfcContactSound();
     };
   } catch (error) {
     nfcResult.textContent = "NFC okunamadı: " + error.message;
   }
+});
+
+const MUSIC_KEY = "music-songs";
+const MUSIC_KEYS = [
+  { n: "Do", f: 261.63 },
+  { n: "Re", f: 293.66 },
+  { n: "Mi", f: 329.63 },
+  { n: "Fa", f: 349.23 },
+  { n: "Sol", f: 392.0 },
+  { n: "La", f: 440.0 },
+  { n: "Si", f: 493.88 },
+  { n: "Do2", f: 523.25 },
+];
+
+let musicTick = 0;
+let musicTimer = 0;
+let musicPlaying = false;
+let musicPreviewRaf = 0;
+let musicExporting = false;
+let musicSongCache = null;
+let musicLiveSources = [];
+const MUSIC_TRIAL = "music-trial";
+const MUSIC_SUB = "music-sub";
+const MUSIC_MEMBERS = "music-members";
+const MUSIC_TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
+
+function musicViewOn() {
+  return document.querySelector('.view[data-view="music"]')?.classList.contains("active");
+}
+
+function musicTrialState() {
+  return store.get(MUSIC_TRIAL, null);
+}
+
+function musicBeginTrial() {
+  if (!store.get(MUSIC_TRIAL, null)?.at) store.set(MUSIC_TRIAL, { at: Date.now() });
+}
+
+function musicTrialLeft() {
+  const row = musicTrialState();
+  if (!row?.at) return MUSIC_TRIAL_MS;
+  return Math.max(0, row.at + MUSIC_TRIAL_MS - Date.now());
+}
+
+function musicSubNow() {
+  return store.get(MUSIC_SUB, null);
+}
+
+function musicMembers() {
+  return store.get(MUSIC_MEMBERS, []);
+}
+
+function musicIsSuper() {
+  return ownerAppsOn();
+}
+
+function musicSubActive() {
+  const sub = musicSubNow();
+  return !!(sub?.ok && sub.until && sub.until > Date.now());
+}
+
+function musicCanUse() {
+  return musicIsSuper() || musicSubActive() || musicTrialLeft() > 0;
+}
+
+function musicJoinMsg(text) {
+  if ($("#musicJoinMsg")) $("#musicJoinMsg").textContent = text || "";
+}
+
+function musicSubPending() {
+  const sub = musicSubNow();
+  return !!(sub?.pending && !musicSubActive());
+}
+
+function musicActivateMsg(text) {
+  if ($("#musicActivateMsg")) $("#musicActivateMsg").textContent = text || "";
+}
+
+function musicNeedAccess() {
+  if (musicCanUse()) return true;
+  musicSyncGate();
+  musicMsg("Üye ol hesabını aktifleştir eğlenmeye başla");
+  return false;
+}
+
+function musicPlanAmount(plan) {
+  return plan === "year" ? 750 : 49;
+}
+
+function musicPlanDays(plan) {
+  return plan === "year" ? 365 : 30;
+}
+
+async function musicInspectDekont(file) {
+  if (!file) throw new Error("Dekont yükleyin.");
+  const name = file.name || "";
+  const type = String(file.type || "").toLowerCase();
+  const isPdf = type === "application/pdf" || /\.pdf$/i.test(name);
+  const isImg = type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(name);
+  if (!isPdf && !isImg) throw new Error("Dekont görsel veya PDF olmalı.");
+  if (file.size < 28000) throw new Error("Dekont çok küçük. Boş veya sahte dosya görünüyor.");
+  if (file.size > 12 * 1024 * 1024) throw new Error("Dekont dosyası çok büyük.");
+  if (/fake|sahte|photoshop|sample|ornek|örnek/i.test(name)) throw new Error("Dekont dosya adı güvenilir değil.");
+  if (isPdf) return { kind: "pdf", w: 0, h: 0 };
+  try {
+    const bmp = await createImageBitmap(file);
+    const w = bmp.width;
+    const h = bmp.height;
+    if (w < 380 || h < 380) throw new Error("Dekont çözünürlüğü yetersiz.");
+    const canvas = document.createElement("canvas");
+    canvas.width = 72;
+    canvas.height = 72;
+    const g = canvas.getContext("2d", { willReadFrequently: true });
+    g.drawImage(bmp, 0, 0, 72, 72);
+    const pix = g.getImageData(0, 0, 72, 72).data;
+    let sum = 0;
+    let sum2 = 0;
+    const n = 72 * 72;
+    const bins = new Uint32Array(8);
+    let edges = 0;
+    for (let i = 0; i < pix.length; i += 4) {
+      const y = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
+      sum += y;
+      sum2 += y * y;
+      bins[Math.min(7, y >> 5)] += 1;
+    }
+    const mean = sum / n;
+    const variance = sum2 / n - mean * mean;
+    if (variance < 220) throw new Error("Dekont boş veya tek renk. Sahte görünüyor.");
+    let used = 0;
+    bins.forEach((c) => {
+      if (c > n * 0.03) used += 1;
+    });
+    if (used < 3) throw new Error("Dekont içeriği yetersiz. Ödeme belgesi görünmüyor.");
+    const data = g.getImageData(0, 0, 72, 72).data;
+    for (let y = 1; y < 71; y++) {
+      for (let x = 1; x < 71; x++) {
+        const i = (y * 72 + x) * 4;
+        const c = data[i];
+        const r = data[i + 4];
+        const d = data[i + 72 * 4];
+        if (Math.abs(c - r) > 28 || Math.abs(c - d) > 28) edges += 1;
+      }
+    }
+    if (edges < 80) throw new Error("Dekont üzerinde yazı veya banka çıktısı yok.");
+    return { kind: "image", w, h };
+  } catch (err) {
+    if (err.message && /Dekont|Sahte|yetersiz|görünmüyor|yok/.test(err.message)) throw err;
+    if (isImg && file.size >= 40000) return { kind: "image", w: 0, h: 0 };
+    throw new Error("Dekont okunamadı. Net bir banka dekontu yükleyin.");
+  }
+}
+
+function musicSyncGate() {
+  const paid = musicSubActive() || musicIsSuper();
+  const trialOn = musicTrialLeft() > 0 && !musicSubActive();
+  const pending = musicSubPending();
+  const gate = $("#musicBuyBox");
+  const studio = $("#musicStudio");
+  const admin = $("#musicAdminPanel");
+  const hint = $("#musicTrialHint");
+  const expired = $("#musicExpiredHead");
+  const lede = $("#musicBuyLede");
+  const join = $("#musicJoinForm");
+  const review = $("#musicReviewBox");
+  if (gate) gate.hidden = paid;
+  if (join) join.hidden = paid || pending;
+  if (review) review.hidden = !pending || paid;
+  if (studio) studio.hidden = !musicCanUse();
+  if (admin) admin.hidden = !musicIsSuper();
+  if (expired) expired.hidden = paid || trialOn || pending;
+  if (lede) {
+    lede.hidden = pending;
+    lede.textContent = trialOn
+      ? "Deneme sürümündesiniz. İsterseniz hemen satın alın: Aylık 49 ₺, Yıllık 750 ₺. KDV %20 faturaya işlenir."
+      : "14 günlük deneme bitti. Aylık 49 Türk Lirası veya Yıllık 750 Türk Lirası ödeyin. Fatura KDV’si %20.";
+  }
+  const sub = musicSubNow();
+  if ($("#musicReviewLede") && pending) {
+    $("#musicReviewLede").textContent = sub?.mailed
+      ? "Faturanız e-posta ile gönderildi. Üyelik süreci inceleniyor. Fatura numarasını girip üyeliğinizi aktif edin."
+      : "Üyelik süreci inceleniyor. Fatura numaranızı girin; doğrulanınca üyelik açılır.";
+  }
+  if (hint) {
+    if (musicIsSuper()) hint.textContent = "Süper admin · tüm özellikler ücretsiz.";
+    else if (musicSubActive()) {
+      const left = Math.ceil((musicSubNow().until - Date.now()) / 86400000);
+      hint.textContent = `Abonelik aktif · ${left} gün kaldı.`;
+    } else if (pending) hint.textContent = "Üyelik süreci inceleniyor. Fatura numaranızı girin.";
+    else if (trialOn) {
+      const days = Math.max(1, Math.ceil(musicTrialLeft() / 86400000));
+      hint.textContent = `14 günlük deneme · ${days} gün kaldı. Doğrudan satın alabilirsiniz.`;
+    } else hint.textContent = "";
+  }
+  const list = $("#musicMemberList");
+  if (list && musicIsSuper()) {
+    const rows = musicMembers();
+    list.innerHTML = rows.length
+      ? rows
+          .map(
+            (row) =>
+              `<article class="card"><strong>${escapeHtml(row.first)} ${escapeHtml(row.last)}</strong><p class="hint">${escapeHtml(
+                row.phone
+              )} · ${row.plan === "year" ? "Yıllık 750 ₺" : "Aylık 49 ₺"} · KDV %20 · ${
+                row.ok ? new Date(row.until).toLocaleDateString("tr-TR") : "inceleniyor"
+              }${row.invoiceNumber ? " · " + escapeHtml(row.invoiceNumber) : ""}</p></article>`
+          )
+          .join("")
+      : "<p class='hint'>Henüz abone yok.</p>";
+  }
+}
+
+function musicSelectPlan(plan) {
+  const value = plan === "year" ? "year" : "month";
+  $$("input[name='musicPlan']").forEach((el) => {
+    el.checked = el.value === value;
+  });
+  $$("[data-music-plan]").forEach((el) => el.classList.toggle("is-on", el.dataset.musicPlan === value));
+  if ($("#musicPayAmount")) $("#musicPayAmount").value = String(musicPlanAmount(value));
+  const month = value === "month";
+  if ($("#musicDekont")) $("#musicDekont").required = month;
+  if ($("#musicDekontHint")) {
+    $("#musicDekontHint").textContent = month
+      ? "Aylık havale: dekont yükleyin. Dekont ve fatura numarası doğrulanınca üyelik açılır."
+      : "Yıllık: ödeme sonrası e-fatura mailinize gelir. Fatura numarası ile üyeliği aktif edin.";
+  }
+}
+
+function musicOnCaptureAttempt() {
+  stopMusicMaker();
+  document.body.classList.add("music-capture-block");
+  const cap = $("#musicNoCap");
+  if (cap) cap.hidden = false;
+  musicMsg("Ekran videosu almak bu uygulamada kapalı.");
+  setTimeout(() => {
+    document.body.classList.remove("music-capture-block");
+    if (cap) cap.hidden = true;
+  }, 2500);
+}
+
+function musicHasDisplayCapture() {
+  try {
+    const devices = [];
+    document.querySelectorAll("video, canvas").forEach(() => {});
+    if (!navigator.mediaDevices) return false;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function musicWatchCapture() {
+  if (!musicViewOn()) return;
+  navigator.mediaDevices?.getUserMedia;
+  const md = navigator.mediaDevices;
+  if (!md) return;
+}
+
+function musicInstallCaptureGuard() {
+  const md = navigator.mediaDevices;
+  if (md?.getDisplayMedia && !md.__musicGuard) {
+    md.__musicGuard = true;
+    const orig = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = async function () {
+      if (musicViewOn()) {
+        musicOnCaptureAttempt();
+        throw new DOMException("Ekran videosu alınamaz", "NotAllowedError");
+      }
+      return orig.apply(this, arguments);
+    };
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!musicViewOn() || !document.hidden) return;
+    stopMusicMaker();
+    const stage = $("#musicStage");
+    if (stage) {
+      const g = stage.getContext("2d");
+      g.fillStyle = "#110318";
+      g.fillRect(0, 0, stage.width, stage.height);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (!musicViewOn()) return;
+    if (event.key === "PrintScreen" || (event.metaKey && event.shiftKey && (event.key === "3" || event.key === "4" || event.key === "5"))) {
+      musicOnCaptureAttempt();
+    }
+  });
+  const studio = $("#musicStudio");
+  studio?.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  });
+}
+
+const musicVocals = {
+  1: { blob: null, buffer: null, rec: null, stream: null, chunks: [], recording: false },
+  2: { blob: null, buffer: null, rec: null, stream: null, chunks: [], recording: false },
+};
+
+function musicSongs() {
+  return store.get(MUSIC_KEY, []);
+}
+
+function musicMsg(text) {
+  if ($("#musicMsg")) $("#musicMsg").textContent = text || "";
+}
+
+function musicTone(freq, dur, type, vol) {
+  const ctx = nfcAudio();
+  if (!ctx) return;
+  musicScheduleTone(ctx, ctx.destination, ctx.currentTime, freq, dur, type, vol);
+}
+
+function musicScheduleTone(ctx, dest, time, freq, dur, type, vol) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || "triangle";
+  osc.frequency.setValueAtTime(freq, time);
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(vol || 0.18, time + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+  osc.connect(gain);
+  gain.connect(dest);
+  osc.start(time);
+  osc.stop(time + dur + 0.02);
+}
+
+function musicDrum(kind) {
+  const ctx = nfcAudio();
+  if (!ctx) return;
+  musicScheduleDrum(ctx, ctx.destination, ctx.currentTime, kind);
+}
+
+function musicScheduleDrum(ctx, dest, time, kind) {
+  if (kind === "kick") {
+    musicScheduleTone(ctx, dest, time, 90, 0.14, "sine", 0.28);
+    return;
+  }
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(kind === "snare" ? 180 : 9000, time);
+  gain.gain.setValueAtTime(kind === "hat" ? 0.05 : 0.12, time);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + (kind === "hat" ? 0.05 : 0.1));
+  osc.connect(gain);
+  gain.connect(dest);
+  osc.start(time);
+  osc.stop(time + 0.12);
+}
+
+function musicScaleFor(style) {
+  if (style === "arabesk") return [220, 233.08, 261.63, 311.13, 329.63, 392];
+  if (style === "turku") return [196, 220, 246.94, 293.66, 329.63, 392];
+  if (style === "rap") return [110, 130.81, 146.83, 164.81, 196, 220];
+  if (style === "slow") return [196, 220, 246.94, 261.63, 329.63, 392];
+  if (style === "dans") return [261.63, 329.63, 392, 523.25, 659.25, 783.99];
+  return [261.63, 293.66, 329.63, 392, 440, 523.25];
+}
+
+function musicScale() {
+  return musicScaleFor($("#musicStyle")?.value || "pop");
+}
+
+function musicMeta() {
+  return {
+    title: ($("#musicTitle")?.value || "").trim() || "Harbi Şarkı",
+    style: $("#musicStyle")?.value || "pop",
+    tempo: Number($("#musicTempo")?.value) || 100,
+    lyrics: ($("#musicLyrics")?.value || "").trim(),
+  };
+}
+
+function musicLyricParts(text) {
+  const lines = String(text || "")
+    .split(/\n+/)
+    .map((row) => row.trim())
+    .filter(Boolean);
+  if (!lines.length) return ["Kendi sesiniz", "İkinci vokal", "Düet"];
+  const mid = Math.max(1, Math.ceil(lines.length / 2));
+  const a = lines.slice(0, mid).join("\n");
+  const b = lines.slice(mid).join("\n") || a;
+  return [a, b, lines.join("\n")];
+}
+
+function musicInvalidateSong() {
+  musicSongCache = null;
+}
+
+function stopMusicMaker() {
+  const keepStage = musicExporting;
+  musicPlaying = false;
+  clearInterval(musicTimer);
+  musicTimer = 0;
+  musicTick = 0;
+  cancelAnimationFrame(musicPreviewRaf);
+  musicPreviewRaf = 0;
+  musicLiveSources.forEach((node) => {
+    try {
+      node.stop();
+    } catch {
+      /* already stopped */
+    }
+  });
+  musicLiveSources = [];
+  [1, 2].forEach((slot) => {
+    if (musicVocals[slot].recording) musicStopRec(slot, true);
+  });
+  musicExporting = false;
+  const stage = $("#musicStage");
+  if (stage && !keepStage) stage.classList.remove("is-on");
+  if ($("#musicPlay")) $("#musicPlay").textContent = "Önizle";
+}
+
+function musicPlayLoop() {
+  const ctx = nfcAudio();
+  if (!ctx) {
+    musicMsg("Bu tarayıcı ses çalamıyor.");
+    return;
+  }
+  ctx.resume?.();
+  stopMusicMaker();
+  musicPlaying = true;
+  if ($("#musicPlay")) $("#musicPlay").textContent = "Çalıyor";
+  const bpm = Number($("#musicTempo")?.value) || 100;
+  const stepMs = Math.round(60000 / bpm / 2);
+  const lyrics = ($("#musicLyrics")?.value || "").replace(/\s+/g, "") || "HARBIGRUP";
+  musicMsg("Ritim çalıyor…");
+  musicTimer = setInterval(() => {
+    if (!musicPlaying) return;
+    const s = musicTick % 16;
+    const style = $("#musicStyle")?.value || "pop";
+    if (s % 4 === 0) musicDrum("kick");
+    if (s % 4 === 2) musicDrum(style === "rap" ? "hat" : "snare");
+    if (s % 2 === 1 || style === "dans" || style === "rap") musicDrum("hat");
+    const scale = musicScale();
+    const ch = lyrics.charCodeAt(musicTick % lyrics.length);
+    musicTone(scale[ch % scale.length], style === "slow" ? 0.28 : 0.16, style === "rap" ? "square" : "triangle", 0.14);
+    if (s % 8 === 0) musicTone(scale[0] / 2, 0.22, "sine", 0.1);
+    musicTick += 1;
+  }, stepMs);
+}
+
+function musicRms(samples) {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+  return Math.sqrt(sum / Math.max(1, samples.length));
+}
+
+function musicDetectPitch(samples, sr) {
+  if (musicRms(samples) < 0.02) return 0;
+  const minLag = Math.floor(sr / 700);
+  const maxLag = Math.min(Math.floor(sr / 80), samples.length - 2);
+  let bestLag = 0;
+  let best = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let corr = 0;
+    for (let i = 0; i < samples.length - lag; i++) corr += samples[i] * samples[i + lag];
+    if (corr > best) {
+      best = corr;
+      bestLag = lag;
+    }
+  }
+  return bestLag ? sr / bestLag : 0;
+}
+
+function musicMono(buffer) {
+  const ctx = nfcAudio();
+  const out = ctx.createBuffer(1, buffer.length, buffer.sampleRate);
+  const dst = out.getChannelData(0);
+  const ch0 = buffer.getChannelData(0);
+  if (buffer.numberOfChannels === 1) {
+    dst.set(ch0);
+    return out;
+  }
+  const ch1 = buffer.getChannelData(1);
+  for (let i = 0; i < dst.length; i++) dst[i] = (ch0[i] + ch1[i]) * 0.5;
+  return out;
+}
+
+function musicNormalize(buffer) {
+  const data = buffer.getChannelData(0);
+  let peak = 0.001;
+  for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+  const g = 0.86 / peak;
+  for (let i = 0; i < data.length; i++) data[i] *= g;
+  return buffer;
+}
+
+function musicTuneBuffer(buffer, style, harmony) {
+  const srcBuf = musicNormalize(musicMono(buffer));
+  const sr = srcBuf.sampleRate;
+  const src = srcBuf.getChannelData(0);
+  const scale = musicScaleFor(style);
+  const grain = Math.floor(sr * 0.045);
+  const hop = Math.floor(grain / 2);
+  const out = new Float32Array(src.length);
+  const win = new Float32Array(grain);
+  for (let i = 0; i < grain; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (grain - 1));
+  for (let pos = 0; pos + grain < src.length; pos += hop) {
+    const slice = src.subarray(pos, pos + grain);
+    const pitch = musicDetectPitch(slice, sr);
+    let rate = 1;
+    if (pitch > 80 && pitch < 900) {
+      let nearest = scale[0] * (harmony || 1);
+      let best = 99;
+      for (const note of scale) {
+        for (let oct = 0.5; oct <= 4; oct *= 2) {
+          const freq = note * oct * (harmony || 1);
+          const dist = Math.abs(Math.log2(freq / pitch));
+          if (dist < best) {
+            best = dist;
+            nearest = freq;
+          }
+        }
+      }
+      rate = Math.min(1.18, Math.max(0.84, nearest / pitch));
+    }
+    for (let i = 0; i < grain; i++) {
+      const x = i * rate;
+      const i0 = Math.floor(x);
+      const frac = x - i0;
+      const s0 = slice[i0] || 0;
+      const s1 = slice[i0 + 1] || 0;
+      const idx = pos + i;
+      if (idx < out.length) out[idx] += (s0 * (1 - frac) + s1 * frac) * win[i];
+    }
+  }
+  const ctx = nfcAudio();
+  const tuned = ctx.createBuffer(1, out.length, sr);
+  tuned.getChannelData(0).set(out);
+  return musicNormalize(tuned);
+}
+
+function musicLoopTo(buffer, duration) {
+  const ctx = nfcAudio();
+  const frames = Math.max(1, Math.floor(duration * buffer.sampleRate));
+  const out = ctx.createBuffer(1, frames, buffer.sampleRate);
+  const dst = out.getChannelData(0);
+  const src = buffer.getChannelData(0);
+  if (!src.length) return out;
+  for (let i = 0; i < frames; i++) dst[i] = src[i % src.length];
+  const fade = Math.min(Math.floor(buffer.sampleRate * 0.04), Math.floor(frames / 8));
+  for (let i = 0; i < fade; i++) {
+    const k = i / fade;
+    dst[i] *= k;
+    dst[frames - 1 - i] *= k;
+  }
+  return out;
+}
+
+function musicStudio(ctx, style) {
+  const input = ctx.createGain();
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 85;
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = style === "rap" ? 6500 : 9800;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -16;
+  comp.ratio.value = 5.5;
+  comp.attack.value = 0.008;
+  comp.release.value = 0.16;
+  const delay = ctx.createDelay(0.55);
+  delay.delayTime.value = style === "arabesk" ? 0.31 : style === "slow" ? 0.26 : 0.17;
+  const fb = ctx.createGain();
+  fb.gain.value = style === "rap" ? 0.12 : 0.24;
+  const wet = ctx.createGain();
+  wet.gain.value = style === "dans" ? 0.16 : 0.26;
+  const dry = ctx.createGain();
+  dry.gain.value = 0.92;
+  const out = ctx.createGain();
+  input.connect(hp);
+  hp.connect(lp);
+  lp.connect(comp);
+  comp.connect(dry);
+  dry.connect(out);
+  comp.connect(delay);
+  delay.connect(fb);
+  fb.connect(delay);
+  delay.connect(wet);
+  wet.connect(out);
+  return { input, out };
+}
+
+async function musicRenderBacking(duration, bpm, style, lyrics) {
+  const live = nfcAudio();
+  const sr = live?.sampleRate || 44100;
+  const frames = Math.max(1, Math.floor(duration * sr));
+  const ctx = new OfflineAudioContext(1, frames, sr);
+  const dest = ctx.destination;
+  const step = 30 / bpm;
+  const scale = musicScaleFor(style);
+  const seed = (lyrics || "HARBIGRUP").replace(/\s+/g, "") || "H";
+  let tick = 0;
+  for (let t = 0; t < duration - 0.05; t += step) {
+    const s = tick % 16;
+    if (s % 4 === 0) musicScheduleDrum(ctx, dest, t, "kick");
+    if (s % 4 === 2) musicScheduleDrum(ctx, dest, t, style === "rap" ? "hat" : "snare");
+    if (s % 2 === 1 || style === "dans" || style === "rap") musicScheduleDrum(ctx, dest, t, "hat");
+    const ch = seed.charCodeAt(tick % seed.length);
+    musicScheduleTone(
+      ctx,
+      dest,
+      t,
+      scale[ch % scale.length],
+      style === "slow" ? 0.3 : 0.15,
+      style === "rap" ? "square" : "triangle",
+      0.1
+    );
+    if (s % 8 === 0) musicScheduleTone(ctx, dest, t, scale[0] / 2, 0.24, "sine", 0.09);
+    tick += 1;
+  }
+  return ctx.startRendering();
+}
+
+async function musicMixToBuffer(parts, backing, style, duration) {
+  const sr = backing.sampleRate;
+  const frames = Math.max(1, Math.floor(duration * sr));
+  const ctx = new OfflineAudioContext(2, frames, sr);
+  const studio = musicStudio(ctx, style);
+  studio.out.connect(ctx.destination);
+  const bed = ctx.createBufferSource();
+  const bedGain = ctx.createGain();
+  bedGain.gain.value = 0.38;
+  bed.buffer = backing;
+  bed.connect(bedGain);
+  bedGain.connect(ctx.destination);
+  bed.start(0);
+  parts.forEach((part) => {
+    if (!part.buffer) return;
+    const src = ctx.createBufferSource();
+    const g = ctx.createGain();
+    g.gain.value = part.gain || 0.95;
+    src.buffer = part.buffer;
+    src.connect(g);
+    g.connect(studio.input);
+    src.start(part.start);
+  });
+  return ctx.startRendering();
+}
+
+async function musicPrepareSong() {
+  const meta = musicMeta();
+  const v1 = musicVocals[1].buffer;
+  if (!v1) throw new Error("Önce 1. vokal kaydı yapın veya ses yükleyin.");
+  const stamp = `${meta.style}|${meta.tempo}|${meta.lyrics}|${v1.length}|${musicVocals[2].buffer?.length || 0}`;
+  if (musicSongCache?.stamp === stamp) return musicSongCache;
+  musicMsg("Şarkı hazırlanıyor… ritim ve vokal ayarlanıyor.");
+  const bpm = meta.tempo;
+  const bar = (60 / bpm) * 4;
+  const section = bar * 4;
+  const duration = section * 3;
+  const lines = musicLyricParts(meta.lyrics);
+  const style = meta.style;
+  const tuned1 = musicTuneBuffer(v1, style, 1);
+  const raw2 = musicVocals[2].buffer;
+  const tuned2 = raw2 ? musicTuneBuffer(raw2, style, 1) : musicTuneBuffer(v1, style, 1.26);
+  const s1 = musicLoopTo(tuned1, section);
+  const s2 = musicLoopTo(tuned2, section);
+  const duet1 = musicLoopTo(tuned1, section);
+  const duet2 = musicLoopTo(raw2 ? musicTuneBuffer(raw2, style, 1.06) : musicTuneBuffer(v1, style, 1.26), section);
+  const backing = await musicRenderBacking(duration, bpm, style, meta.lyrics);
+  const mix = await musicMixToBuffer(
+    [
+      { buffer: s1, start: 0, gain: 1 },
+      { buffer: s2, start: section, gain: 1 },
+      { buffer: duet1, start: section * 2, gain: 0.86 },
+      { buffer: duet2, start: section * 2, gain: 0.86 },
+    ],
+    backing,
+    style,
+    duration
+  );
+  musicSongCache = {
+    stamp,
+    mix,
+    duration,
+    bpm,
+    title: meta.title,
+    style,
+    lyrics: meta.lyrics,
+    parts: [
+      { start: 0, end: section, label: "1. Vokal", lyrics: lines[0] },
+      { start: section, end: section * 2, label: "2. Vokal", lyrics: lines[1] },
+      { start: section * 2, end: duration, label: "Düet", lyrics: lines[2] },
+    ],
+  };
+  return musicSongCache;
+}
+
+function musicWrapText(g, text, x, y, maxW, lineH) {
+  const words = String(text || "").split(/\s+/);
+  let line = "";
+  let yy = y;
+  g.textAlign = "center";
+  words.forEach((word, i) => {
+    const test = line ? line + " " + word : word;
+    if (g.measureText(test).width > maxW && line) {
+      g.fillText(line, x, yy);
+      line = word;
+      yy += lineH;
+    } else line = test;
+    if (i === words.length - 1) g.fillText(line, x, yy);
+  });
+}
+
+function musicDrawFrame(canvas, song, t) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const g = canvas.getContext("2d");
+  const grd = g.createLinearGradient(0, 0, 0, h);
+  grd.addColorStop(0, "#9b32c8");
+  grd.addColorStop(1, "#2a083c");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, w, h);
+  const beat = (t * song.bpm) / 60;
+  const pulse = 0.5 + 0.5 * Math.sin(beat * Math.PI * 2);
+  g.fillStyle = `rgba(212,175,55,${0.12 + pulse * 0.18})`;
+  g.beginPath();
+  g.arc(w / 2, h * 0.28, 90 + pulse * 50, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#fff";
+  g.textAlign = "center";
+  g.font = "700 36px Instrument Sans, sans-serif";
+  g.fillText("HARBI GRUP", w / 2, 72);
+  g.font = "800 48px Syne, sans-serif";
+  g.fillText(song.title.slice(0, 28), w / 2, 130);
+  const part = song.parts.find((row) => t >= row.start && t < row.end) || song.parts[song.parts.length - 1];
+  g.fillStyle = "#f6e27a";
+  g.font = "700 34px Instrument Sans, sans-serif";
+  g.fillText(part.label, w / 2, 190);
+  g.fillStyle = "#f6f1e6";
+  g.font = "600 32px Instrument Sans, sans-serif";
+  musicWrapText(g, part.lyrics, w / 2, 280, w - 80, 44);
+  for (let i = 0; i < 12; i++) {
+    const bh = 24 + ((Math.sin(beat * 4 + i) + 1) / 2) * 90;
+    g.fillStyle = i % 2 ? "#d4af37" : "#e38bff";
+    g.fillRect(80 + i * 48, h - 80 - bh, 28, bh);
+  }
+}
+
+function musicStageOn() {
+  const stage = $("#musicStage");
+  if (stage) stage.classList.add("is-on");
+  return stage;
+}
+
+function musicPlayMix(song, destExtra) {
+  const ctx = nfcAudio();
+  ctx.resume?.();
+  const src = ctx.createBufferSource();
+  src.buffer = song.mix;
+  src.connect(ctx.destination);
+  if (destExtra) src.connect(destExtra);
+  src.start(0);
+  musicLiveSources.push(src);
+  musicPlaying = true;
+  if ($("#musicPlay")) $("#musicPlay").textContent = "Çalıyor";
+  const t0 = ctx.currentTime;
+  const stage = musicStageOn();
+  const tick = () => {
+    if (!musicPlaying) return;
+    const t = ctx.currentTime - t0;
+    if (stage) musicDrawFrame(stage, song, Math.min(t, song.duration));
+    if (t >= song.duration) {
+      if (!musicExporting) {
+        stopMusicMaker();
+        musicMsg("Önizleme bitti.");
+      }
+      return;
+    }
+    musicPreviewRaf = requestAnimationFrame(tick);
+  };
+  tick();
+  src.onended = () => {
+    if (musicPlaying && !musicExporting) {
+      stopMusicMaker();
+      musicMsg("Önizleme bitti.");
+    }
+  };
+}
+
+async function musicStartPreview() {
+  if (!musicNeedAccess()) return;
+  try {
+    const song = await musicPrepareSong();
+    stopMusicMaker();
+    musicPlayMix(song);
+    musicMsg("Önizleme: 1. vokal · 2. vokal · düet");
+  } catch (err) {
+    musicPlayLoop();
+    if (err?.message && /vokal/i.test(err.message)) musicMsg(err.message + " Şimdilik ritim çalıyor.");
+  }
+}
+
+async function musicDecodeFile(file) {
+  const ctx = nfcAudio();
+  if (!ctx) throw new Error("Ses çözülemiyor.");
+  await ctx.resume?.();
+  const data = await file.arrayBuffer();
+  return ctx.decodeAudioData(data.slice(0));
+}
+
+function musicVoxLabel(slot) {
+  return $("#musicVox" + slot);
+}
+
+async function musicSetVocal(slot, blob, label) {
+  const ctx = nfcAudio();
+  await ctx?.resume?.();
+  const buffer = await musicDecodeFile(blob);
+  musicVocals[slot].blob = blob;
+  musicVocals[slot].buffer = buffer;
+  musicInvalidateSong();
+  if (musicVoxLabel(slot)) {
+    musicVoxLabel(slot).textContent = `${label} · ${buffer.duration.toFixed(1)} sn`;
+  }
+  musicMsg(`${slot}. vokal alındı. Tarz ve tempo uygulanıyor…`);
+  try {
+    await musicPrepareSong();
+    musicMsg(`${slot}. vokal ritme oturtuldu. Önizleyin veya ikinci vokali ekleyin.`);
+  } catch {
+    /* 1. vokal yoksa 2. bekler */
+  }
+}
+
+function musicRecMime() {
+  const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"];
+  return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+async function musicStartRec(slot) {
+  if (!musicNeedAccess()) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    musicMsg("Bu tarayıcı mikrofon kaydını desteklemiyor. Ses dosyası yükleyin.");
+    return;
+  }
+  if (musicVocals[slot].recording) return;
+  stopMusicMaker();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+    });
+    const mime = musicRecMime();
+    const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    musicVocals[slot].stream = stream;
+    musicVocals[slot].rec = rec;
+    musicVocals[slot].chunks = [];
+    musicVocals[slot].recording = true;
+    rec.ondataavailable = (event) => {
+      if (event.data.size) musicVocals[slot].chunks.push(event.data);
+    };
+    rec.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      musicVocals[slot].recording = false;
+      $("#musicRec" + slot)?.classList.remove("is-rec");
+      const blob = new Blob(musicVocals[slot].chunks, { type: rec.mimeType || "audio/webm" });
+      if (blob.size < 800) {
+        musicMsg("Kayıt çok kısa. Tekrar deneyin.");
+        return;
+      }
+      try {
+        await musicSetVocal(slot, blob, "Kayıt");
+      } catch (err) {
+        musicMsg("Kayıt okunamadı: " + (err.message || err));
+      }
+    };
+    rec.start(80);
+    $("#musicRec" + slot)?.classList.add("is-rec");
+    if (musicVoxLabel(slot)) musicVoxLabel(slot).textContent = "Kayıt alınıyor… söyleyin.";
+    musicMsg(`${slot}. vokal kaydı başladı. Bitir’e basın.`);
+  } catch (err) {
+    musicMsg("Mikrofon izni gerekli: " + (err.message || err));
+  }
+}
+
+function musicStopRec(slot, silent) {
+  const row = musicVocals[slot];
+  if (row.rec && row.recording) {
+    try {
+      row.rec.stop();
+    } catch {
+      row.recording = false;
+    }
+  }
+  row.stream?.getTracks?.().forEach((track) => track.stop());
+  $("#musicRec" + slot)?.classList.remove("is-rec");
+  if (!silent && row.recording) musicMsg("Kayıt bitiyor…");
+}
+
+async function saveBlobToPhoneGallery(blob, filename) {
+  const name = filename || videoFileName(blob.type);
+  const file = new File([blob], name, { type: blob.type || "video/mp4" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Harbi Grup şarkı" });
+      return "share";
+    }
+  } catch (err) {
+    if (err?.name === "AbortError") return "abort";
+  }
+  downloadBlob(blob, name);
+  return "download";
+}
+
+function musicRecorderFor(stream) {
+  const types = [
+    "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ];
+  const mime = types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+  try {
+    return mime ? new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 192000, videoBitsPerSecond: 6_000_000 }) : new MediaRecorder(stream);
+  } catch {
+    return new MediaRecorder(stream);
+  }
+}
+
+async function musicSaveToGallery() {
+  if (!musicNeedAccess()) return;
+  const title = ($("#musicTitle")?.value || "").trim();
+  if (!title) {
+    musicMsg("Şarkı adı yazın.");
+    return;
+  }
+  if (!musicVocals[1].buffer) {
+    musicMsg("Galeriye video için önce 1. vokal kaydı veya yükleme gerekir.");
+    return;
+  }
+  const meta = musicMeta();
+  store.set(MUSIC_KEY, [{ id: "song_" + Date.now(), ...meta, at: Date.now() }].concat(musicSongs()).slice(0, 40));
+  renderMusic();
+  try {
+    const song = await musicPrepareSong();
+    stopMusicMaker();
+    const ctx = nfcAudio();
+    await ctx.resume?.();
+    const stage = musicStageOn();
+    if (!stage || !stage.captureStream) {
+      musicMsg("Bu tarayıcı video kaydını desteklemiyor.");
+      return;
+    }
+    musicDrawFrame(stage, song, 0);
+    const fps = 30;
+    const vstream = stage.captureStream(fps);
+    const dest = ctx.createMediaStreamDestination();
+    try {
+      vstream.getAudioTracks().forEach((track) => vstream.removeTrack(track));
+    } catch {
+      /* canvas sesi yok */
+    }
+    dest.stream.getAudioTracks().forEach((track) => {
+      try {
+        vstream.addTrack(track);
+      } catch {
+        /* ses eklenemedi */
+      }
+    });
+    const rec = musicRecorderFor(vstream);
+    const chunks = [];
+    rec.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    const done = new Promise((resolve, reject) => {
+      rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || "video/mp4" }));
+      rec.onerror = () => reject(new Error("Video kaydı başarısız."));
+    });
+    musicExporting = true;
+    musicPlaying = true;
+    rec.start(100);
+    musicPlayMix(song, dest);
+    musicMsg("Video hazırlanıyor… bitince galeriye gidecek.");
+    await new Promise((resolve) => setTimeout(resolve, Math.ceil(song.duration * 1000) + 250));
+    if (rec.state === "recording") rec.stop();
+    const blob = await done;
+    musicExporting = false;
+    stopMusicMaker();
+    if (blob.size < 1000) {
+      musicMsg("Video oluşmadı. Önizlemeyi tekrar deneyin.");
+      return;
+    }
+    const how = await saveBlobToPhoneGallery(blob, videoFileName(blob.type));
+    if (how === "abort") musicMsg("Paylaşım iptal edildi.");
+    else if (how === "share") musicMsg("Paylaş menüsünden Videoyu Kaydet / Resimler’e ekleyin.");
+    else musicMsg("Video indirildi. Telefonda dosyayı Resimler galerisine taşıyın veya açıp kaydedin.");
+  } catch (err) {
+    musicExporting = false;
+    stopMusicMaker();
+    musicMsg(err.message || "Video kaydedilemedi.");
+  }
+}
+
+function renderMusic() {
+  musicSyncGate();
+  const pad = $("#musicPad");
+  if (pad && !pad.dataset.ready) {
+    pad.dataset.ready = "1";
+    pad.innerHTML = MUSIC_KEYS.map(
+      (key) => `<button type="button" data-music-note="${key.f}">${escapeHtml(key.n)}</button>`
+    ).join("");
+  }
+  if ($("#musicTempoVal") && $("#musicTempo")) $("#musicTempoVal").textContent = $("#musicTempo").value;
+  const plan = $$("input[name='musicPlan']").find((el) => el.checked)?.value || "month";
+  musicSelectPlan(plan);
+  const list = $("#musicList");
+  if (!list) return;
+  const songs = musicSongs();
+  list.innerHTML =
+    songs
+      .map(
+        (song) => `<article class="card">
+        <strong>${escapeHtml(song.title)}</strong>
+        <p class="hint">${escapeHtml(song.style)} · ${song.tempo} BPM · ${new Date(song.at).toLocaleString("tr-TR")}</p>
+        <p>${escapeHtml((song.lyrics || "").slice(0, 160))}</p>
+        <div class="row">
+          <button class="gold" type="button" data-music-load="${song.id}">Aç</button>
+          <button class="secondary" type="button" data-music-play="${song.id}">Çal</button>
+          <button class="danger" type="button" data-music-del="${song.id}">Sil</button>
+        </div>
+      </article>`
+      )
+      .join("") || "<p class='hint'>Henüz şarkı yok. Vokal kaydedip galeriye video kaydedin.</p>";
+}
+
+$("#musicPad")?.addEventListener("click", (event) => {
+  if (!musicNeedAccess()) return;
+  const btn = event.target.closest("[data-music-note]");
+  if (!btn) return;
+  nfcAudio()?.resume?.();
+  musicTone(Number(btn.dataset.musicNote), 0.28, "triangle", 0.22);
+});
+
+$("#musicTempo")?.addEventListener("input", () => {
+  if ($("#musicTempoVal")) $("#musicTempoVal").textContent = $("#musicTempo").value;
+  musicInvalidateSong();
+});
+
+$("#musicStyle")?.addEventListener("change", async () => {
+  musicInvalidateSong();
+  if (!musicVocals[1].buffer) return;
+  musicMsg("Yeni türe göre vokal ayarlanıyor…");
+  try {
+    await musicPrepareSong();
+    musicMsg("Ritim ve tür uygulandı. Önizleyin.");
+  } catch (err) {
+    musicMsg(err.message || "Ayarlanamadı.");
+  }
+});
+
+$("#musicLyrics")?.addEventListener("input", () => musicInvalidateSong());
+$("#musicTitle")?.addEventListener("input", () => musicInvalidateSong());
+
+$("#musicPlay")?.addEventListener("click", () => {
+  if (musicPlaying) stopMusicMaker();
+  else if (!musicNeedAccess()) return;
+  else if (musicVocals[1].buffer) musicStartPreview();
+  else musicPlayLoop();
+});
+
+$("#musicStop")?.addEventListener("click", () => {
+  stopMusicMaker();
+  musicMsg("Durdu.");
+});
+
+$("#musicRec1")?.addEventListener("click", () => musicStartRec(1));
+$("#musicRec2")?.addEventListener("click", () => musicStartRec(2));
+$("#musicStopRec1")?.addEventListener("click", () => musicStopRec(1));
+$("#musicStopRec2")?.addEventListener("click", () => musicStopRec(2));
+
+$("#musicFile1")?.addEventListener("change", async (event) => {
+  if (!musicNeedAccess()) return;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    await musicSetVocal(1, file, file.name);
+  } catch (err) {
+    musicMsg("Dosya okunamadı: " + (err.message || err));
+  }
+});
+
+$("#musicFile2")?.addEventListener("change", async (event) => {
+  if (!musicNeedAccess()) return;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    await musicSetVocal(2, file, file.name);
+  } catch (err) {
+    musicMsg("Dosya okunamadı: " + (err.message || err));
+  }
+});
+
+$("#musicForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  musicSaveToGallery();
+});
+
+$("#musicBuyBox")?.addEventListener("click", (event) => {
+  const planBtn = event.target.closest("[data-music-plan]");
+  if (!planBtn) return;
+  musicSelectPlan(planBtn.dataset.musicPlan);
+});
+
+$$("input[name='musicPlan']").forEach((el) => {
+  el.addEventListener("change", () => {
+    if (el.checked) musicSelectPlan(el.value);
+  });
+});
+
+$("#musicCopyIban")?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(POS_SETTLE.ibanMasked);
+    musicJoinMsg("IBAN kopyalandı.");
+  } catch {
+    musicJoinMsg(POS_SETTLE.ibanMasked);
+  }
+});
+
+$("#musicJoinForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const first = $("#musicSubFirst").value.trim();
+  const last = $("#musicSubLast").value.trim();
+  const phone = $("#musicSubPhone").value.replace(/\D/g, "");
+  const email = ($("#musicSubEmail")?.value || "").trim().toLowerCase();
+  const taxId = ($("#musicSubTax")?.value || "").replace(/\D/g, "");
+  const address = $("#musicSubAddress").value.trim();
+  const plan = $$("input[name='musicPlan']").find((el) => el.checked)?.value || "month";
+  const amount = Number(String($("#musicPayAmount").value || "").replace(",", "."));
+  const file = $("#musicDekont")?.files?.[0];
+  const need = musicPlanAmount(plan);
+  if (first.length < 2 || last.length < 2) {
+    musicJoinMsg("İsim ve soy isim zorunlu.");
+    return;
+  }
+  if (phone.length < 10) {
+    musicJoinMsg("Geçerli telefon yazın.");
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    musicJoinMsg("Fatura için geçerli e-posta yazın.");
+    return;
+  }
+  if (address.length < 10) {
+    musicJoinMsg("Adres zorunlu.");
+    return;
+  }
+  if (Math.abs(amount - need) > 0.05) {
+    musicJoinMsg("Havale tutarı " + need + " Türk Lirası olmalı.");
+    return;
+  }
+  if (plan === "month") {
+    musicJoinMsg("Dekont kontrol ediliyor…");
+    try {
+      await musicInspectDekont(file);
+    } catch (err) {
+      musicJoinMsg(err.message || "Dekont doğrulanamadı.");
+      return;
+    }
+  }
+  musicJoinMsg("e-Fatura oluşturuluyor…");
+  try {
+    const res = await fetch("/music-invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        first,
+        last,
+        phone,
+        email,
+        taxId,
+        address,
+        plan,
+        amount: need,
+        dekontName: file?.name || "",
+        dekontSize: file?.size || 0,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      musicJoinMsg(data.error || "Fatura oluşturulamadı.");
+      return;
+    }
+    const member = {
+      id: "msub_" + Date.now(),
+      first,
+      last,
+      phone,
+      email,
+      taxId,
+      address,
+      plan,
+      amount: need,
+      vatRate: 20,
+      vat: data.vat,
+      ok: false,
+      pending: true,
+      until: 0,
+      at: Date.now(),
+      dekont: file?.name || "",
+      dekontSize: file?.size || 0,
+      invoiceNumber: data.invoiceNumber,
+      invoiceToken: data.token,
+      mailed: !!data.mailed,
+      trendyol: !!data.trendyol,
+    };
+    store.set(MUSIC_SUB, member);
+    store.set(MUSIC_MEMBERS, [member].concat(musicMembers()).slice(0, 80));
+    musicJoinMsg(data.message || "Üyelik süreci inceleniyor.");
+    musicMsg("Üyelik süreci inceleniyor.");
+    if ($("#musicInvoiceNo")) $("#musicInvoiceNo").value = "";
+    renderMusic();
+  } catch {
+    musicJoinMsg("Fatura servisine ulaşılamadı.");
+  }
+});
+
+$("#musicActivateForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const sub = musicSubNow();
+  const invoiceNumber = ($("#musicInvoiceNo")?.value || "").toUpperCase().replace(/\s+/g, "");
+  if (!sub?.pending || !sub.invoiceNumber) {
+    musicActivateMsg("Önce ödemeyi gönderin.");
+    return;
+  }
+  if (sub.plan === "month" && !sub.dekont) {
+    musicActivateMsg("Aylık üyelik için dekont kaydı yok.");
+    return;
+  }
+  if (invoiceNumber !== String(sub.invoiceNumber).toUpperCase()) {
+    musicActivateMsg("Fatura numarası e-postadaki ile aynı olmalı.");
+    return;
+  }
+  musicActivateMsg("Fatura numarası kontrol ediliyor…");
+  try {
+    const res = await fetch("/music-invoice-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        invoiceNumber,
+        email: sub.email,
+        plan: sub.plan,
+        amount: sub.amount,
+        token: sub.invoiceToken,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      musicActivateMsg(data.error || "Fatura doğrulanamadı.");
+      return;
+    }
+    const until = data.until || Date.now() + musicPlanDays(sub.plan) * 86400000;
+    const member = { ...sub, ok: true, pending: false, until, activatedAt: Date.now() };
+    store.set(MUSIC_SUB, member);
+    store.set(
+      MUSIC_MEMBERS,
+      [member].concat(musicMembers().filter((row) => row.id !== member.id)).slice(0, 80)
+    );
+    musicActivateMsg("Fatura doğrulandı. Aboneliğiniz aktif.");
+    musicMsg("Abonelik aktif.");
+    renderMusic();
+  } catch {
+    musicActivateMsg("Doğrulama servisine ulaşılamadı.");
+  }
+});
+
+$("#musicAdminForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const user = $("#musicAdminUser").value.trim();
+  const pin = $("#musicAdminPin").value;
+  if (user !== POS_ADMIN_USER || pin !== posAdminPinValue()) {
+    if ($("#musicAdminMsg")) $("#musicAdminMsg").textContent = "Bilgiler hatalı.";
+    return;
+  }
+  const remember = $("#musicAdminRemember")?.checked !== false;
+  store.set(POS_ADMIN_ON, true);
+  store.set(POS_ADMIN_REMEMBER, remember ? { remember: true, user, pin } : { remember: false });
+  $("#musicAdminPin").value = "";
+  if ($("#musicAdminMsg")) $("#musicAdminMsg").textContent = "Süper admin · ücretsiz erişim açık.";
+  syncOwnerApps();
+  renderMusic();
+});
+
+$("#musicAdminOut")?.addEventListener("click", () => {
+  store.set(POS_ADMIN_ON, false);
+  syncOwnerApps();
+  renderMusic();
+});
+
+musicInstallCaptureGuard();
+
+$("#musicList")?.addEventListener("click", (event) => {
+  const load = event.target.closest("[data-music-load]");
+  const play = event.target.closest("[data-music-play]");
+  const del = event.target.closest("[data-music-del]");
+  if (del) {
+    store.set(
+      MUSIC_KEY,
+      musicSongs().filter((row) => row.id !== del.dataset.musicDel)
+    );
+    renderMusic();
+    return;
+  }
+  const id = load?.dataset.musicLoad || play?.dataset.musicPlay;
+  const song = musicSongs().find((row) => row.id === id);
+  if (!song) return;
+  $("#musicTitle").value = song.title;
+  $("#musicStyle").value = song.style;
+  $("#musicTempo").value = String(song.tempo);
+  $("#musicLyrics").value = song.lyrics || "";
+  if ($("#musicTempoVal")) $("#musicTempoVal").textContent = String(song.tempo);
+  musicInvalidateSong();
+  if (play) {
+    if (musicVocals[1].buffer) musicStartPreview();
+    else musicPlayLoop();
+  } else musicMsg("Şarkı açıldı. Vokal varsa önizleyin.");
+});
+
+const CLIP_KEY = "ai-clips";
+let clipImages = [];
+let clipAudioBuf = null;
+let clipPlan = null;
+let clipPlaying = false;
+let clipRaf = 0;
+let clipSources = [];
+let clipT0 = 0;
+let clipExporting = false;
+
+function clipMsg(text) {
+  if ($("#clipMsg")) $("#clipMsg").textContent = text || "";
+}
+
+function clipRows() {
+  return store.get(CLIP_KEY, []);
+}
+
+const CLIP_TRIAL = "clip-trial";
+const CLIP_SUB = "clip-sub";
+const CLIP_MEMBERS = "clip-members";
+const CLIP_TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
+
+function clipBeginTrial() {
+  if (!store.get(CLIP_TRIAL, null)?.at) store.set(CLIP_TRIAL, { at: Date.now() });
+}
+
+function clipTrialLeft() {
+  const row = store.get(CLIP_TRIAL, null);
+  if (!row?.at) return CLIP_TRIAL_MS;
+  return Math.max(0, row.at + CLIP_TRIAL_MS - Date.now());
+}
+
+function clipSubNow() {
+  return store.get(CLIP_SUB, null);
+}
+
+function clipMembers() {
+  return store.get(CLIP_MEMBERS, []);
+}
+
+function clipIsSuper() {
+  return ownerAppsOn();
+}
+
+function clipSubActive() {
+  const sub = clipSubNow();
+  return !!(sub?.ok && sub.until && sub.until > Date.now());
+}
+
+function clipCanUse() {
+  return clipIsSuper() || clipSubActive() || clipTrialLeft() > 0;
+}
+
+function clipJoinMsg(text) {
+  if ($("#clipJoinMsg")) $("#clipJoinMsg").textContent = text || "";
+}
+
+function clipSubPending() {
+  const sub = clipSubNow();
+  return !!(sub?.pending && !clipSubActive());
+}
+
+function clipActivateMsg(text) {
+  if ($("#clipActivateMsg")) $("#clipActivateMsg").textContent = text || "";
+}
+
+function clipNeedAccess() {
+  if (clipCanUse()) return true;
+  clipSyncGate();
+  const text = "Üye ol hesabını aktifleştir klip yapmaya başla";
+  clipMsg(text);
+  clipLiveMsg(text);
+  return false;
+}
+
+function clipSyncGate() {
+  const paid = clipSubActive() || clipIsSuper();
+  const trialOn = clipTrialLeft() > 0 && !clipSubActive();
+  const pending = clipSubPending();
+  const gate = $("#clipBuyBox");
+  const studio = $("#clipStudio");
+  const admin = $("#clipAdminPanel");
+  const hint = $("#clipTrialHint");
+  const expired = $("#clipExpiredHead");
+  const lede = $("#clipBuyLede");
+  const join = $("#clipJoinForm");
+  const review = $("#clipReviewBox");
+  if (gate) gate.hidden = paid;
+  if (join) join.hidden = paid || pending;
+  if (review) review.hidden = !pending || paid;
+  if (studio) studio.hidden = !clipCanUse();
+  if (admin) admin.hidden = !clipIsSuper();
+  if (expired) expired.hidden = paid || trialOn || pending;
+  if (lede) {
+    lede.hidden = pending;
+    lede.textContent = trialOn
+      ? "Deneme sürümündesiniz. İsterseniz hemen satın alın: Aylık 49 ₺, Yıllık 750 ₺. KDV %20 faturaya işlenir."
+      : "14 günlük deneme bitti. Aylık 49 Türk Lirası veya Yıllık 750 Türk Lirası ödeyin. Fatura KDV’si %20.";
+  }
+  const sub = clipSubNow();
+  if ($("#clipReviewLede") && pending) {
+    $("#clipReviewLede").textContent = sub?.mailed
+      ? "Faturanız e-posta ile gönderildi. Üyelik süreci inceleniyor. Fatura numarasını girip üyeliğinizi aktif edin."
+      : "Üyelik süreci inceleniyor. Fatura numaranızı girin; doğrulanınca üyelik açılır.";
+  }
+  if (hint) {
+    if (clipIsSuper()) hint.textContent = "Süper admin · tüm özellikler ücretsiz.";
+    else if (clipSubActive()) {
+      const left = Math.ceil((clipSubNow().until - Date.now()) / 86400000);
+      hint.textContent = `Abonelik aktif · ${left} gün kaldı.`;
+    } else if (pending) hint.textContent = "Üyelik süreci inceleniyor. Fatura numaranızı girin.";
+    else if (trialOn) {
+      const days = Math.max(1, Math.ceil(clipTrialLeft() / 86400000));
+      hint.textContent = `14 günlük deneme · ${days} gün kaldı. Doğrudan satın alabilirsiniz.`;
+    } else hint.textContent = "";
+  }
+  const list = $("#clipMemberList");
+  if (list && clipIsSuper()) {
+    const rows = clipMembers();
+    list.innerHTML = rows.length
+      ? rows
+          .map(
+            (row) =>
+              `<article class="card"><strong>${escapeHtml(row.first)} ${escapeHtml(row.last)}</strong><p class="hint">${escapeHtml(
+                row.phone
+              )} · ${row.plan === "year" ? "Yıllık 750 ₺" : "Aylık 49 ₺"} · KDV %20 · ${
+                row.ok ? new Date(row.until).toLocaleDateString("tr-TR") : "inceleniyor"
+              }${row.invoiceNumber ? " · " + escapeHtml(row.invoiceNumber) : ""}</p></article>`
+          )
+          .join("")
+      : "<p class='hint'>Henüz abone yok.</p>";
+  }
+}
+
+function clipSelectPlan(plan) {
+  const value = plan === "year" ? "year" : "month";
+  $$("input[name='clipPlan']").forEach((el) => {
+    el.checked = el.value === value;
+  });
+  $$("[data-clip-plan]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipPlan === value));
+  if ($("#clipPayAmount")) $("#clipPayAmount").value = String(musicPlanAmount(value));
+  const month = value === "month";
+  if ($("#clipDekont")) $("#clipDekont").required = month;
+  if ($("#clipDekontHint")) {
+    $("#clipDekontHint").textContent = month
+      ? "Aylık havale: dekont yükleyin. Dekont ve fatura numarası doğrulanınca üyelik açılır."
+      : "Yıllık: ödeme sonrası e-fatura mailinize gelir. Fatura numarası ile üyeliği aktif edin.";
+  }
+}
+
+function clipHash(text) {
+  let h = 2166136261;
+  const s = String(text || "");
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+function clipPalette(style, seed) {
+  const packs = {
+    sarki: ["#5b1d88", "#c45ae0", "#f0d78c"],
+    reklam: ["#7a1ea8", "#ffd60a", "#ffffff"],
+    hikaye: ["#3a0d52", "#8c2cb8", "#f6e7ff"],
+    urun: ["#641e7c", "#e8c36a", "#fff8e7"],
+    duyuru: ["#4a1570", "#3ee0c3", "#ffffff"],
+  };
+  const base = packs[style] || packs.sarki;
+  return seed % 2 ? [base[1], base[0], base[2]] : base;
+}
+
+function clipLines(prompt) {
+  const parts = String(prompt || "")
+    .split(/[\n.!?]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length) return parts;
+  return ["Yeni bir sahne", "Hareket ve ritim", "Kapanış"];
+}
+
+function clipBuildPlan() {
+  const title = ($("#clipTitle")?.value || "").trim() || "Yeni klip";
+  const style = $("#clipStyle")?.value || "sarki";
+  const duration = Math.max(15, Math.min(600, Number($("#clipDur")?.value || 15)));
+  const prompt = ($("#clipPrompt")?.value || "").trim();
+  if (prompt.length < 8) throw new Error("Klip ne anlatsın, biraz daha yazın.");
+  const seed = clipHash(title + "|" + style + "|" + prompt);
+  const lines = clipLines(prompt);
+  const count = Math.max(3, Math.min(40, Math.round(duration / 15)));
+  const hooks = {
+    sarki: ["Giriş", "Ritim", "Nakarat", "Final"],
+    reklam: ["Dikkat", "Ürün", "Fayda", "Harekete geç"],
+    hikaye: ["Başla", "Dönüm", "Duygu", "Son"],
+    urun: ["Vitrin", "Detay", "Kullanım", "Çağrı"],
+    duyuru: ["Duyuru", "Bilgi", "Çağrı", "Kapanış"],
+  }[style] || ["Sahne"];
+  const scenes = [];
+  for (let i = 0; i < count; i++) {
+    scenes.push({
+      hook: hooks[i % hooks.length],
+      line: lines[i % lines.length],
+      color: clipPalette(style, seed + i * 17),
+    });
+  }
+  const bpm = 88 + (seed % 50);
+  return { title, style, duration, prompt, scenes, seed, bpm, images: clipImages.slice() };
+}
+
+function clipStage() {
+  const el = $("#clipStage");
+  if (el) el.classList.add("is-on");
+  return el;
+}
+
+function clipRoundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+function clipCover(g, img, w, h, t, i) {
+  const iw = img.width || 1;
+  const ih = img.height || 1;
+  const scale = Math.max(w / iw, h / ih) * (1.08 + Math.sin(t * 0.35 + i) * 0.06);
+  const dw = iw * scale;
+  const dh = ih * scale;
+  const dx = (w - dw) / 2 + Math.sin(t * 0.2 + i) * 18;
+  const dy = (h - dh) / 2 + Math.cos(t * 0.18 + i) * 12;
+  g.drawImage(img, dx, dy, dw, dh);
+}
+
+function clipDrawFrame(stage, plan, time) {
+  const g = stage.getContext("2d");
+  const w = stage.width;
+  const h = stage.height;
+  const dur = plan.duration;
+  const t = ((time % dur) + dur) % dur;
+  const idx = Math.min(plan.scenes.length - 1, Math.floor((t / dur) * plan.scenes.length));
+  const scene = plan.scenes[idx];
+  const [c0, c1, c2] = scene.color;
+  const grd = g.createLinearGradient(0, 0, w, h);
+  grd.addColorStop(0, c0);
+  grd.addColorStop(1, c1);
+  g.fillStyle = grd;
+  g.fillRect(0, 0, w, h);
+  const img = plan.images[idx % Math.max(1, plan.images.length)];
+  if (img) {
+    g.save();
+    g.globalAlpha = 0.92;
+    clipCover(g, img, w, h, t, idx);
+    g.restore();
+    g.fillStyle = "rgba(40, 8, 64, 0.38)";
+    g.fillRect(0, 0, w, h);
+  }
+  for (let k = 0; k < 6; k++) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * (plan.bpm / 60) * Math.PI * 2 + k);
+    g.fillStyle = "rgba(240, 215, 140," + (0.05 + pulse * 0.08) + ")";
+    g.beginPath();
+    g.arc((k * 137 + t * 40) % w, (k * 211) % h, 40 + pulse * 50, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = "rgba(0,0,0,0.35)";
+  g.fillRect(0, 0, w, 160);
+  g.fillRect(0, h - 280, w, 280);
+  g.fillStyle = "#fff";
+  g.font = "700 42px Instrument Sans, sans-serif";
+  g.textAlign = "center";
+  g.fillText(plan.title.slice(0, 22), w / 2, 88, w - 80);
+  g.fillStyle = c2;
+  g.font = "700 28px Instrument Sans, sans-serif";
+  g.fillText(scene.hook, w / 2, h - 180, w - 80);
+  g.fillStyle = "#fff";
+  g.font = "600 36px Instrument Sans, sans-serif";
+  const words = scene.line.split(" ");
+  let line = "";
+  let y = h - 120;
+  words.forEach((word, i) => {
+    const next = line ? line + " " + word : word;
+    if (g.measureText(next).width > w - 100 && line) {
+      g.fillText(line, w / 2, y, w - 80);
+      line = word;
+      y += 44;
+    } else line = next;
+    if (i === words.length - 1) g.fillText(line, w / 2, y, w - 80);
+  });
+  g.fillStyle = "rgba(255,255,255,0.7)";
+  g.font = "600 22px Instrument Sans, sans-serif";
+  g.fillText("Yapay zeka klibi", w / 2, h - 36);
+}
+
+function stopAiClip() {
+  clipPlaying = false;
+  cancelAnimationFrame(clipRaf);
+  clipSources.forEach((src) => {
+    try {
+      src.stop();
+    } catch {
+      /* */
+    }
+  });
+  clipSources = [];
+}
+
+function clipBed(plan) {
+  const ctx = nfcAudio();
+  const dest = ctx.createMediaStreamDestination();
+  const master = ctx.createGain();
+  master.gain.value = 0.22;
+  master.connect(ctx.destination);
+  master.connect(dest);
+  if (clipAudioBuf) {
+    const src = ctx.createBufferSource();
+    src.buffer = clipAudioBuf;
+    src.loop = true;
+    src.connect(master);
+    src.start();
+    clipSources.push(src);
+    return dest;
+  }
+  const bpm = plan.bpm;
+  const now = ctx.currentTime;
+  const end = now + plan.duration + 1;
+  const osc = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const g = ctx.createGain();
+  const lfoGain = ctx.createGain();
+  osc.type = "triangle";
+  osc2.type = "sawtooth";
+  osc.frequency.value = 110 + (plan.seed % 18);
+  osc2.frequency.value = 164 + (plan.seed % 12);
+  lfo.frequency.value = bpm / 60;
+  lfoGain.gain.value = 0.08;
+  g.gain.value = 0.12;
+  lfo.connect(lfoGain);
+  lfoGain.connect(g.gain);
+  osc.connect(g);
+  osc2.connect(g);
+  g.connect(master);
+  osc.start(now);
+  osc2.start(now);
+  lfo.start(now);
+  osc.stop(end);
+  osc2.stop(end);
+  lfo.stop(end);
+  clipSources.push(osc, osc2, lfo);
+  return dest;
+}
+
+function clipTick() {
+  if (!clipPlaying || !clipPlan) return;
+  const stage = clipStage();
+  const t = (performance.now() - clipT0) / 1000;
+  if (t >= clipPlan.duration) {
+    stopAiClip();
+    clipMsg("Klip bitti.");
+    return;
+  }
+  clipDrawFrame(stage, clipPlan, t);
+  clipRaf = requestAnimationFrame(clipTick);
+}
+
+async function clipStartPreview() {
+  if (!clipNeedAccess()) return;
+  try {
+    clipPlan = clipBuildPlan();
+  } catch (err) {
+    clipMsg(err.message);
+    return;
+  }
+  stopAiClip();
+  const ctx = nfcAudio();
+  await ctx.resume?.();
+  const stage = clipStage();
+  clipDrawFrame(stage, clipPlan, 0);
+  clipBed(clipPlan);
+  clipPlaying = true;
+  clipT0 = performance.now();
+  clipMsg("Klip üretiliyor… önizleme.");
+  clipTick();
+}
+
+function renderAiClip() {
+  clipSyncGate();
+  const list = $("#clipList");
+  if (!list) return;
+  const rows = clipRows();
+  list.innerHTML =
+    rows
+      .map(
+        (row) => `<article class="card"><strong>${escapeHtml(row.title)}</strong><p class="hint">${escapeHtml(
+          row.style
+        )} · ${row.duration} sn · ${new Date(row.at).toLocaleString("tr-TR")}</p><p>${escapeHtml(
+          (row.prompt || "").slice(0, 140)
+        )}</p></article>`
+      )
+      .join("") || "<p class='hint'>Henüz klip yok. Konu yazıp üretin, sonra galeriye kaydedin.</p>";
+}
+
+async function clipLoadFiles(files) {
+  const list = [...(files || [])].slice(0, 8);
+  const loaded = [];
+  for (const file of list) {
+    if (!file.type.startsWith("image/")) continue;
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Fotoğraf okunamadı."));
+      el.src = url;
+    });
+    loaded.push(img);
+  }
+  clipImages = loaded;
+  if ($("#clipPhotoHint")) {
+    $("#clipPhotoHint").textContent = loaded.length
+      ? loaded.length + " fotoğraf yüklendi. Sahneler bu görsellerle kurulur."
+      : "Fotoğraf yoksa yapay zeka renk ve yazı ile sahne üretir.";
+  }
+}
+
+async function clipSaveToGallery() {
+  if (!clipNeedAccess()) return;
+  if (clipExporting) return;
+  try {
+    clipPlan = clipBuildPlan();
+  } catch (err) {
+    clipMsg(err.message);
+    return;
+  }
+  clipExporting = true;
+  clipMsg("Video kaydediliyor…");
+  stopAiClip();
+  const stage = clipStage();
+  if (!stage?.captureStream) {
+    clipMsg("Bu tarayıcı video kaydını desteklemiyor.");
+    clipExporting = false;
+    return;
+  }
+  const ctx = nfcAudio();
+  await ctx.resume?.();
+  clipDrawFrame(stage, clipPlan, 0);
+  const vstream = stage.captureStream(30);
+  try {
+    vstream.getAudioTracks().forEach((track) => vstream.removeTrack(track));
+  } catch {
+    /* */
+  }
+  const dest = clipBed(clipPlan);
+  dest.stream.getAudioTracks().forEach((track) => vstream.addTrack(track));
+  const rec = musicRecorderFor(vstream);
+  const chunks = [];
+  rec.ondataavailable = (ev) => {
+    if (ev.data?.size) chunks.push(ev.data);
+  };
+  const done = new Promise((resolve) => {
+    rec.onstop = () => resolve();
+  });
+  rec.start(200);
+  clipPlaying = true;
+  clipT0 = performance.now();
+  const fpsWait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const start = performance.now();
+  while (performance.now() - start < clipPlan.duration * 1000) {
+    clipDrawFrame(stage, clipPlan, (performance.now() - start) / 1000);
+    await fpsWait(33);
+  }
+  stopAiClip();
+  rec.stop();
+  await done;
+  vstream.getTracks().forEach((track) => track.stop());
+  const blob = new Blob(chunks, { type: rec.mimeType || "video/webm" });
+  store.set(
+    CLIP_KEY,
+    [{ id: "clip_" + Date.now(), title: clipPlan.title, style: clipPlan.style, duration: clipPlan.duration, prompt: clipPlan.prompt, at: Date.now() }]
+      .concat(clipRows())
+      .slice(0, 40)
+  );
+  renderAiClip();
+  const how = await saveBlobToPhoneGallery(blob, videoFileName(blob.type).replace("sarki", "klip"));
+  clipExporting = false;
+  if (how === "abort") clipMsg("Paylaşım iptal.");
+  else if (how === "share") clipMsg("Klip galeriye gönderildi.");
+  else clipMsg("Klip indirildi. Telefonda Dosyalar veya Galeri’den açın.");
+}
+
+$("#clipPhotos")?.addEventListener("change", (event) => {
+  clipLoadFiles(event.target.files).catch((err) => clipMsg(err.message));
+});
+
+$("#clipAudio")?.addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  clipAudioBuf = null;
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    clipAudioBuf = await nfcAudio().decodeAudioData(buf.slice(0));
+    clipMsg("Müzik yüklendi.");
+  } catch {
+    clipMsg("Ses dosyası okunamadı.");
+  }
+});
+
+$("#clipPlay")?.addEventListener("click", () => clipStartPreview());
+$("#clipStop")?.addEventListener("click", () => {
+  stopAiClip();
+  clipMsg("Durdu.");
+});
+$("#clipSave")?.addEventListener("click", () => clipSaveToGallery());
+$("#clipForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  clipStartPreview();
+});
+
+const CLIP_SHOTS = [
+  { id: "orijinal", name: "Orijinal", filter: "none" },
+  { id: "sinema", name: "Sinema", filter: "contrast(1.14) saturate(0.9) brightness(0.97)" },
+  { id: "siyahbeyaz", name: "Siyah beyaz", filter: "grayscale(1) contrast(1.2)" },
+  { id: "vintage", name: "Vintage", filter: "sepia(0.35) contrast(1.08) saturate(0.85)" },
+  { id: "canli", name: "Canlı", filter: "saturate(1.45) contrast(1.12)" },
+  { id: "soguk", name: "Soğuk", filter: "hue-rotate(18deg) saturate(0.92) brightness(1.02)" },
+  { id: "sicak", name: "Sıcak", filter: "sepia(0.18) saturate(1.2) brightness(1.04)" },
+  { id: "altinsaat", name: "Altın saat", filter: "sepia(0.28) saturate(1.25) brightness(1.06)" },
+  { id: "gece", name: "Gece", filter: "brightness(0.86) contrast(1.22) saturate(0.8)" },
+  { id: "portre", name: "Portre", filter: "contrast(1.08) brightness(1.06) saturate(1.08)" },
+  { id: "film", name: "Film", filter: "contrast(1.18) saturate(0.78) brightness(0.98)" },
+  { id: "mat", name: "Mat", filter: "contrast(0.88) saturate(0.82) brightness(1.04)" },
+  { id: "hdr", name: "HDR", filter: "contrast(1.28) saturate(1.18) brightness(1.04)" },
+  { id: "pastel", name: "Pastel", filter: "saturate(0.7) brightness(1.1) contrast(0.92)" },
+  { id: "kontrast", name: "Kontrast", filter: "contrast(1.4) saturate(1.05)" },
+  { id: "fade", name: "Fade", filter: "contrast(0.84) brightness(1.08) saturate(0.75)" },
+  { id: "turkuaz", name: "Turkuaz", filter: "hue-rotate(150deg) saturate(0.85)" },
+  { id: "gul", name: "Gül", filter: "hue-rotate(-12deg) saturate(1.2) brightness(1.05)" },
+  { id: "sepia", name: "Sepia", filter: "sepia(0.7) contrast(1.05)" },
+  { id: "net", name: "Net", filter: "contrast(1.22) saturate(1.08) brightness(1.03)" },
+];
+const CLIP_MAKEUP = [
+  { id: "nude", name: "Nude", blush: "rgba(232,176,150,0.22)", lip: "rgba(196,92,92,0.28)" },
+  { id: "dogal", name: "Doğal", blush: "rgba(224,160,140,0.18)", lip: "rgba(180,90,90,0.22)" },
+  { id: "pembe", name: "Pembe", blush: "rgba(240,140,170,0.28)", lip: "rgba(220,80,120,0.35)" },
+  { id: "kirmizi", name: "Kırmızı", blush: "rgba(220,120,110,0.2)", lip: "rgba(176,24,40,0.42)" },
+  { id: "smoky", name: "Smoky", blush: "rgba(120,90,110,0.18)", lip: "rgba(80,40,50,0.32)" },
+  { id: "bronz", name: "Bronz", blush: "rgba(196,132,72,0.28)", lip: "rgba(160,72,48,0.3)" },
+  { id: "seftali", name: "Şeftali", blush: "rgba(255,170,130,0.28)", lip: "rgba(220,100,80,0.3)" },
+  { id: "glow", name: "Glow", blush: "rgba(255,210,180,0.24)", lip: "rgba(210,120,110,0.22)" },
+  { id: "kore", name: "Kore", blush: "rgba(255,150,170,0.3)", lip: "rgba(230,90,110,0.28)" },
+  { id: "gecemakyaj", name: "Gece", blush: "rgba(150,70,110,0.22)", lip: "rgba(120,20,50,0.4)" },
+];
+const CLIP_HAIR = [
+  { id: "uzun", name: "Uzun saç" },
+  { id: "kisa", name: "Kısa saç" },
+];
+const CLIP_HAIR_COLOR = [
+  { id: "sari", name: "Sarı", color: "rgba(240,210,70,0.38)" },
+  { id: "mavi", name: "Mavi", color: "rgba(70,120,230,0.38)" },
+  { id: "yesil", name: "Yeşil", color: "rgba(70,180,90,0.38)" },
+  { id: "bronzsac", name: "Bronz", color: "rgba(176,112,48,0.4)" },
+  { id: "altinsac", name: "Altın", color: "rgba(212,175,55,0.42)" },
+];
+
+const clipLive = {
+  stream: null,
+  rec: null,
+  chunks: [],
+  recording: false,
+  looping: false,
+  shot: "orijinal",
+  beauty: false,
+  makeup: "",
+  hair: "",
+  hairColor: "",
+  fx: "shots",
+  facing: "user",
+  iso: 405,
+  zoom: 0.5,
+  face: null,
+  detectAt: 0,
+  detector: null,
+  blob: null,
+  previewUrl: "",
+  lastW: 0,
+  lastH: 0,
+  opening: false,
+};
+
+function clipLiveMsg(text) {
+  if ($("#clipLiveMsg")) $("#clipLiveMsg").textContent = text || "";
+}
+
+function clipLiveIsoBright() {
+  const t = Math.log(clipLive.iso / 50) / Math.log(3200 / 50);
+  return 0.7 + t * 0.85;
+}
+
+function clipLiveShotFilter() {
+  const shot = CLIP_SHOTS.find((row) => row.id === clipLive.shot) || CLIP_SHOTS[0];
+  const iso = `brightness(${clipLiveIsoBright().toFixed(3)})`;
+  return shot.filter === "none" ? iso : `${shot.filter} ${iso}`;
+}
+
+function clipLiveFaceBox(w, h) {
+  const f = clipLive.face;
+  if (f) return { x: f.x * w, y: f.y * h, w: f.w * w, h: f.h * h };
+  return { x: w * 0.28, y: h * 0.16, w: w * 0.44, h: h * 0.46 };
+}
+
+async function clipLiveDetect(video) {
+  const now = performance.now();
+  if (now - clipLive.detectAt < 280) return;
+  clipLive.detectAt = now;
+  try {
+    if (!clipLive.detector && "FaceDetector" in window) {
+      clipLive.detector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+    }
+    if (!clipLive.detector) return;
+    const faces = await clipLive.detector.detect(video);
+    const box = faces[0]?.boundingBox;
+    const vw = video.videoWidth || 1;
+    const vh = video.videoHeight || 1;
+    if (box) {
+      clipLive.face = {
+        x: box.x / vw,
+        y: box.y / vh,
+        w: box.width / vw,
+        h: box.height / vh,
+      };
+    }
+  } catch {
+    /* tarayıcı yüz algılamazsa orta oval kullanılır */
+  }
+}
+
+function clipLiveDrawFaceFx(g, w, h) {
+  const need = clipLive.beauty || clipLive.makeup || clipLive.hair || clipLive.hairColor;
+  if (!need) return;
+  const box = clipLiveFaceBox(w, h);
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  g.save();
+  g.beginPath();
+  g.ellipse(cx, cy, box.w * 0.52, box.h * 0.58, 0, 0, Math.PI * 2);
+  g.clip();
+  if (clipLive.beauty) {
+    g.fillStyle = "rgba(255, 236, 224, 0.16)";
+    g.fill();
+  }
+  const makeup = CLIP_MAKEUP.find((row) => row.id === clipLive.makeup);
+  if (makeup) {
+    g.fillStyle = makeup.blush;
+    g.beginPath();
+    g.ellipse(cx - box.w * 0.22, cy + box.h * 0.06, box.w * 0.16, box.h * 0.1, 0, 0, Math.PI * 2);
+    g.ellipse(cx + box.w * 0.22, cy + box.h * 0.06, box.w * 0.16, box.h * 0.1, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = makeup.lip;
+    g.beginPath();
+    g.ellipse(cx, cy + box.h * 0.28, box.w * 0.16, box.h * 0.06, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
+  if (clipLive.hair || clipLive.hairColor) {
+    const color = CLIP_HAIR_COLOR.find((row) => row.id === clipLive.hairColor)?.color || "rgba(40,20,10,0.18)";
+    g.save();
+    g.fillStyle = color;
+    g.beginPath();
+    if (clipLive.hair === "kisa") {
+      g.ellipse(cx, box.y + box.h * 0.08, box.w * 0.5, box.h * 0.28, 0, Math.PI, 0);
+    } else {
+      g.ellipse(cx, box.y + box.h * 0.12, box.w * 0.58, box.h * 0.36, 0, Math.PI, 0);
+      g.ellipse(cx - box.w * 0.42, cy + box.h * 0.15, box.w * 0.18, box.h * 0.55, 0.2, 0, Math.PI * 2);
+      g.ellipse(cx + box.w * 0.42, cy + box.h * 0.15, box.w * 0.18, box.h * 0.55, -0.2, 0, Math.PI * 2);
+    }
+    g.fill();
+    g.restore();
+  }
+}
+
+function clipLivePaint() {
+  const video = $("#clipLiveVideo");
+  const canvas = $("#clipLiveCanvas");
+  if (!video || !canvas || !clipLive.stream) return;
+  const vw = video.videoWidth || clipLive.stream.getVideoTracks()[0]?.getSettings?.().width || 0;
+  const vh = video.videoHeight || clipLive.stream.getVideoTracks()[0]?.getSettings?.().height || 0;
+  if (!vw || !vh) return;
+  const scale = Math.min(1, 1280 / Math.max(vw, vh));
+  const outW = Math.max(2, Math.round(vw * scale));
+  const outH = Math.max(2, Math.round(vh * scale));
+  if (canvas.width !== outW || canvas.height !== outH) {
+    canvas.width = outW;
+    canvas.height = outH;
+  }
+  const z = Math.max(1, clipLive.zoom);
+  const cw = vw / z;
+  const ch = vh / z;
+  const sx = (vw - cw) / 2;
+  const sy = (vh - ch) / 2;
+  const g =
+    canvas.getContext("2d", { alpha: false, desynchronized: true }) || canvas.getContext("2d");
+  if (!g) return;
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = "high";
+  try {
+    g.filter = clipLiveShotFilter();
+  } catch {
+    g.filter = "none";
+  }
+  g.drawImage(video, sx, sy, cw, ch, 0, 0, outW, outH);
+  g.filter = "none";
+  clipLiveDrawFaceFx(g, outW, outH);
+  canvas.classList.add("is-on");
+  clipLiveDetect(video);
+}
+
+function clipLiveTick() {
+  if (!clipLive.looping) return;
+  try {
+    clipLivePaint();
+  } catch {
+    /* kare atlanır, döngü durmaz */
+  }
+  requestAnimationFrame(clipLiveTick);
+}
+
+function clipLiveLockPage(on) {
+  document.documentElement.classList.toggle("clip-live-open", !!on);
+  document.body.classList.toggle("clip-live-open", !!on);
+  if (on) {
+    const stage = $("#clipLiveStage");
+    try {
+      stage?.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+    } catch {
+      stage?.scrollIntoView(true);
+    }
+    window.scrollTo(0, 0);
+    const view = document.querySelector('.view[data-view="aiclip"]');
+    if (view) view.scrollTop = 0;
+  }
+}
+
+function clipLiveHalt() {
+  clipLive.looping = false;
+  if (clipLive.recording) {
+    clipLive.recording = false;
+    try {
+      clipLive.rec?.stop();
+    } catch {
+      /* */
+    }
+  }
+  clipLive.stream?.getTracks?.().forEach((track) => {
+    try {
+      track.stop();
+    } catch {
+      /* */
+    }
+  });
+  clipLive.stream = null;
+  const video = $("#clipLiveVideo");
+  if (video) video.srcObject = null;
+  $("#clipLiveCanvas")?.classList.remove("is-on");
+  if ($("#clipLiveStage")) $("#clipLiveStage").hidden = true;
+  if ($("#clipLiveOpen")) $("#clipLiveOpen").hidden = false;
+  $("#clipLiveShutter")?.classList.remove("recording");
+  clipLive.opening = false;
+  clipLiveLockPage(false);
+}
+
+function clipLiveFillChips() {
+  const shots = $("#clipLiveShots");
+  const makeup = $("#clipLiveMakeup");
+  const hair = $("#clipLiveHair");
+  const color = $("#clipLiveHairColor");
+  const beauty = $("#clipLiveBeautyRow");
+  if (shots && !shots.childElementCount) {
+    shots.innerHTML = CLIP_SHOTS.map(
+      (row) => `<button type="button" data-clip-shot="${row.id}">${row.name}</button>`
+    ).join("");
+  }
+  if (beauty && !beauty.childElementCount) {
+    beauty.innerHTML =
+      '<button type="button" data-clip-beauty="1">Güzelleştirme (sivilce ve izleri gizle)</button>';
+  }
+  if (makeup && !makeup.childElementCount) {
+    makeup.innerHTML = CLIP_MAKEUP.map(
+      (row) => `<button type="button" data-clip-makeup="${row.id}">${row.name}</button>`
+    ).join("");
+  }
+  if (hair && !hair.childElementCount) {
+    hair.innerHTML = CLIP_HAIR.map(
+      (row) => `<button type="button" data-clip-hair="${row.id}">${row.name}</button>`
+    ).join("");
+  }
+  if (color && !color.childElementCount) {
+    color.innerHTML = CLIP_HAIR_COLOR.map(
+      (row) => `<button type="button" data-clip-hair-color="${row.id}">${row.name}</button>`
+    ).join("");
+  }
+  clipLiveSyncChips();
+  clipLiveShowFx(clipLive.fx);
+}
+
+function clipLiveSyncChips() {
+  $$("[data-clip-shot]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipShot === clipLive.shot));
+  $$("[data-clip-makeup]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipMakeup === clipLive.makeup));
+  $$("[data-clip-hair]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipHair === clipLive.hair));
+  $$("[data-clip-hair-color]").forEach((el) =>
+    el.classList.toggle("is-on", el.dataset.clipHairColor === clipLive.hairColor)
+  );
+  $$("[data-clip-beauty]").forEach((el) => el.classList.toggle("is-on", clipLive.beauty));
+}
+
+function clipLiveShowFx(name) {
+  clipLive.fx = name || "shots";
+  $$("[data-clip-fx]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipFx === clipLive.fx));
+  $$("[data-clip-pane]").forEach((el) => {
+    const on = el.dataset.clipPane === clipLive.fx;
+    el.hidden = !on;
+    el.classList.toggle("is-on", on);
+  });
+}
+
+function clipLiveMinZoom() {
+  return 0.5;
+}
+
+function clipLiveResetZoom() {
+  const min = clipLiveMinZoom();
+  clipLive.zoom = min;
+  const range = $("#clipLiveZoom");
+  if (range) {
+    range.min = String(min);
+    range.max = "10";
+    range.value = String(min);
+  }
+  if ($("#clipLiveZoomVal")) $("#clipLiveZoomVal").textContent = `${String(min).replace(".", ",")}×`;
+}
+
+function clipLiveFacingUi() {
+  const front = clipLive.facing === "user";
+  $("#clipLiveStage")?.classList.toggle("front-cam", front);
+  $("#clipLiveFlip")?.classList.toggle("front", front);
+  if ($("#clipLiveFacing")) $("#clipLiveFacing").textContent = front ? "ön" : "arka";
+}
+
+async function clipLiveGetStream(wantFront = clipLive.facing === "user") {
+  const facing = wantFront ? "user" : "environment";
+  const specs = [
+    { audio: iphoneAudioConstraints(), video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+    { audio: iphoneAudioConstraints(), video: { facingMode: { ideal: facing } } },
+    { audio: true, video: { facingMode: facing } },
+    { audio: true, video: true },
+    { video: { facingMode: { ideal: facing } } },
+    { video: true },
+  ];
+  let lastErr = null;
+  for (const spec of specs) {
+    try {
+      const media = await navigator.mediaDevices.getUserMedia(spec);
+      if (!media.getAudioTracks().length) {
+        try {
+          const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: iphoneAudioConstraints() });
+          audioOnly.getAudioTracks().forEach((track) => media.addTrack(track));
+        } catch {
+          try {
+            const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioOnly.getAudioTracks().forEach((track) => media.addTrack(track));
+          } catch {
+            /* kayıt videosuz ses olmadan da açılır */
+          }
+        }
+      }
+      return media;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Kamera açılamadı.");
+}
+
+async function clipLiveFlip() {
+  if (!clipLive.stream || clipLive.opening) return;
+  const nextFront = clipLive.facing !== "user";
+  clipLive.opening = true;
+  clipLive.stream.getVideoTracks().forEach((track) => {
+    try {
+      clipLive.stream.removeTrack(track);
+      track.stop();
+    } catch {
+      /* */
+    }
+  });
+  try {
+    const videoOnly = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: nextFront ? "user" : "environment" } },
+    });
+    videoOnly.getVideoTracks().forEach((track) => clipLive.stream.addTrack(track));
+    clipLive.facing = nextFront ? "user" : "environment";
+    clipLiveResetZoom();
+    clipLiveFacingUi();
+    const video = $("#clipLiveVideo");
+    if (video) {
+      video.srcObject = clipLive.stream;
+      video.play().catch(() => {});
+    }
+  } catch {
+    clipLiveMsg("Kamera yönü değiştirilemedi.");
+  } finally {
+    clipLive.opening = false;
+  }
+}
+
+async function clipLiveOpen() {
+  if (!clipNeedAccess()) return;
+  if (clipLive.opening || clipLive.stream) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    clipLiveMsg("Bu tarayıcı kamerayı desteklemiyor.");
+    return;
+  }
+  clipLive.opening = true;
+  clipLiveMsg("Kamera açılıyor…");
+  try {
+    clipLive.stream = await clipLiveGetStream(clipLive.facing === "user");
+    await applyIphoneAudio(clipLive.stream).catch(() => {});
+    const video = $("#clipLiveVideo");
+    if (!video) throw new Error("Kamera alanı bulunamadı.");
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.srcObject = clipLive.stream;
+    clipLiveResetZoom();
+    clipLiveFacingUi();
+    clipLiveFillChips();
+    if ($("#clipLiveStage")) $("#clipLiveStage").hidden = false;
+    if ($("#clipLiveOpen")) $("#clipLiveOpen").hidden = true;
+    if ($("#clipLiveDone")) $("#clipLiveDone").hidden = true;
+    clipLive.looping = true;
+    clipLiveTick();
+    const playNow = () => video.play().catch(() => {});
+    video.addEventListener("loadedmetadata", playNow, { once: true });
+    playNow();
+    clipLiveLockPage(true);
+    clipLiveMsg("Görüntü açık. Filtreler yüze uygulanır, kayıt durmaz.");
+  } catch (err) {
+    clipLiveHalt();
+    const name = err?.name || "";
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      clipLiveMsg("Kamera ve mikrofon izni gerekli. Ayarlardan izin verin.");
+    } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+      clipLiveMsg("Bu cihazda kullanılabilir kamera bulunamadı.");
+    } else if (name === "NotReadableError") {
+      clipLiveMsg("Kamera başka uygulamada açık. Kapatıp tekrar deneyin.");
+    } else {
+      clipLiveMsg("Kamera açılamadı. Sayfayı yenileyip tekrar deneyin.");
+    }
+  } finally {
+    clipLive.opening = false;
+  }
+}
+
+function clipLiveStartRec() {
+  if (clipLive.recording) return;
+  const canvas = $("#clipLiveCanvas");
+  if (!canvas?.captureStream || !clipLive.stream) {
+    clipLiveMsg("Kayıt bu tarayıcıda açılamadı.");
+    return;
+  }
+  clipLive.chunks = [];
+  clipLive.blob = null;
+  const vstream = canvas.captureStream(30);
+  try {
+    vstream.getAudioTracks().forEach((track) => vstream.removeTrack(track));
+  } catch {
+    /* */
+  }
+  clipLive.stream.getAudioTracks().forEach((track) => {
+    if (track.readyState === "live") vstream.addTrack(track);
+  });
+  const rec = musicRecorderFor(vstream);
+  rec.ondataavailable = (ev) => {
+    if (ev.data?.size) clipLive.chunks.push(ev.data);
+  };
+  rec.onstop = () => {
+    clipLive.blob = new Blob(clipLive.chunks, { type: rec.mimeType || "video/webm" });
+    if (clipLive.previewUrl) URL.revokeObjectURL(clipLive.previewUrl);
+    clipLive.previewUrl = URL.createObjectURL(clipLive.blob);
+    const preview = $("#clipLivePreview");
+    if (preview) {
+      preview.src = clipLive.previewUrl;
+      preview.play().catch(() => {});
+    }
+    if ($("#clipLiveDone")) $("#clipLiveDone").hidden = false;
+    clipLiveMsg("Kayıt bitti. Önizleyin, kaydet derseniz Resimlerim’e gider.");
+  };
+  rec.start(250);
+  clipLive.rec = rec;
+  clipLive.recording = true;
+  $("#clipLiveShutter")?.classList.add("recording");
+  clipLiveMsg("Kayıt sürüyor. Filtre değiştirebilirsiniz.");
+}
+
+function clipLiveStopRec() {
+  if (!clipLive.recording) return;
+  clipLive.recording = false;
+  $("#clipLiveShutter")?.classList.remove("recording");
+  try {
+    clipLive.rec?.stop();
+  } catch {
+    /* */
+  }
+}
+
+async function clipLiveSave() {
+  if (!clipLive.blob) {
+    clipLiveMsg("Önce kaydı bitirin.");
+    return;
+  }
+  const how = await saveBlobToPhoneGallery(clipLive.blob, videoFileName(clipLive.blob.type).replace("sarki", "klip"));
+  const text =
+    how === "abort"
+      ? "Paylaşım iptal."
+      : how === "share"
+        ? "Video Resimlerim / Galeri’ye gönderildi."
+        : "Video indirildi. Telefonda Resimlerim’den açın.";
+  if ($("#clipLiveDoneMsg")) $("#clipLiveDoneMsg").textContent = text;
+  clipLiveMsg(text);
+}
+
+$("#clipLiveOpen")?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  clipLiveOpen();
+});
+$("#clipLiveClose")?.addEventListener("click", () => {
+  clipLiveHalt();
+  clipLiveMsg("Kamera kapandı.");
+});
+$("#clipLiveShutter")?.addEventListener("click", () => {
+  if (!clipNeedAccess()) return;
+  if (clipLive.recording) clipLiveStopRec();
+  else clipLiveStartRec();
+});
+$("#clipLiveFlip")?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  clipLiveFlip();
+});
+$("#clipLiveIsoRange")?.addEventListener("input", (event) => {
+  clipLive.iso = Number(event.target.value) || 405;
+});
+$("#clipLiveZoom")?.addEventListener("input", (event) => {
+  clipLive.zoom = Number(event.target.value) || clipLiveMinZoom();
+  if ($("#clipLiveZoomVal")) $("#clipLiveZoomVal").textContent = `${String(clipLive.zoom).replace(".", ",")}×`;
+});
+$("#clipLiveFxTabs")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-clip-fx]");
+  if (!btn) return;
+  clipLiveShowFx(btn.dataset.clipFx);
+});
+$("#clipLiveBeautyRow")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-clip-beauty]");
+  if (!btn) return;
+  clipLive.beauty = !clipLive.beauty;
+  clipLiveSyncChips();
+});
+$("#clipLiveShots")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-clip-shot]");
+  if (!btn) return;
+  clipLive.shot = btn.dataset.clipShot;
+  clipLiveSyncChips();
+});
+$("#clipLiveMakeup")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-clip-makeup]");
+  if (!btn) return;
+  clipLive.makeup = clipLive.makeup === btn.dataset.clipMakeup ? "" : btn.dataset.clipMakeup;
+  clipLiveSyncChips();
+});
+$("#clipLiveHair")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-clip-hair]");
+  if (!btn) return;
+  clipLive.hair = clipLive.hair === btn.dataset.clipHair ? "" : btn.dataset.clipHair;
+  clipLiveSyncChips();
+});
+$("#clipLiveHairColor")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-clip-hair-color]");
+  if (!btn) return;
+  clipLive.hairColor = clipLive.hairColor === btn.dataset.clipHairColor ? "" : btn.dataset.clipHairColor;
+  clipLiveSyncChips();
+});
+$("#clipLiveSave")?.addEventListener("click", () => clipLiveSave());
+
+$("#clipBuyBox")?.addEventListener("click", (event) => {
+  const planBtn = event.target.closest("[data-clip-plan]");
+  if (!planBtn) return;
+  clipSelectPlan(planBtn.dataset.clipPlan);
+});
+
+$$("input[name='clipPlan']").forEach((el) => {
+  el.addEventListener("change", () => {
+    if (el.checked) clipSelectPlan(el.value);
+  });
+});
+
+$("#clipCopyIban")?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(POS_SETTLE.ibanMasked);
+    clipJoinMsg("IBAN kopyalandı.");
+  } catch {
+    clipJoinMsg(POS_SETTLE.ibanMasked);
+  }
+});
+
+$("#clipJoinForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const first = $("#clipSubFirst").value.trim();
+  const last = $("#clipSubLast").value.trim();
+  const phone = $("#clipSubPhone").value.replace(/\D/g, "");
+  const email = ($("#clipSubEmail")?.value || "").trim().toLowerCase();
+  const taxId = ($("#clipSubTax")?.value || "").replace(/\D/g, "");
+  const address = $("#clipSubAddress").value.trim();
+  const plan = $$("input[name='clipPlan']").find((el) => el.checked)?.value || "month";
+  const amount = Number(String($("#clipPayAmount").value || "").replace(",", "."));
+  const file = $("#clipDekont")?.files?.[0];
+  const need = musicPlanAmount(plan);
+  if (first.length < 2 || last.length < 2) {
+    clipJoinMsg("İsim ve soy isim zorunlu.");
+    return;
+  }
+  if (phone.length < 10) {
+    clipJoinMsg("Geçerli telefon yazın.");
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    clipJoinMsg("Fatura için geçerli e-posta yazın.");
+    return;
+  }
+  if (address.length < 10) {
+    clipJoinMsg("Adres zorunlu.");
+    return;
+  }
+  if (Math.abs(amount - need) > 0.05) {
+    clipJoinMsg("Havale tutarı " + need + " Türk Lirası olmalı.");
+    return;
+  }
+  if (plan === "month") {
+    clipJoinMsg("Dekont kontrol ediliyor…");
+    try {
+      await musicInspectDekont(file);
+    } catch (err) {
+      clipJoinMsg(err.message || "Dekont doğrulanamadı.");
+      return;
+    }
+  }
+  clipJoinMsg("e-Fatura oluşturuluyor…");
+  try {
+    const res = await fetch("/music-invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "clip",
+        first,
+        last,
+        phone,
+        email,
+        taxId,
+        address,
+        plan,
+        amount: need,
+        dekontName: file?.name || "",
+        dekontSize: file?.size || 0,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      clipJoinMsg(data.error || "Fatura oluşturulamadı.");
+      return;
+    }
+    const member = {
+      id: "csub_" + Date.now(),
+      first,
+      last,
+      phone,
+      email,
+      taxId,
+      address,
+      plan,
+      amount: need,
+      vatRate: 20,
+      vat: data.vat,
+      ok: false,
+      pending: true,
+      until: 0,
+      at: Date.now(),
+      dekont: file?.name || "",
+      dekontSize: file?.size || 0,
+      invoiceNumber: data.invoiceNumber,
+      invoiceToken: data.token,
+      mailed: !!data.mailed,
+      trendyol: !!data.trendyol,
+    };
+    store.set(CLIP_SUB, member);
+    store.set(CLIP_MEMBERS, [member].concat(clipMembers()).slice(0, 80));
+    clipJoinMsg(data.message || "Üyelik süreci inceleniyor.");
+    clipMsg("Üyelik süreci inceleniyor.");
+    if ($("#clipInvoiceNo")) $("#clipInvoiceNo").value = "";
+    renderAiClip();
+  } catch {
+    clipJoinMsg("Fatura servisine ulaşılamadı.");
+  }
+});
+
+$("#clipActivateForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const sub = clipSubNow();
+  const invoiceNumber = ($("#clipInvoiceNo")?.value || "").toUpperCase().replace(/\s+/g, "");
+  if (!sub?.pending || !sub.invoiceNumber) {
+    clipActivateMsg("Önce ödemeyi gönderin.");
+    return;
+  }
+  if (sub.plan === "month" && !sub.dekont) {
+    clipActivateMsg("Aylık üyelik için dekont kaydı yok.");
+    return;
+  }
+  if (invoiceNumber !== String(sub.invoiceNumber).toUpperCase()) {
+    clipActivateMsg("Fatura numarası e-postadaki ile aynı olmalı.");
+    return;
+  }
+  clipActivateMsg("Fatura numarası kontrol ediliyor…");
+  try {
+    const res = await fetch("/music-invoice-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        invoiceNumber,
+        email: sub.email,
+        plan: sub.plan,
+        amount: sub.amount,
+        token: sub.invoiceToken,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      clipActivateMsg(data.error || "Fatura doğrulanamadı.");
+      return;
+    }
+    const until = data.until || Date.now() + musicPlanDays(sub.plan) * 86400000;
+    const member = { ...sub, ok: true, pending: false, until, activatedAt: Date.now() };
+    store.set(CLIP_SUB, member);
+    store.set(CLIP_MEMBERS, [member].concat(clipMembers().filter((row) => row.id !== member.id)).slice(0, 80));
+    clipActivateMsg("Fatura doğrulandı. Aboneliğiniz aktif.");
+    clipMsg("Abonelik aktif.");
+    renderAiClip();
+  } catch {
+    clipActivateMsg("Doğrulama servisine ulaşılamadı.");
+  }
+});
+
+$("#clipAdminForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const user = $("#clipAdminUser").value.trim();
+  const pin = $("#clipAdminPin").value;
+  if (user !== POS_ADMIN_USER || pin !== posAdminPinValue()) {
+    if ($("#clipAdminMsg")) $("#clipAdminMsg").textContent = "Bilgiler hatalı.";
+    return;
+  }
+  const remember = $("#clipAdminRemember")?.checked !== false;
+  store.set(POS_ADMIN_ON, true);
+  store.set(POS_ADMIN_REMEMBER, remember ? { remember: true, user, pin } : { remember: false });
+  $("#clipAdminPin").value = "";
+  if ($("#clipAdminMsg")) $("#clipAdminMsg").textContent = "Süper admin · ücretsiz erişim açık.";
+  syncOwnerApps();
+  renderAiClip();
+});
+
+$("#clipAdminOut")?.addEventListener("click", () => {
+  store.set(POS_ADMIN_ON, false);
+  syncOwnerApps();
+  renderAiClip();
 });
 
 const PBX_ORGS = "pbx-orgs";
@@ -4138,7 +6761,7 @@ $("#gkBuyForm").addEventListener("submit", (event) => {
       formatTry(shopFee.commission) +
       " · net " +
       formatTry(shopFee.net) +
-      " Tolkan Uğur IBAN’ına kabul edildi."
+      " Tolkan Uğur Özel IBAN’ına kabul edildi."
   );
   gkOpenTab("shop");
 });
@@ -4287,8 +6910,8 @@ const POS_ADMIN_USER = "superadmin";
 const POS_ADMIN_PIN = "HarbiAdmin2026";
 const POS_GATEWAY = "pos-gateway-keys";
 const POS_SETTLE = {
-  name: "Tolkan Uğur",
-  branch: "Lüleburgaz Şubesi",
+  name: "Tolkan Uğur Özel",
+  branch: "",
   country: "Türkiye Cumhuriyeti",
   iban: "TR54 0006 2000 1110 0006 2920 69",
   ibanRaw: "TR540006200011100006292069",
@@ -4409,6 +7032,8 @@ function posPayLine(p, who) {
           ? "Operatör faturası"
           : p.method === "withdraw"
             ? "Para çek"
+          : p.method === "reklam"
+            ? "Reklam"
             : "Tahsilat";
   const whoLine = who ? `<p>${escapeHtml(who)}</p>` : "";
   const detail = String(p.detail || p.note || "Tahsilat")
@@ -4420,9 +7045,9 @@ function posPayLine(p, who) {
   )}</time></header>${whoLine}<p>${escapeHtml(method)} · ${escapeHtml(detail)}</p><p class="hint">%0,95 komisyon ${escapeHtml(
     formatTry(fee.commission)
   )} · net ${escapeHtml(formatTry(fee.net))}</p><p class="hint">Aktarım: ${escapeHtml(
-    p.settleName || POS_SETTLE.name
-  )} · ${escapeHtml(p.settleBranch || POS_SETTLE.branch)} · ${escapeHtml(
-    posMaskIban(p.settleIban || POS_SETTLE.iban)
+    [p.settleName || POS_SETTLE.name, posMaskIban(p.settleIban || POS_SETTLE.iban)]
+      .filter((part) => part && !/lüleburgaz/i.test(String(part)))
+      .join(" · ")
   )}</p></article>`;
 }
 
@@ -4489,6 +7114,7 @@ function posRenderPaySystems() {
     $("#posSysStatus").innerHTML = [
       row("Sanal POS genel", s.on !== false, pays.length + " toplam işlem · %0,95 komisyon"),
       row("IBAN ile ödeme", posPayOn("iban"), n((p) => p.method === "iban") + " işlem"),
+      row("Reklam tahsilatı", true, n((p) => p.method === "reklam") + " işlem · Tolkan Uğur özel IBAN"),
       row("Kredi kartı", posPayOn("card"), n((p) => p.method === "card") + " işlem"),
       row("Siteden ürün ödemesi", posPayOn("shop"), n((p) => String(p.detail || "").startsWith("Ürün")) + " işlem"),
       row("Para çek", posPayOn("withdraw") && s.withdrawShow, n((p) => p.method === "withdraw") + " işlem"),
@@ -4620,7 +7246,6 @@ function posFillKeyInputs() {
   [
     ["#posGateApi", g.apiKey],
     ["#posPayApiKey", g.apiKey],
-    ["#posCardApiKey", g.apiKey],
     ["#gkPosKey", g.apiKey],
   ].forEach(([sel, val]) => {
     if ($(sel) && val) $(sel).value = val;
@@ -4628,7 +7253,6 @@ function posFillKeyInputs() {
   [
     ["#posGateSecret", g.secretKey],
     ["#posPaySecret", g.secretKey],
-    ["#posCardSecret", g.secretKey],
     ["#gkPosSecret", g.secretKey],
   ].forEach(([sel, val]) => {
     if ($(sel) && val) $(sel).value = val;
@@ -4728,6 +7352,7 @@ function posRenderDesk() {
   $("#posChargeWrap").hidden = !active || !posSettings().on;
   if ($("#posIbanCard")) $("#posIbanCard").hidden = !active || !posPayOn("iban");
   if ($("#posCardCard")) $("#posCardCard").hidden = !active || !posPayOn("card");
+  posRefreshIyzicoHint();
   if (active && member.apiKey) {
     $("#posApiKey").value = member.apiKey;
     $("#posSecretKey").value = member.secretKey;
@@ -5337,49 +7962,90 @@ $("#posIbanForm").addEventListener("submit", (event) => {
   if (ok) $("#posIbanForm").reset();
 });
 
-$("#posCardNumber").addEventListener("input", () => {
-  const num = $("#posCardNumber").value.replace(/\D/g, "");
-  const brand = posCardBrandFromNumber(num);
-  if (brand && [...$("#posCardBrand").options].some((o) => o.value === brand)) {
-    $("#posCardBrand").value = brand;
+async function posRefreshIyzicoHint() {
+  const hint = $("#posIyzicoHint");
+  if (!hint) return;
+  try {
+    const res = await fetch("/pos-status", { cache: "no-store" });
+    const data = await res.json();
+    hint.textContent = data.hint || hint.textContent;
+    const btn = $("#posCardForm button[type=submit]");
+    if (btn) btn.disabled = data.ready === false;
+  } catch {
+    hint.textContent =
+      "iyzico durumu okunamadı. Canlı sitede Cloudflare anahtarları gerekir; yerel sunucuda kart tahsilatı açılmaz.";
   }
-});
+}
 
-$("#posCardExp").addEventListener("input", () => {
-  let v = $("#posCardExp").value.replace(/\D/g, "").slice(0, 4);
-  if (v.length >= 3) v = v.slice(0, 2) + "/" + v.slice(2);
-  $("#posCardExp").value = v;
-});
+async function posFinishIyzicoPay(token) {
+  if (!token) return;
+  posMsg("iyzico ödeme sonucu kontrol ediliyor…");
+  try {
+    const res = await fetch("/pos-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      posMsg(data.error || "Ödeme alınamadı.");
+      return;
+    }
+    const amount = parseMoney(data.paidPrice);
+    const brand = data.cardAssociation || "Kart";
+    const last4 = data.lastFourDigits || "";
+    const ok = posRecordPay({
+      amount,
+      method: "card",
+      note: "iyzico " + (data.paymentId || ""),
+      detail: brand + (last4 ? " · **** " + last4 : "") + " · iyzico",
+    });
+    if (ok) {
+      $("#posCardForm")?.reset();
+      posMsg("iyzico tahsilatı alındı. " + (data.paymentId || ""));
+    }
+  } catch {
+    posMsg("Ödeme sonucu alınamadı.");
+  }
+  const url = new URL(location.href);
+  if (url.searchParams.has("posToken")) {
+    url.searchParams.delete("posToken");
+    history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }
+}
 
-$("#posCardForm").addEventListener("submit", (event) => {
+$("#posCardForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const num = $("#posCardNumber").value.replace(/\D/g, "");
-  const exp = $("#posCardExp").value.trim();
-  const cvc = $("#posCardCvc").value.replace(/\D/g, "");
-  const brand = $("#posCardBrand").value;
-  if (num.length < 13 || num.length > 19) {
-    posMsg("Geçerli kart numarası girin.");
+  const member = posCanCharge("card");
+  if (!member) return;
+  const amount = parseMoney($("#posCardAmount").value);
+  if (!Number.isFinite(amount) || amount < 0.5) {
+    posMsg("Geçerli tutar girin (en az 0,50 ₺).");
     return;
   }
-  if (!/^\d{2}\/\d{2}$/.test(exp)) {
-    posMsg("Son kullanma AA/YY olsun.");
-    return;
-  }
-  if (cvc.length < 3) {
-    posMsg("CVC girin.");
-    return;
-  }
-  const last4 = num.slice(-4);
-  const ok = posRecordPay({
-    amount: parseMoney($("#posCardAmount").value),
-    method: "card",
-    note: $("#posCardNote").value.trim(),
-    detail: brand + " · **** " + last4 + " · " + $("#posCardName").value.trim(),
-  });
-  if (ok) {
-    $("#posCardForm").reset();
-    $("#posCardCvc").value = "";
-    $("#posCardNumber").value = "";
+  posMsg("iyzico ödeme sayfası açılıyor…");
+  try {
+    const res = await fetch("/pos-pay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount,
+        note: $("#posCardNote").value.trim() || "Sanal POS tahsilat",
+        name: member.name,
+        email: member.email,
+        phone: member.phone,
+        address: member.address,
+        identityNumber: $("#posCardTc")?.value.trim() || "",
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok || !data.paymentPageUrl) {
+      posMsg(data.error || "iyzico formu açılamadı.");
+      return;
+    }
+    location.href = data.paymentPageUrl;
+  } catch {
+    posMsg("iyzico bağlantısı kurulamadı. Canlı sitede deneyin.");
   }
 });
 
@@ -5532,7 +8198,7 @@ $("#posWithdrawForm").addEventListener("submit", (event) => {
   store.set(POS_PAYS, posPays().concat(pay));
   $("#posWithdrawForm").reset();
   $("#posWithdrawTarget").value = POS_SETTLE.ibanMasked;
-  posMsg(formatTry(amount) + " " + from + " hesabından Tolkan Uğur IBAN’ına çekildi.");
+  posMsg(formatTry(amount) + " " + from + " hesabından Tolkan Uğur Özel IBAN’ına çekildi.");
   posRenderAdmin();
 });
 
@@ -5633,13 +8299,5 @@ renderBikes();
 renderGk();
 renderPos();
 renderEimza();
-renderIso();
-renderFlash();
-resumeRestoreSearches();
-syncOwnerApps();
-const resumeView = resumeGet().view || "home";
-showView(resumeView);
-requestAnimationFrame(() => {
-  centerModeBtn(camMode);
-  resumeRestoreScroll(resumeView);
-});
+renderMusic();
+renderAiClip();

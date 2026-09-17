@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import os
 import socket
 import threading
 import time
 import urllib.parse
+from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -20,6 +24,98 @@ _rtc_lock = threading.Lock()
 _rtc_presence = {}
 _rtc_inbox = {}
 _RTC_TTL = 18
+_INVOICE_SECRET = os.environ.get("MUSIC_INVOICE_SECRET") or os.environ.get("TRENDYOL_API_SECRET") or "x"
+_invoices = {}
+_invoice_lock = threading.Lock()
+
+
+def _hmac_hex(text: str) -> str:
+    return hmac.new(_INVOICE_SECRET.encode("utf-8"), text.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _music_vat(gross: float) -> dict:
+    net = round(gross / 1.2, 2)
+    vat = round(gross - net, 2)
+    return {"gross": gross, "net": net, "vat": vat, "rate": 20}
+
+
+def _mint_invoice(plan: str, kind: str = "music") -> str:
+    year = str(datetime.now().year)
+    stamp = str(int(time.time()) % 1000000).zfill(6)
+    code = "2" if plan == "year" else "1"
+    prefix = "HGC" if kind == "clip" else "HGB"
+    base = prefix + year + stamp + code
+    check = str(int(_hmac_hex(base)[:4], 16) % 100).zfill(2)
+    return (base + check)[:16]
+
+
+def _invoice_token(number: str, email: str, amount: float, plan: str) -> str:
+    return _hmac_hex("|".join([number, email, str(amount), plan]))
+
+
+def _music_invoice(body: dict) -> tuple[int, dict]:
+    first = str(body.get("first") or "").strip()
+    last = str(body.get("last") or "").strip()
+    phone = "".join(ch for ch in str(body.get("phone") or "") if ch.isdigit())
+    email = str(body.get("email") or "").strip().lower()
+    address = str(body.get("address") or "").strip()
+    plan = "year" if body.get("plan") == "year" else "month"
+    kind = "clip" if body.get("kind") == "clip" else "music"
+    amount = 750.0 if plan == "year" else 49.0
+    if len(first) < 2 or len(last) < 2:
+        return 400, {"ok": False, "error": "İsim ve soy isim zorunlu."}
+    if len(phone) < 10:
+        return 400, {"ok": False, "error": "Geçerli telefon yazın."}
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return 400, {"ok": False, "error": "Fatura için geçerli e-posta yazın."}
+    if len(address) < 10:
+        return 400, {"ok": False, "error": "Adres zorunlu."}
+    if plan == "month" and not str(body.get("dekontName") or "").strip():
+        return 400, {"ok": False, "error": "Aylık havale için dekont zorunlu."}
+    vat = _music_vat(amount)
+    number = _mint_invoice(plan, kind)
+    token = _invoice_token(number, email, amount, plan)
+    with _invoice_lock:
+        _invoices[number] = {
+            "email": email,
+            "plan": plan,
+            "amount": amount,
+            "kind": kind,
+            "token": token,
+            "at": time.time(),
+        }
+    print("e-fatura", kind, number, "→", email, "KDV %20", vat)
+    return 200, {
+        "ok": True,
+        "pending": True,
+        "invoiceNumber": number,
+        "token": token,
+        "vat": vat,
+        "mailed": False,
+        "trendyol": False,
+        "trendyolReady": False,
+        "mailReady": False,
+        "message": "Yerel deneme: fatura kesildi. Canlıda e-fatura ve e-posta Cloudflare anahtarlarıyla gider. Üyelik süreci inceleniyor.",
+    }
+
+
+def _music_invoice_check(body: dict) -> tuple[int, dict]:
+    number = str(body.get("invoiceNumber") or "").upper().replace(" ", "")
+    email = str(body.get("email") or "").strip().lower()
+    plan = "year" if body.get("plan") == "year" else "month"
+    amount = 750.0 if plan == "year" else 49.0
+    token = str(body.get("token") or "").lower()
+    expect = _invoice_token(number, email, amount, plan)
+    with _invoice_lock:
+        stored = _invoices.get(number)
+    if token != expect and not (stored and stored.get("token") == token):
+        return 400, {"ok": False, "error": "Fatura numarası doğrulanamadı. Maildeki numarayı yazın."}
+    return 200, {
+        "ok": True,
+        "invoiceNumber": number,
+        "until": int(time.time() * 1000) + (365 if plan == "year" else 30) * 86400000,
+        "message": "Fatura doğrulandı. Aboneliğiniz aktif.",
+    }
 
 
 def _hostname(host_header: str) -> str:
@@ -151,8 +247,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
-        if path != "/pbx-rtc":
-            self.send_error(404)
+        if path in {"/pos-pay", "/pos-result", "/pos-callback"}:
+            self._json(
+                503,
+                {
+                    "ok": False,
+                    "error": "iyzico yerel sunucuda çalışmaz. Canlı sitede Cloudflare IYZICO_API_KEY ve IYZICO_SECRET_KEY gerekir.",
+                },
+            )
             return
         try:
             length = int(self.headers.get("Content-Length") or "0")
@@ -168,6 +270,17 @@ class Handler(SimpleHTTPRequestHandler):
                 raise ValueError("json")
         except Exception:
             self._json(400, {"ok": False, "error": "json"})
+            return
+        if path == "/music-invoice":
+            code, payload = _music_invoice(body)
+            self._json(code, payload)
+            return
+        if path == "/music-invoice-check":
+            code, payload = _music_invoice_check(body)
+            self._json(code, payload)
+            return
+        if path != "/pbx-rtc":
+            self.send_error(404)
             return
         self._json(200, _rtc_handle(body))
 
