@@ -151,13 +151,13 @@ function ownerAppsOn() {
 
 function syncOwnerApps() {
   document.body.classList.toggle("owner-on", ownerAppsOn());
-  if (!ownerAppsOn() && (resumeActiveView() === "pos" || resumeActiveView() === "pbx")) {
+  if (!ownerAppsOn() && resumeActiveView() === "pbx") {
     showView("home");
   }
 }
 
 function showView(name) {
-  if ((name === "pos" || name === "pbx") && !ownerAppsOn()) name = "home";
+  if (name === "pbx" && !ownerAppsOn()) name = "home";
   const prev = resumeActiveView();
   if (prev && prev !== name) resumeSaveScroll(prev);
   views.forEach((view) => {
@@ -5593,7 +5593,7 @@ $(".brand")?.addEventListener("click", () => {
   ownerTaps = 0;
   const saved = store.get(POS_ADMIN_REMEMBER, null);
   if (saved?.remember && saved.user && $("#ownerUser")) $("#ownerUser").value = saved.user;
-  if ($("#ownerMsg")) $("#ownerMsg").textContent = "Sanal POS ve Sanal Santral yalnızca sizin için.";
+  if ($("#ownerMsg")) $("#ownerMsg").textContent = "Sanal Santral yalnızca sizin için.";
   if ($("#ownerModal")) $("#ownerModal").hidden = false;
 });
 
