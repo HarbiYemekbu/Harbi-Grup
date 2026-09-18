@@ -381,6 +381,7 @@ let nativeZoomMax = 1;
 let torchOn = false;
 let flashMode = "auto";
 let captureMp = 88;
+let camFpsPick = 0;
 let camMode = "photo";
 function resumeSaveCam() {
   resumePatch((state) => {
@@ -395,6 +396,7 @@ function resumeRestoreCam() {
   if (cam.flash) flashMode = cam.flash;
   camApplyFacingUi();
   camSyncModeChrome(camMode);
+  renderCamFps();
 }
 let recorder = null;
 let recording = false;
@@ -449,6 +451,7 @@ function styleFilter() {
 }
 
 function camTargetFps(front) {
+  if (camFpsPick) return camFpsPick;
   return front ? 60 : 120;
 }
 
@@ -462,6 +465,7 @@ function displayRefreshHz() {
 }
 
 function camCanvasFps(front) {
+  if (camFpsPick) return camFpsPick;
   return Math.max(displayRefreshHz(), camTargetFps(front));
 }
 
@@ -708,6 +712,7 @@ function camApplyFacingUi() {
     $("#switchCamera").setAttribute("aria-label", facingMode === "user" ? "Ön kamera" : "Arka kamera");
   }
   syncCaptureMp();
+  if ($("#camMpLabel")) $("#camMpLabel").textContent = `${captureMp} MP`;
   applyPreviewZoom();
 }
 
@@ -998,7 +1003,7 @@ async function applyCamTune(track, front = facingMode === "user", opts = {}) {
 }
 
 function syncCaptureMp() {
-  captureMp = facingMode === "environment" ? 88 : 68;
+  captureMp = facingMode === "environment" ? 128 : 88;
 }
 
 function outputSize() {
@@ -1006,13 +1011,13 @@ function outputSize() {
   const vw = settings.width || video.videoWidth || 1920;
   const vh = settings.height || video.videoHeight || 1080;
   const crop = cropSource(vw, vh);
-  const maxSide = facingMode === "environment" ? 4032 : 3840;
-  const long = Math.max(crop.sw, crop.sh);
-  const scale = long > maxSide ? maxSide / long : 1;
-  return {
-    w: Math.max(2, Math.round(crop.sw * scale)),
-    h: Math.max(2, Math.round(crop.sh * scale)),
-  };
+  const aspect = Math.max(crop.sw, 1) / Math.max(crop.sh, 1);
+  const pixels = Math.max(1, captureMp) * 1e6;
+  let h = Math.round(Math.sqrt(pixels / aspect));
+  let w = Math.round(h * aspect);
+  w -= w % 2;
+  h -= h % 2;
+  return { w: Math.max(2, w), h: Math.max(2, h) };
 }
 
 $("#switchCamera").addEventListener("click", async (event) => {
@@ -1083,6 +1088,7 @@ function camSyncModeChrome(mode) {
   if ($("#cinemaMask")) $("#cinemaMask").hidden = true;
   if ($("#isoRail")) $("#isoRail").hidden = mode === "cinema";
   if ($("#zoomBar")) $("#zoomBar").hidden = mode === "cinema";
+  if ($("#camFps")) $("#camFps").hidden = mode === "cinema";
 }
 
 async function setCamMode(mode, fromScroll = false) {
@@ -1240,6 +1246,37 @@ isoRail.addEventListener("click", (event) => event.stopPropagation());
 $("#camTop")?.addEventListener("click", (event) => event.stopPropagation());
 $("#zoomBar")?.addEventListener("click", (event) => event.stopPropagation());
 $("#zoomBar")?.addEventListener("pointerdown", (event) => event.stopPropagation());
+$("#camFps")?.addEventListener("click", (event) => event.stopPropagation());
+$("#camFps")?.addEventListener("pointerdown", (event) => event.stopPropagation());
+
+function renderCamFps() {
+  const toggle = $("#camFpsToggle");
+  const list = $("#camFpsList");
+  if (toggle) toggle.textContent = camFpsPick ? String(camFpsPick) : "fps";
+  if (toggle) toggle.setAttribute("aria-expanded", list && !list.hidden ? "true" : "false");
+  $$("#camFpsList [data-fps]").forEach((btn) => {
+    btn.classList.toggle("active", Number(btn.dataset.fps) === camFpsPick);
+  });
+}
+
+$("#camFpsToggle")?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const list = $("#camFpsList");
+  if (!list) return;
+  list.hidden = !list.hidden;
+  renderCamFps();
+});
+
+$("#camFpsList")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-fps]");
+  if (!btn) return;
+  camFpsPick = Number(btn.dataset.fps) || 0;
+  const list = $("#camFpsList");
+  if (list) list.hidden = true;
+  renderCamFps();
+  const track = videoTrack();
+  if (track) await applyCamTune(track, facingMode === "user", { fpsOnly: true });
+});
 $("#capturePhoto")?.addEventListener("click", (event) => event.stopPropagation());
 $("#camOverlayBottom")?.addEventListener("click", (event) => event.stopPropagation());
 
@@ -1265,6 +1302,11 @@ cameraFrame.addEventListener(
   { passive: true }
 );
 cameraFrame.addEventListener("click", (event) => {
+  const list = $("#camFpsList");
+  if (list && !list.hidden) {
+    list.hidden = true;
+    renderCamFps();
+  }
   const rect = cameraFrame.getBoundingClientRect();
   focusBox.hidden = false;
   focusBox.style.left = `${event.clientX - rect.left - 36}px`;
@@ -1344,9 +1386,26 @@ $("#capturePhoto").addEventListener("click", async () => {
   const vw = video.videoWidth || 1920;
   const vh = video.videoHeight || 1440;
   const crop = cropSource(vw, vh);
-  const { w: outW, h: outH } = outputSize();
-  canvas.width = outW;
-  canvas.height = outH;
+  let { w: outW, h: outH } = outputSize();
+  const fitPhotoCanvas = (w, h) => {
+    let tw = w;
+    let th = h;
+    for (let i = 0; i < 8; i += 1) {
+      try {
+        canvas.width = tw;
+        canvas.height = th;
+        if (canvas.width === tw && canvas.height === th) return { w: tw, h: th };
+      } catch {
+        /* bellek sınırı */
+      }
+      tw = Math.max(2, Math.round(tw * 0.75) & ~1);
+      th = Math.max(2, Math.round(th * 0.75) & ~1);
+    }
+    canvas.width = 4032;
+    canvas.height = 3024;
+    return { w: canvas.width, h: canvas.height };
+  };
+  ({ w: outW, h: outH } = fitPhotoCanvas(outW, outH));
   const ctx = canvas.getContext("2d", { alpha: false });
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";

@@ -64,7 +64,7 @@
       }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=187" />
+    <link rel="stylesheet" href="css/app.css?v=188" />
   </head>
   <body>
     <div class="app">
@@ -201,6 +201,7 @@
             <div class="camera-frame front-cam" id="cameraFrame">
               <video id="cameraVideo" autoplay playsinline muted webkit-playsinline></video>
               <p class="cam-facing" id="camFacingLabel">ön</p>
+              <p class="cam-mp" id="camMpLabel">88 MP</p>
               <div class="cam-grid" id="camGrid" hidden></div>
               <div class="focus-box" id="focusBox" hidden></div>
               <div class="cam-top" id="camTop">
@@ -232,6 +233,20 @@
                   <div class="iso-thumb" id="isoThumb"></div>
                 </div>
                 <span class="iso-value" id="isoValue">ISO 405</span>
+              </div>
+              <div class="cam-fps" id="camFps">
+                <button class="cam-fps-toggle" id="camFpsToggle" type="button" aria-expanded="false">fps</button>
+                <div class="cam-fps-list" id="camFpsList" hidden>
+                  <button type="button" data-fps="20">20</button>
+                  <button type="button" data-fps="30">30</button>
+                  <button type="button" data-fps="40">40</button>
+                  <button type="button" data-fps="50">50</button>
+                  <button type="button" data-fps="60">60</button>
+                  <button type="button" data-fps="70">70</button>
+                  <button type="button" data-fps="80">80</button>
+                  <button type="button" data-fps="90">90</button>
+                  <button type="button" data-fps="100">100</button>
+                </div>
               </div>
               <label class="zoom-bar" id="zoomBar">
                 <input id="zoomRange" type="range" min="0.5" max="10" step="0.1" value="0.5" />
@@ -1457,6 +1472,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=187"></script>
+    <script src="js/app.js?v=188"></script>
   </body>
 </html>
