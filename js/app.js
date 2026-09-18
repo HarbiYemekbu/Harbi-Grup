@@ -200,38 +200,168 @@ const installHint = $("#installHint");
 const modal = $("#installModal");
 const modalText = $("#modalInstallText");
 const confirmInstall = $("#confirmInstall");
+const installSteps = $("#installSteps");
+const ua = navigator.userAgent || "";
+const isIOSSafari =
+  isIOS && /safari/i.test(ua) && !/crios|fxios|edgios|opios|opt\//i.test(ua);
 
 if (isStandalone) {
   installBtn.hidden = true;
   $("#installCard").hidden = true;
 } else if (isIOS) {
-  installHint.textContent = "iPhone’da Safari ile açın, sonra Paylaş > Ana Ekrana Ekle.";
+  installHint.textContent = isIOSSafari
+    ? "Safari’de Paylaş > Ana Ekrana Ekle ile telefona kısayol iner."
+    : "iPhone ve iPad’de kısayol için bu sayfayı Safari ile açın.";
 } else if (isAndroid) {
-  installHint.textContent = "Android’de Chrome ile açın, sonra menüden uygulamayı yükleyin.";
+  installHint.textContent = "Düğmeye basın. Telefon izin verirse ana ekrana ekleme penceresi açılır.";
 } else {
-  installHint.textContent =
-    "Aynı Wi‑Fi’deki iPhone (Safari) veya Android (Chrome) ile bu adresi açın.";
+  installHint.textContent = "Düğmeye basın. Destekleyen tarayıcıda uygulama olarak eklenir.";
+}
+
+function installKind() {
+  if (isIOS) return isIOSSafari ? "ios-safari" : "ios-other";
+  if (/samsungbrowser/i.test(ua)) return "samsung";
+  if (/huawei|honor|harmonyos/i.test(ua)) return "huawei";
+  if (/xiaomi|miuibrowser|mint browser/i.test(ua)) return "xiaomi";
+  if (isAndroid && /edg/i.test(ua)) return "android-edge";
+  if (isAndroid && /firefox|fxios/i.test(ua)) return "android-firefox";
+  if (isAndroid && /opr\//i.test(ua)) return "android-opera";
+  if (isAndroid) return "android-chrome";
+  if (/edg/i.test(ua)) return "desktop-edge";
+  if (/chrome|chromium/i.test(ua) && !/edg/i.test(ua)) return "desktop-chrome";
+  return "generic";
+}
+
+function installGuide(kind) {
+  const guides = {
+    "ios-safari": {
+      title: "Safari bu uygulamayı ana ekrana ekler. Aşağıdaki üç adımı uygulayın.",
+      steps: [
+        "Alttaki Paylaş simgesine basın (kare ve yukarı ok).",
+        "Aşağı kaydırıp Ana Ekrana Ekle’ye basın.",
+        "Sağ üstte Ekle’ye basın. İkon telefonda Harbi Grup olarak durur.",
+      ],
+    },
+    "ios-other": {
+      title: "iPhone ve iPad yalnızca Safari’den ana ekrana ekler. Chrome veya başka tarayıcıda eklenmez.",
+      steps: [
+        "Bu adresi kopyalayın veya paylaşın.",
+        "Safari uygulamasını açıp aynı adresi yapıştırın.",
+        "Paylaş > Ana Ekrana Ekle > Ekle.",
+      ],
+    },
+    samsung: {
+      title: "Samsung Internet ana ekrana ekler.",
+      steps: [
+        "Alttaki menüden Sayfa ekle veya Ana ekrana ekle’ye basın.",
+        "Harbi Grup adını onaylayın.",
+        "Ekle deyince ikon ana ekranda görünür.",
+      ],
+    },
+    huawei: {
+      title: "Huawei tarayıcısında ana ekrana ekleyin.",
+      steps: [
+        "Menüden Ana ekrana ekle veya Kısayol oluştur’u seçin.",
+        "Adı Harbi Grup bırakın.",
+        "Ekle’ye basın.",
+      ],
+    },
+    xiaomi: {
+      title: "Xiaomi tarayıcısında ana ekrana ekleyin.",
+      steps: [
+        "Menüden Ana ekrana ekle’yi seçin.",
+        "Kısayolu onaylayın.",
+        "Ekle’ye basın.",
+      ],
+    },
+    "android-edge": {
+      title: "Edge menüsünden uygulamayı yükleyin.",
+      steps: ["⋯ menüyü açın.", "Uygulamayı yükle veya Ana ekrana ekle.", "Yükle’ye basın."],
+    },
+    "android-firefox": {
+      title: "Firefox menüsünden ana ekrana ekleyin.",
+      steps: ["⋮ menüyü açın.", "Ana ekrana ekle veya Yükle.", "Ekle’ye basın."],
+    },
+    "android-opera": {
+      title: "Opera menüsünden ana ekrana ekleyin.",
+      steps: ["⋮ menüyü açın.", "Ana ekrana ekle.", "Ekle’ye basın."],
+    },
+    "android-chrome": {
+      title: "Chrome bu uygulamayı ana ekrana ekler.",
+      steps: [
+        "Sağ üst ⋮ menüyü açın.",
+        "Uygulamayı yükle veya Ana ekrana ekle’ye basın.",
+        "Yükle’yi onaylayın.",
+      ],
+    },
+    "desktop-edge": {
+      title: "Edge adres çubuğundaki uygulama simgesine basın veya menüden Uygulamayı yükle’yi seçin.",
+      steps: ["⋯ menü > Uygulamalar > Bu siteyi uygulama olarak yükle.", "Yükle’ye basın."],
+    },
+    "desktop-chrome": {
+      title: "Chrome adres çubuğundaki yükle simgesine basın veya menüden yükleyin.",
+      steps: ["⋮ menü > Uygulamayı yükle / Harbi Grup’u yükle.", "Yükle’ye basın."],
+    },
+    generic: {
+      title: "Tarayıcı menüsünden Ana ekrana ekle veya Uygulamayı yükle’yi seçin.",
+      steps: ["Menüyü açın.", "Ana ekrana ekle / Uygulamayı yükle.", "Ekle’yi onaylayın."],
+    },
+  };
+  return guides[kind] || guides.generic;
+}
+
+function showInstallGuide() {
+  const guide = installGuide(installKind());
+  modalText.textContent = guide.title;
+  if (installSteps) {
+    installSteps.replaceChildren(
+      ...guide.steps.map((text) => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        return li;
+      })
+    );
+  }
+  confirmInstall.hidden = !deferredPrompt;
+  modal.hidden = false;
+}
+
+async function promptInstall() {
+  if (!deferredPrompt) return false;
+  try {
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    modal.hidden = true;
+    if (choice?.outcome === "accepted") installBtn.hidden = true;
+    return true;
+  } catch {
+    deferredPrompt = null;
+    return false;
+  }
 }
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   deferredPrompt = event;
   installBtn.hidden = false;
+  if (confirmInstall) confirmInstall.hidden = false;
 });
 
-function openInstall() {
-  modal.hidden = false;
-  if (isIOS) {
-    modalText.textContent = "iPhone: Safari > Paylaş > Ana Ekrana Ekle.";
-    confirmInstall.hidden = true;
-  } else if (deferredPrompt) {
-    modalText.textContent = "Android: yükleme penceresini onaylayın.";
-    confirmInstall.hidden = false;
-  } else {
-    modalText.textContent =
-      "Android Chrome: ⋮ menü > Uygulamayı yükle / Ana ekrana ekle. iPhone: Safari > Paylaş > Ana Ekrana Ekle.";
-    confirmInstall.hidden = true;
+window.addEventListener("appinstalled", () => {
+  deferredPrompt = null;
+  installBtn.hidden = true;
+  modal.hidden = true;
+  if ($("#installCard")) $("#installCard").hidden = true;
+});
+
+async function openInstall() {
+  if (isStandalone) {
+    installBtn.hidden = true;
+    return;
   }
+  if (await promptInstall()) return;
+  showInstallGuide();
 }
 
 installBtn.addEventListener("click", openInstall);
@@ -240,12 +370,9 @@ $("#closeInstall").addEventListener("click", () => {
 });
 
 confirmInstall.addEventListener("click", async () => {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  modal.hidden = true;
+  if (!(await promptInstall())) showInstallGuide();
 });
+
 
 let stream = null;
 let facingMode = "user";
@@ -274,6 +401,13 @@ let recording = false;
 let recChunks = [];
 let recRaf = 0;
 let recCanvas = null;
+let camFlipping = false;
+let eisOn = false;
+let eisRaf = 0;
+let eisNX = 0;
+let eisNY = 0;
+let eisTX = 0;
+let eisTY = 0;
 function needsAudio() {
   return camMode === "video" || camMode === "cinema";
 }
@@ -312,6 +446,23 @@ function styleFilter() {
     return `${base} brightness(${(isoBrightness() * 1.12).toFixed(3)}) contrast(1.08) saturate(0.92)`;
   }
   return base;
+}
+
+function camTargetFps(front) {
+  return front ? 60 : 120;
+}
+
+function camFrameRateSpec(front) {
+  return { ideal: camTargetFps(front) };
+}
+
+function displayRefreshHz() {
+  const hz = Number(window.screen?.refreshRate);
+  return hz >= 90 ? Math.round(hz) : 120;
+}
+
+function camCanvasFps(front) {
+  return Math.max(displayRefreshHz(), camTargetFps(front));
 }
 
 function iphoneAudioConstraints() {
@@ -400,7 +551,9 @@ function previewFlipX() {
 
 function applyPreviewZoom() {
   const z = sensorCrop();
-  video.style.transform = `scale(${z}) perspective(420px) rotateY(180deg)`;
+  const px = eisNX * 18;
+  const py = eisNY * 18;
+  video.style.transform = `translate3d(${px}px, ${py}px, 0) scale(${z}) perspective(420px) rotateY(180deg)`;
   video.style.filter = camMode === "cinema" ? "none" : `brightness(${isoBrightness()})`;
 }
 
@@ -546,8 +699,27 @@ async function camGetStream(wantFront) {
   const audio = needsAudio() ? iphoneAudioConstraints() : false;
   const deviceId = await camPickDeviceId(wantFront);
   const facing = wantFront ? "user" : "environment";
+  const cinema = camMode === "cinema";
+  const videoMode = needsAudio();
+  const quality = {
+    width: { ideal: videoMode ? (cinema ? 1920 : 3840) : 4032 },
+    height: { ideal: videoMode ? (cinema ? 1080 : 2160) : 3024 },
+    frameRate: camFrameRateSpec(wantFront),
+    aspectRatio: { ideal: 16 / 9 },
+  };
   const tries = [];
-  if (deviceId) tries.push({ audio, video: { deviceId: { exact: deviceId } } });
+  if (deviceId) {
+    tries.push({ audio, video: { deviceId: { exact: deviceId }, ...quality } });
+    tries.push({ audio, video: { deviceId: { exact: deviceId } } });
+  }
+  tries.push({ audio, video: { facingMode: { exact: facing }, ...quality } });
+  tries.push({ audio, video: { facingMode: { ideal: facing }, ...quality } });
+  if (!wantFront) {
+    tries.push({
+      audio,
+      video: { facingMode: { ideal: facing }, width: quality.width, height: quality.height, frameRate: { ideal: 60, max: 120 } },
+    });
+  }
   tries.push({ audio, video: { facingMode: { exact: facing } } });
   tries.push({ audio, video: { facingMode: { ideal: facing } } });
   tries.push({ audio: Boolean(audio), video: { facingMode: facing } });
@@ -571,7 +743,14 @@ async function startCamera({ preserve = false } = {}) {
   syncCaptureMp();
   if (!preserve) cameraStatus.textContent = "İzin bekleniyor...";
   nativeZoomMax = 1;
-  await new Promise((done) => setTimeout(done, 160));
+  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    try {
+      await DeviceMotionEvent.requestPermission();
+    } catch {
+      /* */
+    }
+  }
+  await new Promise((done) => setTimeout(done, camFlipping ? 40 : 160));
   if (seq !== camStartSeq) return;
   try {
     stream = await camGetStream(requested === "user");
@@ -595,14 +774,7 @@ async function startCamera({ preserve = false } = {}) {
     const track = videoTrack();
     const caps = track?.getCapabilities?.() || {};
     nativeZoomMax = caps.zoom?.max || 1;
-    if (requested === "environment") {
-      await track
-        ?.applyConstraints({
-          width: { ideal: Math.min(8064, caps.width?.max || 3840) },
-          height: { ideal: Math.min(6048, caps.height?.max || 2880) },
-        })
-        .catch(() => {});
-    }
+    await applyCamTune(track);
     if (needsAudio()) await applyIphoneAudio(stream);
     video.setAttribute("playsinline", "true");
     video.setAttribute("webkit-playsinline", "true");
@@ -620,6 +792,7 @@ async function startCamera({ preserve = false } = {}) {
     }
     await setZoom(zoomLevel);
     await applyIso();
+    await startEis();
     if (!needsAudio()) cameraStatus.textContent = "";
   } catch {
     if (seq === camStartSeq) {
@@ -636,7 +809,8 @@ function stopRecLoop() {
 function recFrameSize() {
   const vw = video.videoWidth || 1920;
   const vh = video.videoHeight || 1080;
-  const scale = Math.min(1, 1920 / vw);
+  const maxW = camMode === "cinema" ? 1920 : 3840;
+  const scale = Math.min(1, maxW / Math.max(vw, 1));
   return { w: Math.max(2, Math.round(vw * scale)), h: Math.max(2, Math.round(vh * scale)) };
 }
 
@@ -646,7 +820,7 @@ function drawRecFrame() {
   const vh = video.videoHeight;
   if (vw && vh) {
     const crop = cropSource(vw, vh);
-    const ctx = recCanvas.getContext("2d", { alpha: false });
+    const ctx = recCanvas.getContext("2d", { alpha: false, desynchronized: true }) || recCanvas.getContext("2d", { alpha: false });
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.filter = camMode === "cinema" ? "none" : video.style.filter || "none";
@@ -656,6 +830,7 @@ function drawRecFrame() {
 }
 
 function stopCamera() {
+  stopEis();
   stopRecLoop();
   if (recorder && recording) {
     try {
@@ -688,7 +863,101 @@ function cropSource(vw, vh) {
   let rh = vh / factor;
   if (rw / rh > ratio) rw = rh * ratio;
   else rh = rw / ratio;
-  return { sx: (vw - rw) / 2, sy: (vh - rh) / 2, sw: rw, sh: rh };
+  const shiftX = Math.max(-rw * 0.04, Math.min(rw * 0.04, -eisNX * rw * 0.045));
+  const shiftY = Math.max(-rh * 0.04, Math.min(rh * 0.04, -eisNY * rh * 0.045));
+  let sx = (vw - rw) / 2 + shiftX;
+  let sy = (vh - rh) / 2 + shiftY;
+  sx = Math.max(0, Math.min(vw - rw, sx));
+  sy = Math.max(0, Math.min(vh - rh, sy));
+  return { sx, sy, sw: rw, sh: rh };
+}
+
+function eisOnMotion(event) {
+  const acc = event.acceleration;
+  const rot = event.rotationRate;
+  let ax = 0;
+  let ay = 0;
+  if (acc && (acc.x || acc.y)) {
+    ax = acc.x || 0;
+    ay = acc.y || 0;
+  }
+  if (rot) {
+    ax += (rot.gamma || 0) * 0.035;
+    ay += (rot.beta || 0) * 0.035;
+  }
+  eisTX = Math.max(-1, Math.min(1, eisTX * 0.55 + -ax * 0.14));
+  eisTY = Math.max(-1, Math.min(1, eisTY * 0.55 + ay * 0.14));
+}
+
+function eisLoop() {
+  if (!eisOn) return;
+  eisNX += (eisTX - eisNX) * 0.22;
+  eisNY += (eisTY - eisNY) * 0.22;
+  applyPreviewZoom();
+  eisRaf = requestAnimationFrame(eisLoop);
+}
+
+function stopEis() {
+  eisOn = false;
+  if (eisRaf) cancelAnimationFrame(eisRaf);
+  eisRaf = 0;
+  window.removeEventListener("devicemotion", eisOnMotion);
+  eisNX = 0;
+  eisNY = 0;
+  eisTX = 0;
+  eisTY = 0;
+}
+
+async function startEis() {
+  stopEis();
+  eisOn = true;
+  window.addEventListener("devicemotion", eisOnMotion, { passive: true });
+  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    try {
+      await DeviceMotionEvent.requestPermission();
+    } catch {
+      /* iOS izin vermezse dijital EIS kapalı kalır, donanım sabitleme devam eder */
+    }
+  }
+  eisLoop();
+}
+
+async function applyCamTune(track, front = facingMode === "user", opts = {}) {
+  if (!track?.applyConstraints) return;
+  const caps = track.getCapabilities?.() || {};
+  const advanced = {};
+  if (caps.imageStabilization) advanced.imageStabilization = true;
+  if (Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) advanced.focusMode = "continuous";
+  if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("continuous")) {
+    advanced.whiteBalanceMode = "continuous";
+  }
+  if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("continuous")) advanced.exposureMode = "continuous";
+  const videoMode = needsAudio();
+  const cinema = camMode === "cinema";
+  const size = {};
+  if (!opts.fpsOnly) {
+    if (caps.width) size.width = { ideal: videoMode ? (cinema ? 1920 : 3840) : Math.min(4032, caps.width.max || 4032) };
+    if (caps.height) size.height = { ideal: videoMode ? (cinema ? 1080 : 2160) : Math.min(3024, caps.height.max || 3024) };
+  }
+  if (caps.frameRate) {
+    const want = camTargetFps(front);
+    const capMax = caps.frameRate.max || want;
+    const capMin = caps.frameRate.min || 1;
+    const fps = Math.max(capMin, Math.min(want, capMax));
+    size.frameRate = { ideal: fps, max: fps };
+  }
+  if (Object.keys(advanced).length) size.advanced = [advanced];
+  try {
+    await track.applyConstraints(size);
+  } catch {
+    try {
+      const { advanced: _a, ...rest } = size;
+      await track.applyConstraints(rest);
+    } catch {
+      /* tarayıcı kısıtı */
+    }
+  }
+  await track.applyConstraints({ advanced: [{ imageStabilization: true }] }).catch(() => {});
 }
 
 function syncCaptureMp() {
@@ -696,24 +965,32 @@ function syncCaptureMp() {
 }
 
 function outputSize() {
-  const maxPixels = 16777216;
-  const table = captureMp === 88 ? [12508, 7036] : [10991, 6185];
-  let w = table[0];
-  let h = table[1];
-  if (w * h > maxPixels) {
-    const s = Math.sqrt(maxPixels / (w * h));
-    w = Math.floor(w * s);
-    h = Math.floor(h * s);
-  }
-  return { w, h };
+  const settings = videoTrack()?.getSettings?.() || {};
+  const vw = settings.width || video.videoWidth || 1920;
+  const vh = settings.height || video.videoHeight || 1080;
+  const crop = cropSource(vw, vh);
+  const maxSide = facingMode === "environment" ? 4032 : 3840;
+  const long = Math.max(crop.sw, crop.sh);
+  const scale = long > maxSide ? maxSide / long : 1;
+  return {
+    w: Math.max(2, Math.round(crop.sw * scale)),
+    h: Math.max(2, Math.round(crop.sh * scale)),
+  };
 }
 
-$("#switchCamera").addEventListener("click", (event) => {
+$("#switchCamera").addEventListener("click", async (event) => {
   event.stopPropagation();
+  if (camFlipping) return;
+  camFlipping = true;
+  cameraFrame?.classList.add("cam-flipping");
+  await new Promise((done) => setTimeout(done, 420));
   facingMode = facingMode === "environment" ? "user" : "environment";
   camApplyFacingUi();
   resumeSaveCam();
-  startCamera();
+  await startCamera({ preserve: true });
+  await new Promise((done) => setTimeout(done, 430));
+  cameraFrame?.classList.remove("cam-flipping");
+  camFlipping = false;
 });
 zoomRange.addEventListener("input", () => setZoom(zoomRange.value));
 $("#modeRow").addEventListener("click", (event) => {
@@ -993,7 +1270,7 @@ function downloadBlob(blob, filename) {
 }
 
 async function blobFromCanvas() {
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.97));
   if (blob) return blob;
   const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
   const res = await fetch(dataUrl);
@@ -1053,7 +1330,8 @@ $("#capturePhoto").addEventListener("click", async () => {
   }
   ctx.filter = "none";
   const info = lensInfo(zoomLevel);
-  cameraStatus.textContent = `${outW}×${outH} · ${captureMp}MP · ${info.name} ${info.mm}mm`;
+  const mp = ((outW * outH) / 1e6).toFixed(1);
+  cameraStatus.textContent = `${outW}×${outH} · ${mp} MP · ${info.name} ${info.mm}mm`;
   try {
     const blob = await blobFromCanvas();
     const dataUrl = await dataUrlFromBlob(blob);
@@ -1067,7 +1345,7 @@ $("#capturePhoto").addEventListener("click", async () => {
     });
     await savePhotoToPhoneGallery(blob);
   } catch {
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.97);
     await db.put({
       id: Date.now(),
       dataUrl,
@@ -1102,7 +1380,7 @@ async function toggleRecord() {
   const size = recFrameSize();
   recCanvas.width = size.w;
   recCanvas.height = size.h;
-  const fps = camMode === "cinema" ? 24 : 30;
+  const fps = camCanvasFps(facingMode === "user");
   const recStream = recCanvas.captureStream(fps);
   stream?.getAudioTracks().forEach((track) => {
     const audio = camMode === "cinema" ? track : track.clone ? track.clone() : track;
@@ -1110,9 +1388,10 @@ async function toggleRecord() {
       recStream.addTrack(audio);
     }
   });
+  const videoBits = recCanvas.width >= 2560 ? 28_000_000 : 16_000_000;
   const recOpts = mime
-    ? { mimeType: mime, videoBitsPerSecond: 16_000_000, audioBitsPerSecond: 256_000 }
-    : { videoBitsPerSecond: 16_000_000, audioBitsPerSecond: 256_000 };
+    ? { mimeType: mime, videoBitsPerSecond: videoBits, audioBitsPerSecond: 256_000 }
+    : { videoBitsPerSecond: videoBits, audioBitsPerSecond: 256_000 };
   try {
     recorder = new MediaRecorder(recStream, recOpts);
   } catch {
@@ -3366,75 +3645,34 @@ $("#clipForm")?.addEventListener("submit", (event) => {
   clipStartPreview();
 });
 
-const CLIP_SHOTS = [
-  { id: "orijinal", name: "Orijinal", filter: "none" },
-  { id: "sinema", name: "Sinema", filter: "contrast(1.14) saturate(0.9) brightness(0.97)" },
-  { id: "siyahbeyaz", name: "Siyah beyaz", filter: "grayscale(1) contrast(1.2)" },
-  { id: "vintage", name: "Vintage", filter: "sepia(0.35) contrast(1.08) saturate(0.85)" },
-  { id: "canli", name: "Canlı", filter: "saturate(1.45) contrast(1.12)" },
-  { id: "soguk", name: "Soğuk", filter: "hue-rotate(18deg) saturate(0.92) brightness(1.02)" },
-  { id: "sicak", name: "Sıcak", filter: "sepia(0.18) saturate(1.2) brightness(1.04)" },
-  { id: "altinsaat", name: "Altın saat", filter: "sepia(0.28) saturate(1.25) brightness(1.06)" },
-  { id: "gece", name: "Gece", filter: "brightness(0.86) contrast(1.22) saturate(0.8)" },
-  { id: "portre", name: "Portre", filter: "contrast(1.08) brightness(1.06) saturate(1.08)" },
-  { id: "film", name: "Film", filter: "contrast(1.18) saturate(0.78) brightness(0.98)" },
-  { id: "mat", name: "Mat", filter: "contrast(0.88) saturate(0.82) brightness(1.04)" },
-  { id: "hdr", name: "HDR", filter: "contrast(1.28) saturate(1.18) brightness(1.04)" },
-  { id: "pastel", name: "Pastel", filter: "saturate(0.7) brightness(1.1) contrast(0.92)" },
-  { id: "kontrast", name: "Kontrast", filter: "contrast(1.4) saturate(1.05)" },
-  { id: "fade", name: "Fade", filter: "contrast(0.84) brightness(1.08) saturate(0.75)" },
-  { id: "turkuaz", name: "Turkuaz", filter: "hue-rotate(150deg) saturate(0.85)" },
-  { id: "gul", name: "Gül", filter: "hue-rotate(-12deg) saturate(1.2) brightness(1.05)" },
-  { id: "sepia", name: "Sepia", filter: "sepia(0.7) contrast(1.05)" },
-  { id: "net", name: "Net", filter: "contrast(1.22) saturate(1.08) brightness(1.03)" },
-];
-const CLIP_MAKEUP = [
-  { id: "nude", name: "Nude", blush: "rgba(232,176,150,0.22)", lip: "rgba(196,92,92,0.28)" },
-  { id: "dogal", name: "Doğal", blush: "rgba(224,160,140,0.18)", lip: "rgba(180,90,90,0.22)" },
-  { id: "pembe", name: "Pembe", blush: "rgba(240,140,170,0.28)", lip: "rgba(220,80,120,0.35)" },
-  { id: "kirmizi", name: "Kırmızı", blush: "rgba(220,120,110,0.2)", lip: "rgba(176,24,40,0.42)" },
-  { id: "smoky", name: "Smoky", blush: "rgba(120,90,110,0.18)", lip: "rgba(80,40,50,0.32)" },
-  { id: "bronz", name: "Bronz", blush: "rgba(196,132,72,0.28)", lip: "rgba(160,72,48,0.3)" },
-  { id: "seftali", name: "Şeftali", blush: "rgba(255,170,130,0.28)", lip: "rgba(220,100,80,0.3)" },
-  { id: "glow", name: "Glow", blush: "rgba(255,210,180,0.24)", lip: "rgba(210,120,110,0.22)" },
-  { id: "kore", name: "Kore", blush: "rgba(255,150,170,0.3)", lip: "rgba(230,90,110,0.28)" },
-  { id: "gecemakyaj", name: "Gece", blush: "rgba(150,70,110,0.22)", lip: "rgba(120,20,50,0.4)" },
-];
-const CLIP_HAIR = [
-  { id: "uzun", name: "Uzun saç" },
-  { id: "kisa", name: "Kısa saç" },
-];
-const CLIP_HAIR_COLOR = [
-  { id: "sari", name: "Sarı", color: "rgba(240,210,70,0.38)" },
-  { id: "mavi", name: "Mavi", color: "rgba(70,120,230,0.38)" },
-  { id: "yesil", name: "Yeşil", color: "rgba(70,180,90,0.38)" },
-  { id: "bronzsac", name: "Bronz", color: "rgba(176,112,48,0.4)" },
-  { id: "altinsac", name: "Altın", color: "rgba(212,175,55,0.42)" },
-];
-
 const clipLive = {
   stream: null,
   rec: null,
+  recRaw: null,
   chunks: [],
+  chunksRaw: [],
   recording: false,
   looping: false,
-  shot: "orijinal",
-  beauty: false,
-  makeup: "",
-  hair: "",
-  hairColor: "",
-  fx: "shots",
   facing: "user",
   iso: 405,
-  zoom: 0.5,
-  face: null,
-  detectAt: 0,
-  detector: null,
+  zoom: 1,
+  anima: false,
+  modeDragX: 0,
+  modeDragging: false,
+  modeBaseX: 0,
   blob: null,
+  rawBlob: null,
   previewUrl: "",
+  previewRawUrl: "",
   lastW: 0,
   lastH: 0,
   opening: false,
+  face: null,
+  detectAt: 0,
+  detector: null,
+  toonWork: null,
+  toonWork2: null,
+  pendingStops: 0,
 };
 
 function clipLiveMsg(text) {
@@ -3446,19 +3684,51 @@ function clipLiveIsoBright() {
   return 0.7 + t * 0.85;
 }
 
-function clipLiveShotFilter() {
-  const shot = CLIP_SHOTS.find((row) => row.id === clipLive.shot) || CLIP_SHOTS[0];
-  const iso = `brightness(${clipLiveIsoBright().toFixed(3)})`;
-  return shot.filter === "none" ? iso : `${shot.filter} ${iso}`;
+function clipLiveModeShift() {
+  const wrap = $("#clipLiveModes");
+  const track = $("#clipLiveModesTrack");
+  const on = track?.querySelector(".is-on");
+  if (!wrap || !track || !on) return 0;
+  return wrap.clientWidth / 2 - (on.offsetLeft + on.offsetWidth / 2);
 }
 
-function clipLiveFaceBox(w, h) {
-  const f = clipLive.face;
-  if (f) return { x: f.x * w, y: f.y * h, w: f.w * w, h: f.h * h };
-  return { x: w * 0.28, y: h * 0.16, w: w * 0.44, h: h * 0.46 };
+function clipLiveAnimaUi(dragExtra = 0) {
+  $$("[data-clip-mode]").forEach((el) => {
+    const anima = el.dataset.clipMode === "anima";
+    el.classList.toggle("is-on", anima ? clipLive.anima : !clipLive.anima);
+  });
+  const track = $("#clipLiveModesTrack");
+  if (!track) return;
+  const x = clipLiveModeShift() + dragExtra;
+  track.style.transform = `translateX(${x}px)`;
 }
 
-async function clipLiveDetect(video) {
+function clipLiveSetMode(mode, say) {
+  clipLive.anima = mode === "anima";
+  clipLiveAnimaUi();
+  if (say) {
+    clipLiveMsg(
+      clipLive.anima
+        ? "Animasyona çevir. Kayıtta ham video ve çizgi film videosu alınır."
+        : "Doğal çekim."
+    );
+  }
+}
+
+function clipLiveWorkCanvas(key, w, h) {
+  let canvas = clipLive[key];
+  if (!canvas) {
+    canvas = document.createElement("canvas");
+    clipLive[key] = canvas;
+  }
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  return canvas.getContext("2d", { willReadFrequently: true }) || canvas.getContext("2d");
+}
+
+async function clipLiveDetectFace(video) {
   const now = performance.now();
   if (now - clipLive.detectAt < 280) return;
   clipLive.detectAt = now;
@@ -3472,60 +3742,118 @@ async function clipLiveDetect(video) {
     const vw = video.videoWidth || 1;
     const vh = video.videoHeight || 1;
     if (box) {
-      clipLive.face = {
-        x: box.x / vw,
-        y: box.y / vh,
-        w: box.width / vw,
-        h: box.height / vh,
-      };
+      clipLive.face = { x: box.x / vw, y: box.y / vh, w: box.width / vw, h: box.height / vh };
     }
   } catch {
-    /* tarayıcı yüz algılamazsa orta oval kullanılır */
+    /* yoksa oval tahmini kullanılır */
   }
 }
 
-function clipLiveDrawFaceFx(g, w, h) {
-  const need = clipLive.beauty || clipLive.makeup || clipLive.hair || clipLive.hairColor;
-  if (!need) return;
-  const box = clipLiveFaceBox(w, h);
-  const cx = box.x + box.w / 2;
-  const cy = box.y + box.h / 2;
-  g.save();
-  g.beginPath();
-  g.ellipse(cx, cy, box.w * 0.52, box.h * 0.58, 0, 0, Math.PI * 2);
-  g.clip();
-  if (clipLive.beauty) {
-    g.fillStyle = "rgba(255, 236, 224, 0.16)";
-    g.fill();
-  }
-  const makeup = CLIP_MAKEUP.find((row) => row.id === clipLive.makeup);
-  if (makeup) {
-    g.fillStyle = makeup.blush;
-    g.beginPath();
-    g.ellipse(cx - box.w * 0.22, cy + box.h * 0.06, box.w * 0.16, box.h * 0.1, 0, 0, Math.PI * 2);
-    g.ellipse(cx + box.w * 0.22, cy + box.h * 0.06, box.w * 0.16, box.h * 0.1, 0, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = makeup.lip;
-    g.beginPath();
-    g.ellipse(cx, cy + box.h * 0.28, box.w * 0.16, box.h * 0.06, 0, 0, Math.PI * 2);
-    g.fill();
-  }
-  g.restore();
-  if (clipLive.hair || clipLive.hairColor) {
-    const color = CLIP_HAIR_COLOR.find((row) => row.id === clipLive.hairColor)?.color || "rgba(40,20,10,0.18)";
-    g.save();
-    g.fillStyle = color;
-    g.beginPath();
-    if (clipLive.hair === "kisa") {
-      g.ellipse(cx, box.y + box.h * 0.08, box.w * 0.5, box.h * 0.28, 0, Math.PI, 0);
-    } else {
-      g.ellipse(cx, box.y + box.h * 0.12, box.w * 0.58, box.h * 0.36, 0, Math.PI, 0);
-      g.ellipse(cx - box.w * 0.42, cy + box.h * 0.15, box.w * 0.18, box.h * 0.55, 0.2, 0, Math.PI * 2);
-      g.ellipse(cx + box.w * 0.42, cy + box.h * 0.15, box.w * 0.18, box.h * 0.55, -0.2, 0, Math.PI * 2);
+function clipLiveApplyCartoon(srcCanvas, g, w, h) {
+  const maxW = clipLive.recording ? 480 : 320;
+  const tw = Math.max(160, Math.min(w, maxW));
+  const th = Math.max(160, Math.round((h * tw) / w));
+  const ctxA = clipLiveWorkCanvas("toonWork", tw, th);
+  const ctxB = clipLiveWorkCanvas("toonWork2", tw, th);
+  if (!ctxA || !ctxB) return;
+  ctxA.imageSmoothingEnabled = true;
+  ctxA.drawImage(srcCanvas, 0, 0, tw, th);
+  const src = ctxA.getImageData(0, 0, tw, th);
+  const blur = ctxB.createImageData(tw, th);
+  const s = src.data;
+  const b = blur.data;
+  const rad = 1;
+  for (let y = 0; y < th; y++) {
+    for (let x = 0; x < tw; x++) {
+      let r = 0;
+      let gch = 0;
+      let bl = 0;
+      let n = 0;
+      for (let dy = -rad; dy <= rad; dy++) {
+        const yy = Math.min(th - 1, Math.max(0, y + dy));
+        for (let dx = -rad; dx <= rad; dx++) {
+          const xx = Math.min(tw - 1, Math.max(0, x + dx));
+          const i = (yy * tw + xx) * 4;
+          r += s[i];
+          gch += s[i + 1];
+          bl += s[i + 2];
+          n++;
+        }
+      }
+      const o = (y * tw + x) * 4;
+      b[o] = r / n;
+      b[o + 1] = gch / n;
+      b[o + 2] = bl / n;
+      b[o + 3] = 255;
     }
-    g.fill();
-    g.restore();
   }
+  const out = ctxA.createImageData(tw, th);
+  const d = out.data;
+  const lumaAt = (x, y) => {
+    const i = (y * tw + x) * 4;
+    return b[i] * 0.299 + b[i + 1] * 0.587 + b[i + 2] * 0.114;
+  };
+  for (let y = 0; y < th; y++) {
+    for (let x = 0; x < tw; x++) {
+      const i = (y * tw + x) * 4;
+      let r = b[i];
+      let gch = b[i + 1];
+      let bl = b[i + 2];
+      const skin = r > 90 && gch > 40 && bl > 20 && r > gch && r - gch > 12 && r > bl;
+      if (skin) {
+        r = r * 0.42 + 255 * 0.58;
+        gch = gch * 0.42 + 206 * 0.58;
+        bl = bl * 0.42 + 168 * 0.58;
+      } else {
+        const gray = r * 0.299 + gch * 0.587 + bl * 0.114;
+        r = gray + (r - gray) * 1.38;
+        gch = gray + (gch - gray) * 1.38;
+        bl = gray + (bl - gray) * 1.38;
+      }
+      const q = 22;
+      const qr = Math.round(r / q) * q;
+      const qg = Math.round(gch / q) * q;
+      const qb = Math.round(bl / q) * q;
+      r = r * 0.55 + qr * 0.45;
+      gch = gch * 0.55 + qg * 0.45;
+      bl = bl * 0.55 + qb * 0.45;
+      const gx = lumaAt(Math.min(tw - 1, x + 1), y) - lumaAt(Math.max(0, x - 1), y);
+      const gy = lumaAt(x, Math.min(th - 1, y + 1)) - lumaAt(x, Math.max(0, y - 1));
+      const edge = Math.sqrt(gx * gx + gy * gy);
+      if (edge > 28) {
+        const t = Math.min(1, (edge - 28) / 70);
+        r = r * (1 - t) + 48 * t;
+        gch = gch * (1 - t) + 28 * t;
+        bl = bl * (1 - t) + 18 * t;
+      }
+      d[i] = r < 0 ? 0 : r > 255 ? 255 : r;
+      d[i + 1] = gch < 0 ? 0 : gch > 255 ? 255 : gch;
+      d[i + 2] = bl < 0 ? 0 : bl > 255 ? 255 : bl;
+      d[i + 3] = 255;
+    }
+  }
+  ctxA.putImageData(out, 0, 0);
+  const f = clipLive.face;
+  if (f) {
+    const fx = f.x * tw;
+    const fy = f.y * th;
+    const fw = f.w * tw;
+    const fh = f.h * th;
+    const ey = fy + fh * 0.3;
+    const eh = Math.max(8, fh * 0.2);
+    const ew = Math.max(10, fw * 0.34);
+    const left = fx + fw * 0.1;
+    const right = fx + fw * 0.56;
+    ctxB.drawImage(clipLive.toonWork, 0, 0);
+    const drawEye = (sx) => {
+      ctxA.drawImage(clipLive.toonWork2, sx, ey, ew, eh, sx - ew * 0.14, ey - eh * 0.18, ew * 1.32, eh * 1.36);
+    };
+    drawEye(left);
+    drawEye(right);
+  }
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = "high";
+  g.drawImage(clipLive.toonWork, 0, 0, w, h);
 }
 
 function clipLivePaint() {
@@ -3542,26 +3870,46 @@ function clipLivePaint() {
     canvas.width = outW;
     canvas.height = outH;
   }
-  const z = Math.max(1, clipLive.zoom);
-  const cw = vw / z;
-  const ch = vh / z;
-  const sx = (vw - cw) / 2;
-  const sy = (vh - ch) / 2;
+  const z = Number(clipLive.zoom) || 1;
+  const iso = `brightness(${clipLiveIsoBright().toFixed(3)})`;
   const g =
     canvas.getContext("2d", { alpha: false, desynchronized: true }) || canvas.getContext("2d");
   if (!g) return;
   g.imageSmoothingEnabled = true;
   g.imageSmoothingQuality = "high";
-  try {
-    g.filter = clipLiveShotFilter();
-  } catch {
-    g.filter = "none";
+  const setIso = (extra = "") => {
+    try {
+      g.filter = extra ? `${iso} ${extra}` : iso;
+    } catch {
+      g.filter = "none";
+    }
+  };
+  if (z >= 1) {
+    const cw = vw / z;
+    const ch = vh / z;
+    setIso();
+    g.drawImage(video, (vw - cw) / 2, (vh - ch) / 2, cw, ch, 0, 0, outW, outH);
+  } else {
+    setIso("blur(22px)");
+    g.drawImage(video, 0, 0, vw, vh, 0, 0, outW, outH);
+    setIso();
+    const dw = outW * z;
+    const dh = outH * z;
+    g.drawImage(video, 0, 0, vw, vh, (outW - dw) / 2, (outH - dh) / 2, dw, dh);
   }
-  g.drawImage(video, sx, sy, cw, ch, 0, 0, outW, outH);
   g.filter = "none";
-  clipLiveDrawFaceFx(g, outW, outH);
+  const rawCanvas = $("#clipLiveRawCanvas");
+  if (clipLive.anima && rawCanvas) {
+    if (rawCanvas.width !== outW || rawCanvas.height !== outH) {
+      rawCanvas.width = outW;
+      rawCanvas.height = outH;
+    }
+    const rg = rawCanvas.getContext("2d", { alpha: false, desynchronized: true }) || rawCanvas.getContext("2d");
+    rg?.drawImage(canvas, 0, 0);
+    clipLiveApplyCartoon(rawCanvas, g, outW, outH);
+    clipLiveDetectFace(video);
+  }
   canvas.classList.add("is-on");
-  clipLiveDetect(video);
 }
 
 function clipLiveTick() {
@@ -3599,6 +3947,11 @@ function clipLiveHalt() {
     } catch {
       /* */
     }
+    try {
+      clipLive.recRaw?.stop();
+    } catch {
+      /* */
+    }
   }
   clipLive.stream?.getTracks?.().forEach((track) => {
     try {
@@ -3618,74 +3971,49 @@ function clipLiveHalt() {
   clipLiveLockPage(false);
 }
 
-function clipLiveFillChips() {
-  const shots = $("#clipLiveShots");
-  const makeup = $("#clipLiveMakeup");
-  const hair = $("#clipLiveHair");
-  const color = $("#clipLiveHairColor");
-  const beauty = $("#clipLiveBeautyRow");
-  if (shots && !shots.childElementCount) {
-    shots.innerHTML = CLIP_SHOTS.map(
-      (row) => `<button type="button" data-clip-shot="${row.id}">${row.name}</button>`
-    ).join("");
-  }
-  if (beauty && !beauty.childElementCount) {
-    beauty.innerHTML =
-      '<button type="button" data-clip-beauty="1">Güzelleştirme (sivilce ve izleri gizle)</button>';
-  }
-  if (makeup && !makeup.childElementCount) {
-    makeup.innerHTML = CLIP_MAKEUP.map(
-      (row) => `<button type="button" data-clip-makeup="${row.id}">${row.name}</button>`
-    ).join("");
-  }
-  if (hair && !hair.childElementCount) {
-    hair.innerHTML = CLIP_HAIR.map(
-      (row) => `<button type="button" data-clip-hair="${row.id}">${row.name}</button>`
-    ).join("");
-  }
-  if (color && !color.childElementCount) {
-    color.innerHTML = CLIP_HAIR_COLOR.map(
-      (row) => `<button type="button" data-clip-hair-color="${row.id}">${row.name}</button>`
-    ).join("");
-  }
-  clipLiveSyncChips();
-  clipLiveShowFx(clipLive.fx);
+const CLIP_ZOOM_STEPS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+function clipLiveZoomLabel(z) {
+  const n = Number(z) || 1;
+  if (n < 1) return `${String(n).replace(".", ",")}×`;
+  return `${n}×`;
 }
 
-function clipLiveSyncChips() {
-  $$("[data-clip-shot]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipShot === clipLive.shot));
-  $$("[data-clip-makeup]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipMakeup === clipLive.makeup));
-  $$("[data-clip-hair]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipHair === clipLive.hair));
-  $$("[data-clip-hair-color]").forEach((el) =>
-    el.classList.toggle("is-on", el.dataset.clipHairColor === clipLive.hairColor)
-  );
-  $$("[data-clip-beauty]").forEach((el) => el.classList.toggle("is-on", clipLive.beauty));
+function clipLiveZoomFromSlider(value) {
+  const idx = Math.max(0, Math.min(CLIP_ZOOM_STEPS.length - 1, Math.round(Number(value) || 0)));
+  return CLIP_ZOOM_STEPS[idx];
 }
 
-function clipLiveShowFx(name) {
-  clipLive.fx = name || "shots";
-  $$("[data-clip-fx]").forEach((el) => el.classList.toggle("is-on", el.dataset.clipFx === clipLive.fx));
-  $$("[data-clip-pane]").forEach((el) => {
-    const on = el.dataset.clipPane === clipLive.fx;
-    el.hidden = !on;
-    el.classList.toggle("is-on", on);
+function clipLiveZoomIndex(z) {
+  const n = Number(z);
+  const exact = CLIP_ZOOM_STEPS.indexOf(n);
+  if (exact >= 0) return exact;
+  let best = 5;
+  let diff = Infinity;
+  CLIP_ZOOM_STEPS.forEach((step, i) => {
+    const d = Math.abs(step - n);
+    if (d < diff) {
+      diff = d;
+      best = i;
+    }
   });
+  return best;
 }
 
 function clipLiveMinZoom() {
-  return 0.5;
+  return CLIP_ZOOM_STEPS[0];
 }
 
 function clipLiveResetZoom() {
-  const min = clipLiveMinZoom();
-  clipLive.zoom = min;
+  clipLive.zoom = 1;
   const range = $("#clipLiveZoom");
   if (range) {
-    range.min = String(min);
-    range.max = "10";
-    range.value = String(min);
+    range.min = "0";
+    range.max = String(CLIP_ZOOM_STEPS.length - 1);
+    range.step = "1";
+    range.value = String(clipLiveZoomIndex(1));
   }
-  if ($("#clipLiveZoomVal")) $("#clipLiveZoomVal").textContent = `${String(min).replace(".", ",")}×`;
+  if ($("#clipLiveZoomVal")) $("#clipLiveZoomVal").textContent = clipLiveZoomLabel(1);
 }
 
 function clipLiveFacingUi() {
@@ -3697,11 +4025,20 @@ function clipLiveFacingUi() {
 
 async function clipLiveGetStream(wantFront = clipLive.facing === "user") {
   const facing = wantFront ? "user" : "environment";
+  const rate = camFrameRateSpec(wantFront);
+  const quality = { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: rate };
   const specs = [
-    { audio: iphoneAudioConstraints(), video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+    { audio: iphoneAudioConstraints(), video: quality },
+    { audio: iphoneAudioConstraints(), video: { facingMode: { ideal: facing }, frameRate: rate } },
+    {
+      audio: iphoneAudioConstraints(),
+      video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } },
+    },
     { audio: iphoneAudioConstraints(), video: { facingMode: { ideal: facing } } },
+    { audio: true, video: { facingMode: facing, frameRate: rate } },
     { audio: true, video: { facingMode: facing } },
     { audio: true, video: true },
+    { video: { facingMode: { ideal: facing }, frameRate: rate } },
     { video: { facingMode: { ideal: facing } } },
     { video: true },
   ];
@@ -3722,6 +4059,7 @@ async function clipLiveGetStream(wantFront = clipLive.facing === "user") {
           }
         }
       }
+      await applyCamTune(media.getVideoTracks()[0], wantFront, { fpsOnly: true });
       return media;
     } catch (err) {
       lastErr = err;
@@ -3744,8 +4082,14 @@ async function clipLiveFlip() {
   });
   try {
     const videoOnly = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: nextFront ? "user" : "environment" } },
+      video: {
+        facingMode: { ideal: nextFront ? "user" : "environment" },
+        frameRate: camFrameRateSpec(nextFront),
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
     });
+    await applyCamTune(videoOnly.getVideoTracks()[0], nextFront, { fpsOnly: true });
     videoOnly.getVideoTracks().forEach((track) => clipLive.stream.addTrack(track));
     clipLive.facing = nextFront ? "user" : "environment";
     clipLiveResetZoom();
@@ -3784,7 +4128,6 @@ async function clipLiveOpen() {
     video.srcObject = clipLive.stream;
     clipLiveResetZoom();
     clipLiveFacingUi();
-    clipLiveFillChips();
     if ($("#clipLiveStage")) $("#clipLiveStage").hidden = false;
     if ($("#clipLiveOpen")) $("#clipLiveOpen").hidden = true;
     if ($("#clipLiveDone")) $("#clipLiveDone").hidden = true;
@@ -3794,7 +4137,9 @@ async function clipLiveOpen() {
     video.addEventListener("loadedmetadata", playNow, { once: true });
     playNow();
     clipLiveLockPage(true);
-    clipLiveMsg("Görüntü açık. Filtreler yüze uygulanır, kayıt durmaz.");
+    clipLiveAnimaUi();
+    requestAnimationFrame(() => clipLiveAnimaUi());
+    clipLiveMsg("Görüntü açık.");
   } catch (err) {
     clipLiveHalt();
     const name = err?.name || "";
@@ -3812,16 +4157,7 @@ async function clipLiveOpen() {
   }
 }
 
-function clipLiveStartRec() {
-  if (clipLive.recording) return;
-  const canvas = $("#clipLiveCanvas");
-  if (!canvas?.captureStream || !clipLive.stream) {
-    clipLiveMsg("Kayıt bu tarayıcıda açılamadı.");
-    return;
-  }
-  clipLive.chunks = [];
-  clipLive.blob = null;
-  const vstream = canvas.captureStream(30);
+function clipLiveAttachAudio(vstream) {
   try {
     vstream.getAudioTracks().forEach((track) => vstream.removeTrack(track));
   } catch {
@@ -3830,27 +4166,106 @@ function clipLiveStartRec() {
   clipLive.stream.getAudioTracks().forEach((track) => {
     if (track.readyState === "live") vstream.addTrack(track);
   });
-  const rec = musicRecorderFor(vstream);
+  return vstream;
+}
+
+function clipLiveMakeRec(stream, onBlob) {
+  const rec = musicRecorderFor(stream);
+  const chunks = [];
   rec.ondataavailable = (ev) => {
-    if (ev.data?.size) clipLive.chunks.push(ev.data);
+    if (ev.data?.size) chunks.push(ev.data);
   };
   rec.onstop = () => {
-    clipLive.blob = new Blob(clipLive.chunks, { type: rec.mimeType || "video/webm" });
-    if (clipLive.previewUrl) URL.revokeObjectURL(clipLive.previewUrl);
-    clipLive.previewUrl = URL.createObjectURL(clipLive.blob);
-    const preview = $("#clipLivePreview");
-    if (preview) {
-      preview.src = clipLive.previewUrl;
-      preview.play().catch(() => {});
-    }
-    if ($("#clipLiveDone")) $("#clipLiveDone").hidden = false;
-    clipLiveMsg("Kayıt bitti. Önizleyin, kaydet derseniz Resimlerim’e gider.");
+    const blob = new Blob(chunks, { type: rec.mimeType || "video/webm" });
+    onBlob(blob);
   };
   rec.start(250);
-  clipLive.rec = rec;
+  return rec;
+}
+
+function clipLiveShowDone() {
+  const preview = $("#clipLivePreview");
+  const previewRaw = $("#clipLivePreviewRaw");
+  if (clipLive.previewUrl) URL.revokeObjectURL(clipLive.previewUrl);
+  if (clipLive.previewRawUrl) URL.revokeObjectURL(clipLive.previewRawUrl);
+  clipLive.previewUrl = clipLive.blob ? URL.createObjectURL(clipLive.blob) : "";
+  clipLive.previewRawUrl = clipLive.rawBlob ? URL.createObjectURL(clipLive.rawBlob) : "";
+  const dual = !!(clipLive.anima && clipLive.rawBlob && clipLive.blob);
+  if ($("#clipLiveRawLabel")) $("#clipLiveRawLabel").hidden = !dual;
+  if ($("#clipLiveAnimaLabel")) $("#clipLiveAnimaLabel").hidden = !dual;
+  if (previewRaw) {
+    previewRaw.hidden = !dual;
+    if (dual && clipLive.previewRawUrl) {
+      previewRaw.src = clipLive.previewRawUrl;
+      previewRaw.play().catch(() => {});
+    }
+  }
+  if (preview && clipLive.previewUrl) {
+    preview.src = clipLive.previewUrl;
+    preview.play().catch(() => {});
+  }
+  if ($("#clipLiveDone")) $("#clipLiveDone").hidden = false;
+  clipLiveMsg(
+    dual
+      ? "Ham kayıt ve animasyon hazır. Kaydet derseniz ikisi de galeriye gider."
+      : "Kayıt bitti. Önizleyin, kaydet derseniz Resimlerim’e gider."
+  );
+}
+
+function clipLiveOnRecStop() {
+  clipLive.pendingStops -= 1;
+  if (clipLive.pendingStops > 0) return;
+  if (clipLive.anima && clipLive.rawBlob && !clipLive.blob) clipLive.blob = clipLive.rawBlob;
+  clipLiveShowDone();
+}
+
+function clipLiveStartRec() {
+  if (clipLive.recording) return;
+  const canvas = $("#clipLiveCanvas");
+  const rawCanvas = $("#clipLiveRawCanvas");
+  if (!canvas?.captureStream || !clipLive.stream) {
+    clipLiveMsg("Kayıt bu tarayıcıda açılamadı.");
+    return;
+  }
+  clipLive.chunks = [];
+  clipLive.chunksRaw = [];
+  clipLive.blob = null;
+  clipLive.rawBlob = null;
+  clipLive.pendingStops = 0;
+  const wantAnima = clipLive.anima && rawCanvas?.captureStream;
+  if (wantAnima) clipLivePaint();
+  if (wantAnima && (!rawCanvas.width || !rawCanvas.height)) {
+    clipLiveMsg("Animasyon için görüntü hazır değil. Bir saniye sonra tekrar deneyin.");
+    return;
+  }
+  const fps = camCanvasFps(clipLive.facing === "user");
+  try {
+    if (wantAnima) {
+      clipLive.pendingStops = 2;
+      clipLive.recRaw = clipLiveMakeRec(clipLiveAttachAudio(rawCanvas.captureStream(fps)), (blob) => {
+        clipLive.rawBlob = blob;
+        clipLiveOnRecStop();
+      });
+      clipLive.rec = clipLiveMakeRec(clipLiveAttachAudio(canvas.captureStream(fps)), (blob) => {
+        clipLive.blob = blob;
+        clipLiveOnRecStop();
+      });
+    } else {
+      clipLive.pendingStops = 1;
+      clipLive.rec = clipLiveMakeRec(clipLiveAttachAudio(canvas.captureStream(fps)), (blob) => {
+        clipLive.blob = blob;
+        clipLive.rawBlob = blob;
+        clipLiveOnRecStop();
+      });
+      clipLive.recRaw = null;
+    }
+  } catch {
+    clipLiveMsg("Kayıt bu tarayıcıda açılamadı.");
+    return;
+  }
   clipLive.recording = true;
   $("#clipLiveShutter")?.classList.add("recording");
-  clipLiveMsg("Kayıt sürüyor. Filtre değiştirebilirsiniz.");
+  clipLiveMsg(wantAnima ? "Ham kayıt ve animasyon birlikte alınıyor." : "Kayıt sürüyor.");
 }
 
 function clipLiveStopRec() {
@@ -3862,20 +4277,52 @@ function clipLiveStopRec() {
   } catch {
     /* */
   }
+  try {
+    clipLive.recRaw?.stop();
+  } catch {
+    /* */
+  }
 }
 
 async function clipLiveSave() {
-  if (!clipLive.blob) {
+  const animaBlob = clipLive.blob;
+  const rawBlob = clipLive.rawBlob;
+  if (!animaBlob && !rawBlob) {
     clipLiveMsg("Önce kaydı bitirin.");
     return;
   }
-  const how = await saveBlobToPhoneGallery(clipLive.blob, videoFileName(clipLive.blob.type).replace("sarki", "klip"));
+  const dual = !!(clipLive.anima && rawBlob && animaBlob && rawBlob !== animaBlob);
+  let last = "";
+  if (dual || rawBlob) {
+    last = await saveBlobToPhoneGallery(
+      rawBlob || animaBlob,
+      videoFileName((rawBlob || animaBlob).type).replace("sarki", dual ? "klip-ham" : "klip")
+    );
+    if (last === "abort") {
+      const text = "Paylaşım iptal.";
+      if ($("#clipLiveDoneMsg")) $("#clipLiveDoneMsg").textContent = text;
+      clipLiveMsg(text);
+      return;
+    }
+  }
+  if (dual) {
+    last = await saveBlobToPhoneGallery(
+      animaBlob,
+      videoFileName(animaBlob.type).replace("sarki", "klip-animasyon")
+    );
+  } else if (animaBlob && !rawBlob) {
+    last = await saveBlobToPhoneGallery(animaBlob, videoFileName(animaBlob.type).replace("sarki", "klip"));
+  }
   const text =
-    how === "abort"
+    last === "abort"
       ? "Paylaşım iptal."
-      : how === "share"
-        ? "Video Resimlerim / Galeri’ye gönderildi."
-        : "Video indirildi. Telefonda Resimlerim’den açın.";
+      : last === "share"
+        ? dual
+          ? "Ham video ve animasyon Resimlerim / Galeri’ye gönderildi."
+          : "Video Resimlerim / Galeri’ye gönderildi."
+        : dual
+          ? "Ham video ve animasyon indirildi."
+          : "Video indirildi. Telefonda Resimlerim’den açın.";
   if ($("#clipLiveDoneMsg")) $("#clipLiveDoneMsg").textContent = text;
   clipLiveMsg(text);
 }
@@ -3902,44 +4349,50 @@ $("#clipLiveFlip")?.addEventListener("click", (event) => {
 $("#clipLiveIsoRange")?.addEventListener("input", (event) => {
   clipLive.iso = Number(event.target.value) || 405;
 });
+$("#clipLiveModes")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-clip-mode]");
+  if (!btn) return;
+  event.preventDefault();
+  event.stopPropagation();
+  clipLiveSetMode(btn.dataset.clipMode, true);
+});
+$("#clipLiveModes")?.addEventListener(
+  "touchstart",
+  (event) => {
+    const t = event.changedTouches[0];
+    if (!t) return;
+    clipLive.modeDragging = true;
+    clipLive.modeDragX = t.clientX;
+    clipLive.modeBaseX = clipLiveModeShift();
+  },
+  { passive: true }
+);
+$("#clipLiveModes")?.addEventListener(
+  "touchmove",
+  (event) => {
+    if (!clipLive.modeDragging) return;
+    const t = event.changedTouches[0];
+    if (!t) return;
+    clipLiveAnimaUi(t.clientX - clipLive.modeDragX);
+  },
+  { passive: true }
+);
+$("#clipLiveModes")?.addEventListener("touchend", (event) => {
+  if (!clipLive.modeDragging) return;
+  clipLive.modeDragging = false;
+  const t = event.changedTouches[0];
+  const dx = t ? t.clientX - clipLive.modeDragX : 0;
+  if (dx < -36) clipLiveSetMode("anima", true);
+  else if (dx > 36) clipLiveSetMode("natural", true);
+  else clipLiveAnimaUi();
+});
+$("#clipLiveModes")?.addEventListener("touchcancel", () => {
+  clipLive.modeDragging = false;
+  clipLiveAnimaUi();
+});
 $("#clipLiveZoom")?.addEventListener("input", (event) => {
-  clipLive.zoom = Number(event.target.value) || clipLiveMinZoom();
-  if ($("#clipLiveZoomVal")) $("#clipLiveZoomVal").textContent = `${String(clipLive.zoom).replace(".", ",")}×`;
-});
-$("#clipLiveFxTabs")?.addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-clip-fx]");
-  if (!btn) return;
-  clipLiveShowFx(btn.dataset.clipFx);
-});
-$("#clipLiveBeautyRow")?.addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-clip-beauty]");
-  if (!btn) return;
-  clipLive.beauty = !clipLive.beauty;
-  clipLiveSyncChips();
-});
-$("#clipLiveShots")?.addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-clip-shot]");
-  if (!btn) return;
-  clipLive.shot = btn.dataset.clipShot;
-  clipLiveSyncChips();
-});
-$("#clipLiveMakeup")?.addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-clip-makeup]");
-  if (!btn) return;
-  clipLive.makeup = clipLive.makeup === btn.dataset.clipMakeup ? "" : btn.dataset.clipMakeup;
-  clipLiveSyncChips();
-});
-$("#clipLiveHair")?.addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-clip-hair]");
-  if (!btn) return;
-  clipLive.hair = clipLive.hair === btn.dataset.clipHair ? "" : btn.dataset.clipHair;
-  clipLiveSyncChips();
-});
-$("#clipLiveHairColor")?.addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-clip-hair-color]");
-  if (!btn) return;
-  clipLive.hairColor = clipLive.hairColor === btn.dataset.clipHairColor ? "" : btn.dataset.clipHairColor;
-  clipLiveSyncChips();
+  clipLive.zoom = clipLiveZoomFromSlider(event.target.value);
+  if ($("#clipLiveZoomVal")) $("#clipLiveZoomVal").textContent = clipLiveZoomLabel(clipLive.zoom);
 });
 $("#clipLiveSave")?.addEventListener("click", () => clipLiveSave());
 
@@ -6863,14 +7316,6 @@ setInterval(() => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    const host = location.hostname;
-    const local =
-      !host ||
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "[::1]" ||
-      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
-    if (!local && host !== "www.tolkanugur.com") return;
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   });
 }

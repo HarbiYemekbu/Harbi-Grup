@@ -62,10 +62,9 @@
         border-radius: 16px;
         background: #6b2288;
       }
-      .tile-sponsored { grid-column: 1 / -1; min-height: 52px; align-items: center; justify-content: center; text-align: center; }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=177" />
+    <link rel="stylesheet" href="css/app.css?v=186" />
   </head>
   <body>
     <div class="app">
@@ -77,16 +76,12 @@
             <span class="recycle-mark" title="Geri dönüşüm" aria-hidden="true">♻</span>
           </div>
         </div>
-        <button class="ghost-btn" id="installBtn" type="button">Ana ekrana ekle</button>
+        <button class="install-home-btn" id="installBtn" type="button">Telefonun Ana Ekranına Ekle</button>
       </header>
 
       <main id="views">
         <section class="view active" data-view="home">
           <div class="grid">
-            <a class="tile tile-sponsored" href="tel:05448583595">
-              <strong>Sponsor olmak için bize yazın</strong>
-              <span>05448583595</span>
-            </a>
             <div class="tile-row-3">
               <button class="tile" data-go="camera" type="button">
                 <span class="tile-icon">📷</span>
@@ -1135,42 +1130,28 @@
         <section class="view" data-view="aiclip" hidden>
           <article class="card pos-settle" id="clipLiveCard">
             <h3>Kamera</h3>
-            <p class="hint">Üyelik veya deneme açıkken kamerayı açın. Fatura ve dekont kanıtı aşağıdaki ödeme alanındadır. Filtreler yalnızca yüze uygulanır; kayıt durmaz.</p>
+            <p class="hint">Üyelik veya deneme açıkken kamerayı açın. Animasyona çevir açıkken ham video ve çizgi film videosu birlikte kaydedilir.</p>
             <button class="gold" id="clipLiveOpen" type="button">Kamerayı aç</button>
             <p class="hint" id="clipLiveMsg"></p>
             <div class="clip-live front-cam" id="clipLiveStage" hidden>
               <video id="clipLiveVideo" playsinline muted autoplay></video>
               <canvas id="clipLiveCanvas" aria-label="Kamera görüntüsü"></canvas>
+              <canvas id="clipLiveRawCanvas" hidden></canvas>
               <button class="clip-live-close" id="clipLiveClose" type="button">Kamerayı kapat</button>
               <div class="clip-live-iso" id="clipLiveIso">
                 <span>Hassasiyet</span>
                 <input id="clipLiveIsoRange" type="range" min="50" max="3200" step="5" value="405" orient="vertical" />
               </div>
-              <div class="clip-live-fx" id="clipLiveFx">
-                <div class="clip-live-fx-tabs" id="clipLiveFxTabs">
-                  <button type="button" class="is-on" data-clip-fx="shots">Çekim filtreleri</button>
-                  <button type="button" data-clip-fx="beauty">Güzelleştirme</button>
-                  <button type="button" data-clip-fx="makeup">Makyaj</button>
-                  <button type="button" data-clip-fx="hair">Saç</button>
-                </div>
-                <div class="clip-live-fx-pane is-on" data-clip-pane="shots">
-                  <div class="clip-live-chips" id="clipLiveShots"></div>
-                </div>
-                <div class="clip-live-fx-pane" data-clip-pane="beauty" hidden>
-                  <div class="clip-live-chips" id="clipLiveBeautyRow"></div>
-                </div>
-                <div class="clip-live-fx-pane" data-clip-pane="makeup" hidden>
-                  <div class="clip-live-chips" id="clipLiveMakeup"></div>
-                </div>
-                <div class="clip-live-fx-pane" data-clip-pane="hair" hidden>
-                  <div class="clip-live-chips" id="clipLiveHair"></div>
-                  <div class="clip-live-chips" id="clipLiveHairColor"></div>
+              <label class="clip-live-zoom">
+                <span id="clipLiveZoomVal">1×</span>
+                <input id="clipLiveZoom" type="range" min="0" max="14" step="1" value="5" />
+              </label>
+              <div class="clip-live-modes" id="clipLiveModes">
+                <div class="clip-live-modes-track" id="clipLiveModesTrack">
+                  <button type="button" class="is-on" data-clip-mode="natural">Doğal çekim</button>
+                  <button type="button" data-clip-mode="anima">Animasyona çevir</button>
                 </div>
               </div>
-              <label class="clip-live-zoom">
-                <span id="clipLiveZoomVal">0,5×</span>
-                <input id="clipLiveZoom" type="range" min="0.5" max="10" step="0.1" value="0.5" />
-              </label>
               <div class="clip-live-facing" id="clipLiveFacing">ön</div>
               <button class="shutter" id="clipLiveShutter" type="button" aria-label="Video çek"></button>
               <button type="button" class="clip-live-flip front" id="clipLiveFlip" aria-label="Ön veya arka kamera">
@@ -1182,8 +1163,11 @@
             </div>
             <div id="clipLiveDone" hidden>
               <h3>Önizleme</h3>
-              <video id="clipLivePreview" class="clip-live-preview" controls playsinline></video>
               <p class="hint" id="clipLiveDoneMsg">Kaydı galeriye almak için kaydet’e basın.</p>
+              <p class="hint" id="clipLiveRawLabel" hidden>Ham kayıt</p>
+              <video id="clipLivePreviewRaw" class="clip-live-preview" controls playsinline hidden></video>
+              <p class="hint" id="clipLiveAnimaLabel" hidden>Animasyon</p>
+              <video id="clipLivePreview" class="clip-live-preview" controls playsinline></video>
               <button class="gold" id="clipLiveSave" type="button">Kaydet</button>
             </div>
           </article>
@@ -1435,10 +1419,11 @@
     </div>
     <div class="modal" id="installModal" hidden>
       <div class="modal-card">
-        <h2>Ana ekrana ekle</h2>
+        <h2>Telefonun Ana Ekranına Ekle</h2>
         <p id="modalInstallText"></p>
+        <ol class="steps install-modal-steps" id="installSteps"></ol>
         <div class="row">
-          <button class="primary" id="confirmInstall" type="button">Ekle</button>
+          <button class="primary" id="confirmInstall" type="button">Ana ekrana ekle</button>
           <button class="secondary" id="closeInstall" type="button">Kapat</button>
         </div>
       </div>
@@ -1472,6 +1457,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=177"></script>
+    <script src="js/app.js?v=186"></script>
   </body>
 </html>
