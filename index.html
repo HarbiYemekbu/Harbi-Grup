@@ -64,7 +64,7 @@
       }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=190" />
+    <link rel="stylesheet" href="css/app.css?v=191" />
   </head>
   <body>
     <div class="app">
@@ -303,13 +303,13 @@
 
         <section class="view" data-view="nfc" hidden>
           <h2>NFC Kontrol</h2>
-          <p class="hint" id="nfcHint">Android Chrome’da Web NFC ile etiket okunur.</p>
+          <p class="hint" id="nfcHint">Açılınca tarama başlar. Etiketi telefona yaklaştırın.</p>
           <div class="row">
-            <button class="primary" id="nfcScan" type="button">Tara</button>
+            <button class="primary" id="nfcScan" type="button">Yeniden tara</button>
           </div>
           <article class="card">
             <h3>Son okuma</h3>
-            <pre id="nfcResult">Henüz tarama yok.</pre>
+            <pre id="nfcResult">Tarama bekleniyor.</pre>
           </article>
           <h3 class="subhead">Geçmiş</h3>
           <div id="nfcHistory" class="log-list"></div>
@@ -1472,6 +1472,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=190"></script>
+    <script src="js/app.js?v=191"></script>
   </body>
 </html>

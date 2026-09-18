@@ -177,7 +177,10 @@ function showView(name) {
   if (name === "eimza") renderEimza();
   if (name === "music") renderMusic();
   if (name === "aiclip") renderAiClip();
-  if (name === "nfc") nfcUnlockAudio();
+  if (name === "nfc") {
+    nfcUnlockAudio();
+    startNfcScan();
+  }
   resumeSaveView(name);
   resumeRestoreScroll(name);
 }
@@ -1688,7 +1691,7 @@ function nfcAudio() {
   return nfcAudioCtx;
 }
 
-const NFC_SOUND_DB = 30;
+const NFC_SOUND_DB = 50;
 
 function nfcSoundGain() {
   return Math.max(0.05, Math.min(1, NFC_SOUND_DB / 100));
@@ -1883,7 +1886,6 @@ function playTlink() {
 async function nfcContactSound() {
   await nfcUnlockAudio();
   await playTlink();
-  speakTr("NFC'niz başarılı");
 }
 
 if ("speechSynthesis" in window) {
@@ -1894,6 +1896,55 @@ if ("speechSynthesis" in window) {
 if (!nfcSupported()) {
   nfcHint.textContent =
     "Bu tarayıcı Web NFC desteklemiyor. Android’de Chrome ile HTTPS üzerinden açın.";
+}
+
+function handleNfcRecords(event) {
+  const records = [...event.message.records].map((record) => {
+    const decoder = new TextDecoder(record.encoding || "utf-8");
+    try {
+      return decoder.decode(record.data);
+    } catch {
+      return record.recordType;
+    }
+  });
+  const detail = records.join("\n") || "Boş etiket";
+  nfcResult.textContent = "";
+  if (!showNfcPersonName(detail)) nfcResult.textContent = "İsim bulunamadı";
+  saveNfc({ type: "Okuma", detail });
+}
+
+let nfcReaderLive = null;
+let nfcScanPromise = null;
+
+async function startNfcScan() {
+  await nfcUnlockAudio();
+  nfcHoldAudio(true);
+  if (!nfcSupported()) {
+    nfcResult.textContent = "Etiketi telefona yaklaştırın...";
+    return;
+  }
+  nfcHint.textContent = "Tarama açık. Etiketi telefona yaklaştırın.";
+  nfcResult.textContent = "Etiketi telefona yaklaştırın...";
+  try {
+    if (!nfcReaderLive) nfcReaderLive = new NDEFReader();
+    nfcReaderLive.onreading = async (event) => {
+      handleNfcRecords(event);
+      await nfcUnlockAudio();
+      await nfcContactSound();
+    };
+    if (!nfcScanPromise) {
+      nfcScanPromise = nfcReaderLive.scan().catch((error) => {
+        nfcScanPromise = null;
+        nfcHoldAudio(false);
+        nfcResult.textContent = "NFC okunamadı: " + error.message;
+        throw error;
+      });
+    }
+    await nfcScanPromise;
+  } catch (error) {
+    nfcHoldAudio(false);
+    nfcResult.textContent = "NFC okunamadı: " + error.message;
+  }
 }
 
 function twoPartName(name) {
@@ -1977,41 +2028,15 @@ function renderNfc() {
 }
 
 $("#nfcScan").addEventListener("click", async () => {
-  await nfcUnlockAudio();
-  nfcHoldAudio(true);
   if (!nfcSupported()) {
     const sim = "Ali Yılmaz";
     nfcResult.textContent = "";
     showNfcPersonName(sim);
     await nfcContactSound();
     saveNfc({ type: "Okuma (simülasyon)", detail: sim });
-    nfcHoldAudio(false);
     return;
   }
-  try {
-    const reader = new NDEFReader();
-    nfcResult.textContent = "Etiketi telefona yaklaştırın...";
-    await reader.scan();
-    reader.onreading = async (event) => {
-      const records = [...event.message.records].map((record) => {
-        const decoder = new TextDecoder(record.encoding || "utf-8");
-        try {
-          return decoder.decode(record.data);
-        } catch {
-          return record.recordType;
-        }
-      });
-      const detail = records.join("\n") || "Boş etiket";
-      nfcResult.textContent = "";
-      if (!showNfcPersonName(detail)) nfcResult.textContent = "İsim bulunamadı";
-      saveNfc({ type: "Okuma", detail });
-      await nfcUnlockAudio();
-      await nfcContactSound();
-    };
-  } catch (error) {
-    nfcHoldAudio(false);
-    nfcResult.textContent = "NFC okunamadı: " + error.message;
-  }
+  await startNfcScan();
 });
 
 const MUSIC_KEY = "music-songs";
