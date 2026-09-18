@@ -177,10 +177,8 @@ function showView(name) {
   if (name === "eimza") renderEimza();
   if (name === "music") renderMusic();
   if (name === "aiclip") renderAiClip();
-  if (name === "nfc") {
-    nfcUnlockAudio();
-    startNfcScan();
-  }
+  if (name === "nfc") startNfcScan();
+  else nfcSleepAudio();
   resumeSaveView(name);
   resumeRestoreScroll(name);
 }
@@ -1697,6 +1695,62 @@ function nfcSoundGain() {
   return Math.max(0.05, Math.min(1, NFC_SOUND_DB / 100));
 }
 
+function nfcWavDataUri(seconds, freqs, volume) {
+  const sampleRate = 22050;
+  const n = Math.max(1, Math.floor(sampleRate * seconds));
+  const pcm = new Int16Array(n);
+  const peak = Math.floor(32767 * Math.max(0, Math.min(1, volume)));
+  const parts = freqs && freqs.length ? freqs : [[1000, 1]];
+  const ampSum = parts.reduce((s, p) => s + (p[1] || 0), 0) || 1;
+  for (let i = 0; i < n; i += 1) {
+    const t = i / sampleRate;
+    const env = seconds < 0.06 ? 1 : Math.min(1, t / 0.008) * Math.max(0, 1 - t / seconds);
+    let s = 0;
+    for (let p = 0; p < parts.length; p += 1) s += Math.sin(2 * Math.PI * parts[p][0] * t) * (parts[p][1] / ampSum);
+    pcm[i] = Math.max(-32767, Math.min(32767, Math.round(s * env * peak)));
+  }
+  const bytes = pcm.byteLength;
+  const buf = new ArrayBuffer(44 + bytes);
+  const view = new DataView(buf);
+  const ascii = (offset, text) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  ascii(0, "RIFF");
+  view.setUint32(4, 36 + bytes, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  ascii(36, "data");
+  view.setUint32(40, bytes, true);
+  new Uint8Array(buf, 44).set(new Uint8Array(pcm.buffer));
+  const raw = new Uint8Array(buf);
+  let bin = "";
+  const step = 0x8000;
+  for (let i = 0; i < raw.length; i += step) {
+    bin += String.fromCharCode.apply(null, raw.subarray(i, i + step));
+  }
+  return "data:audio/wav;base64," + btoa(bin);
+}
+
+let nfcKeepUri = "";
+let nfcBeepUri = "";
+
+function nfcKeepSrc() {
+  if (!nfcKeepUri) nfcKeepUri = nfcWavDataUri(0.28, [[48, 1]], 0.02);
+  return nfcKeepUri;
+}
+
+function nfcBeepSrc() {
+  if (!nfcBeepUri) nfcBeepUri = nfcWavDataUri(0.42, [[980, 0.7], [1470, 0.5]], nfcSoundGain());
+  return nfcBeepUri;
+}
+
 function nfcUnlockAudio() {
   const ctx = nfcAudio();
   if (!ctx) return Promise.resolve(null);
@@ -1736,8 +1790,8 @@ function nfcHoldAudio(on) {
   try {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.frequency.value = 20;
-    gain.gain.value = 0.00001;
+    osc.frequency.value = 18;
+    gain.gain.value = 0.00008;
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start();
@@ -1747,50 +1801,63 @@ function nfcHoldAudio(on) {
   }
 }
 
-function nfcBeepWavUrl() {
-  const sampleRate = 22050;
-  const seconds = 0.38;
-  const n = Math.floor(sampleRate * seconds);
-  const pcm = new Int16Array(n);
-  const peak = Math.floor(32767 * nfcSoundGain());
-  for (let i = 0; i < n; i += 1) {
-    const t = i / sampleRate;
-    const env = Math.min(1, t / 0.012) * Math.max(0, 1 - t / seconds);
-    const s = Math.sin(2 * Math.PI * 880 * t) * 0.62 + Math.sin(2 * Math.PI * 1318.5 * t) * 0.38;
-    pcm[i] = Math.max(-32767, Math.min(32767, Math.round(s * env * peak)));
+function nfcSleepAudio() {
+  nfcHoldAudio(false);
+  try {
+    $("#nfcKeepAudio")?.pause();
+  } catch {
+    /* */
   }
-  const bytes = pcm.byteLength;
-  const buf = new ArrayBuffer(44 + bytes);
-  const view = new DataView(buf);
-  const ascii = (offset, text) => {
-    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
-  };
-  ascii(0, "RIFF");
-  view.setUint32(4, 36 + bytes, true);
-  ascii(8, "WAVE");
-  ascii(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  ascii(36, "data");
-  view.setUint32(40, bytes, true);
-  new Uint8Array(buf, 44).set(new Uint8Array(pcm.buffer));
-  const blob = new Blob([buf], { type: "audio/wav" });
-  return URL.createObjectURL(blob);
 }
 
-let nfcBeepUrl = "";
+function nfcEnsureAudioEls() {
+  const keep = $("#nfcKeepAudio");
+  const beep = $("#nfcBeepAudio");
+  if (keep && !keep.getAttribute("src")) {
+    keep.src = nfcKeepSrc();
+    keep.loop = true;
+    keep.volume = 0.02;
+  }
+  if (beep && !beep.getAttribute("src")) {
+    beep.src = nfcBeepSrc();
+    beep.loop = false;
+    beep.volume = nfcSoundGain();
+    beep.load();
+  }
+}
+
+function nfcArmSound() {
+  nfcEnsureAudioEls();
+  nfcUnlockAudio();
+  nfcHoldAudio(true);
+  const keep = $("#nfcKeepAudio");
+  if (keep) {
+    keep.volume = 0.02;
+    keep.play().catch(() => {});
+  }
+}
 
 function playNfcHtmlBeep() {
   try {
-    if (!nfcBeepUrl) nfcBeepUrl = nfcBeepWavUrl();
-    const audio = new Audio(nfcBeepUrl);
-    audio.volume = nfcSoundGain();
-    return audio.play().catch(() => {});
+    nfcEnsureAudioEls();
+    const beep = $("#nfcBeepAudio");
+    if (!beep) {
+      const audio = new Audio(nfcBeepSrc());
+      audio.volume = nfcSoundGain();
+      return audio.play().catch(() => {});
+    }
+    beep.muted = false;
+    beep.volume = nfcSoundGain();
+    try {
+      beep.currentTime = 0;
+    } catch {
+      /* */
+    }
+    return beep.play().catch(() => {
+      const copy = new Audio(nfcBeepSrc());
+      copy.volume = nfcSoundGain();
+      return copy.play().catch(() => {});
+    });
   } catch {
     return Promise.resolve();
   }
@@ -1851,41 +1918,46 @@ function nfcVibrate() {
 
 function playTlink() {
   return new Promise((resolve) => {
-    const ctx = nfcAudio();
     nfcVibrate();
     playNfcHtmlBeep();
+    const ctx = nfcAudio();
     if (!ctx) {
       resolve();
       return;
     }
-    const peak = nfcSoundGain();
+    const peak = Math.max(0.35, nfcSoundGain());
     const play = () => {
       const now = ctx.currentTime;
-      const ding = (freq, start, dur, level) => {
+      const ding = (freq, start, dur, level, type) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = "sine";
+        osc.type = type || "square";
         osc.frequency.setValueAtTime(freq, now + start);
         gain.gain.setValueAtTime(0.0001, now + start);
-        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, level), now + start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, level), now + start + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now + start);
         osc.stop(now + start + dur + 0.04);
       };
-      ding(880, 0, 0.18, peak);
-      ding(1318.5, 0.08, 0.22, peak * 0.85);
-      setTimeout(resolve, 420);
+      ding(980, 0, 0.22, peak, "square");
+      ding(1470, 0.06, 0.26, peak * 0.8, "sine");
+      setTimeout(resolve, 480);
     };
-    if (ctx.state === "suspended") ctx.resume().then(play).catch(play);
+    if (ctx.state === "suspended") ctx.resume().then(play).catch(() => resolve());
     else play();
   });
 }
 
-async function nfcContactSound() {
-  await nfcUnlockAudio();
-  await playTlink();
+let nfcBeepLock = 0;
+
+function nfcContactSound() {
+  const now = Date.now();
+  if (now - nfcBeepLock < 350) return Promise.resolve();
+  nfcBeepLock = now;
+  nfcUnlockAudio();
+  return playTlink();
 }
 
 if ("speechSynthesis" in window) {
@@ -1915,10 +1987,10 @@ function handleNfcRecords(event) {
 
 let nfcReaderLive = null;
 let nfcScanPromise = null;
+let nfcReadingBound = false;
 
-async function startNfcScan() {
-  await nfcUnlockAudio();
-  nfcHoldAudio(true);
+function startNfcScan() {
+  nfcArmSound();
   if (!nfcSupported()) {
     nfcResult.textContent = "Etiketi telefona yaklaştırın...";
     return;
@@ -1927,22 +1999,25 @@ async function startNfcScan() {
   nfcResult.textContent = "Etiketi telefona yaklaştırın...";
   try {
     if (!nfcReaderLive) nfcReaderLive = new NDEFReader();
-    nfcReaderLive.onreading = async (event) => {
-      handleNfcRecords(event);
-      await nfcUnlockAudio();
-      await nfcContactSound();
-    };
+    if (!nfcReadingBound) {
+      nfcReadingBound = true;
+      nfcReaderLive.addEventListener("reading", (event) => {
+        nfcContactSound();
+        try {
+          handleNfcRecords(event);
+        } catch {
+          /* */
+        }
+      });
+    }
     if (!nfcScanPromise) {
       nfcScanPromise = nfcReaderLive.scan().catch((error) => {
         nfcScanPromise = null;
-        nfcHoldAudio(false);
         nfcResult.textContent = "NFC okunamadı: " + error.message;
-        throw error;
       });
     }
-    await nfcScanPromise;
   } catch (error) {
-    nfcHoldAudio(false);
+    nfcScanPromise = null;
     nfcResult.textContent = "NFC okunamadı: " + error.message;
   }
 }
@@ -2027,16 +2102,27 @@ function renderNfc() {
     .join("") || "<p class='hint'>Kayıt yok.</p>";
 }
 
-$("#nfcScan").addEventListener("click", async () => {
+$("#nfcScan").addEventListener("click", () => {
+  nfcArmSound();
   if (!nfcSupported()) {
     const sim = "Ali Yılmaz";
     nfcResult.textContent = "";
     showNfcPersonName(sim);
-    await nfcContactSound();
+    nfcContactSound();
     saveNfc({ type: "Okuma (simülasyon)", detail: sim });
     return;
   }
-  await startNfcScan();
+  startNfcScan();
+});
+
+["pointerdown", "touchstart", "click"].forEach((type) => {
+  document.addEventListener(
+    type,
+    () => {
+      if (resumeActiveView() === "nfc") nfcArmSound();
+    },
+    { passive: true }
+  );
 });
 
 const MUSIC_KEY = "music-songs";

@@ -64,7 +64,7 @@
       }
       .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=191" />
+    <link rel="stylesheet" href="css/app.css?v=192" />
   </head>
   <body>
     <div class="app">
@@ -304,6 +304,8 @@
         <section class="view" data-view="nfc" hidden>
           <h2>NFC Kontrol</h2>
           <p class="hint" id="nfcHint">Açılınca tarama başlar. Etiketi telefona yaklaştırın.</p>
+          <audio id="nfcKeepAudio" preload="auto" playsinline loop></audio>
+          <audio id="nfcBeepAudio" preload="auto" playsinline></audio>
           <div class="row">
             <button class="primary" id="nfcScan" type="button">Yeniden tara</button>
           </div>
@@ -1472,6 +1474,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=191"></script>
+    <script src="js/app.js?v=192"></script>
   </body>
 </html>
