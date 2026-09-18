@@ -177,6 +177,7 @@ function showView(name) {
   if (name === "eimza") renderEimza();
   if (name === "music") renderMusic();
   if (name === "aiclip") renderAiClip();
+  if (name === "nfc") nfcUnlockAudio();
   resumeSaveView(name);
   resumeRestoreScroll(name);
 }
@@ -1687,8 +1688,113 @@ function nfcAudio() {
   return nfcAudioCtx;
 }
 
+const NFC_SOUND_DB = 30;
+
+function nfcSoundGain() {
+  return Math.max(0.05, Math.min(1, NFC_SOUND_DB / 100));
+}
+
+function nfcUnlockAudio() {
+  const ctx = nfcAudio();
+  if (!ctx) return Promise.resolve(null);
+  const kick = () => {
+    try {
+      const buf = ctx.createBuffer(1, Math.max(1, Math.round(ctx.sampleRate * 0.04)), ctx.sampleRate);
+      const src = ctx.createBufferSource();
+      const silent = ctx.createGain();
+      silent.gain.value = 0.00001;
+      src.buffer = buf;
+      src.connect(silent);
+      silent.connect(ctx.destination);
+      src.start();
+    } catch {
+      /* */
+    }
+    return ctx;
+  };
+  if (ctx.state === "suspended") return ctx.resume().then(kick).catch(kick);
+  return Promise.resolve(kick());
+}
+
+let nfcScanAlive = null;
+
+function nfcHoldAudio(on) {
+  const ctx = nfcAudio();
+  if (!on) {
+    try {
+      nfcScanAlive?.osc.stop();
+    } catch {
+      /* */
+    }
+    nfcScanAlive = null;
+    return;
+  }
+  if (!ctx || nfcScanAlive) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 20;
+    gain.gain.value = 0.00001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    nfcScanAlive = { osc, gain };
+  } catch {
+    /* */
+  }
+}
+
+function nfcBeepWavUrl() {
+  const sampleRate = 22050;
+  const seconds = 0.38;
+  const n = Math.floor(sampleRate * seconds);
+  const pcm = new Int16Array(n);
+  const peak = Math.floor(32767 * nfcSoundGain());
+  for (let i = 0; i < n; i += 1) {
+    const t = i / sampleRate;
+    const env = Math.min(1, t / 0.012) * Math.max(0, 1 - t / seconds);
+    const s = Math.sin(2 * Math.PI * 880 * t) * 0.62 + Math.sin(2 * Math.PI * 1318.5 * t) * 0.38;
+    pcm[i] = Math.max(-32767, Math.min(32767, Math.round(s * env * peak)));
+  }
+  const bytes = pcm.byteLength;
+  const buf = new ArrayBuffer(44 + bytes);
+  const view = new DataView(buf);
+  const ascii = (offset, text) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  ascii(0, "RIFF");
+  view.setUint32(4, 36 + bytes, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  ascii(36, "data");
+  view.setUint32(40, bytes, true);
+  new Uint8Array(buf, 44).set(new Uint8Array(pcm.buffer));
+  const blob = new Blob([buf], { type: "audio/wav" });
+  return URL.createObjectURL(blob);
+}
+
+let nfcBeepUrl = "";
+
+function playNfcHtmlBeep() {
+  try {
+    if (!nfcBeepUrl) nfcBeepUrl = nfcBeepWavUrl();
+    const audio = new Audio(nfcBeepUrl);
+    audio.volume = nfcSoundGain();
+    return audio.play().catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
+}
+
 function speakTr(text) {
-  return speakVoice(text, { rate: 0.95, pitch: 1 });
+  return speakVoice(text, { rate: 0.95, pitch: 1, volume: nfcSoundGain() });
 }
 
 function speakNiceTr(text) {
@@ -1722,7 +1828,7 @@ function speakVoice(text, opts) {
     utter.lang = "tr-TR";
     utter.rate = opts?.rate ?? 0.95;
     utter.pitch = opts?.pitch ?? 1;
-    utter.volume = 1;
+    utter.volume = Math.max(0, Math.min(1, opts?.volume ?? nfcSoundGain()));
     const voice = pickTrVoice(Boolean(opts?.nice));
     if (voice) utter.voice = voice;
     utter.onend = () => resolve();
@@ -1744,28 +1850,30 @@ function playTlink() {
   return new Promise((resolve) => {
     const ctx = nfcAudio();
     nfcVibrate();
+    playNfcHtmlBeep();
     if (!ctx) {
       resolve();
       return;
     }
+    const peak = nfcSoundGain();
     const play = () => {
       const now = ctx.currentTime;
-      const ding = (freq, start, dur, peak) => {
+      const ding = (freq, start, dur, level) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.setValueAtTime(freq, now + start);
         gain.gain.setValueAtTime(0.0001, now + start);
-        gain.gain.exponentialRampToValueAtTime(peak, now + start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, level), now + start + 0.012);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now + start);
-        osc.stop(now + start + dur + 0.02);
+        osc.stop(now + start + dur + 0.04);
       };
-      ding(1760, 0, 0.12, 0.42);
-      ding(2349, 0.07, 0.16, 0.32);
-      setTimeout(resolve, 280);
+      ding(880, 0, 0.18, peak);
+      ding(1318.5, 0.08, 0.22, peak * 0.85);
+      setTimeout(resolve, 420);
     };
     if (ctx.state === "suspended") ctx.resume().then(play).catch(play);
     else play();
@@ -1773,6 +1881,7 @@ function playTlink() {
 }
 
 async function nfcContactSound() {
+  await nfcUnlockAudio();
   await playTlink();
   speakTr("NFC'niz başarılı");
 }
@@ -1868,20 +1977,22 @@ function renderNfc() {
 }
 
 $("#nfcScan").addEventListener("click", async () => {
-  nfcAudio()?.resume?.();
+  await nfcUnlockAudio();
+  nfcHoldAudio(true);
   if (!nfcSupported()) {
     const sim = "Ali Yılmaz";
     nfcResult.textContent = "";
     showNfcPersonName(sim);
     await nfcContactSound();
     saveNfc({ type: "Okuma (simülasyon)", detail: sim });
+    nfcHoldAudio(false);
     return;
   }
   try {
     const reader = new NDEFReader();
     nfcResult.textContent = "Etiketi telefona yaklaştırın...";
     await reader.scan();
-    reader.onreading = (event) => {
+    reader.onreading = async (event) => {
       const records = [...event.message.records].map((record) => {
         const decoder = new TextDecoder(record.encoding || "utf-8");
         try {
@@ -1894,10 +2005,11 @@ $("#nfcScan").addEventListener("click", async () => {
       nfcResult.textContent = "";
       if (!showNfcPersonName(detail)) nfcResult.textContent = "İsim bulunamadı";
       saveNfc({ type: "Okuma", detail });
-      nfcAudio()?.resume?.();
-      nfcContactSound();
+      await nfcUnlockAudio();
+      await nfcContactSound();
     };
   } catch (error) {
+    nfcHoldAudio(false);
     nfcResult.textContent = "NFC okunamadı: " + error.message;
   }
 });
