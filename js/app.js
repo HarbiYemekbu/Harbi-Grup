@@ -550,7 +550,7 @@ function isoBrightness() {
 }
 
 function previewFlipX() {
-  return -1;
+  return facingMode === "user" ? -1 : 1;
 }
 
 function applyPreviewZoom() {
