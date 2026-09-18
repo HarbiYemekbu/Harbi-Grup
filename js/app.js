@@ -553,8 +553,34 @@ function applyPreviewZoom() {
   const z = sensorCrop();
   const px = eisNX * 18;
   const py = eisNY * 18;
-  video.style.transform = `translate3d(${px}px, ${py}px, 0) scale(${z}) perspective(420px) rotateY(180deg)`;
+  const flip = previewFlipX();
+  video.style.transform = `translate3d(${px}px, ${py}px, 0) scale(${flip * z}, ${z})`;
   video.style.filter = camMode === "cinema" ? "none" : `brightness(${isoBrightness()})`;
+}
+
+async function camAttachAndPlay(media) {
+  video.muted = true;
+  video.defaultMuted = true;
+  video.autoplay = true;
+  video.playsInline = true;
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "true");
+  video.setAttribute("muted", "");
+  video.srcObject = media;
+  const tryPlay = () => video.play().catch(() => {});
+  await tryPlay();
+  if (video.readyState >= 2 && !video.paused) return;
+  await new Promise((resolve) => {
+    const done = () => {
+      video.removeEventListener("loadeddata", done);
+      video.removeEventListener("canplay", done);
+      resolve();
+    };
+    video.addEventListener("loadeddata", done);
+    video.addEventListener("canplay", done);
+    setTimeout(done, 1200);
+  });
+  await tryPlay();
 }
 
 function drawCameraVideo(ctx, sx, sy, sw, sh, dw, dh) {
@@ -701,28 +727,43 @@ async function camGetStream(wantFront) {
   const facing = wantFront ? "user" : "environment";
   const cinema = camMode === "cinema";
   const videoMode = needsAudio();
-  const quality = {
-    width: { ideal: videoMode ? (cinema ? 1920 : 3840) : 4032 },
-    height: { ideal: videoMode ? (cinema ? 1080 : 2160) : 3024 },
-    frameRate: camFrameRateSpec(wantFront),
-    aspectRatio: { ideal: 16 / 9 },
-  };
+  const phone = isIOS || isAndroid;
+  const quality = phone
+    ? {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: Math.min(60, camTargetFps(wantFront)) },
+      }
+    : {
+        width: { ideal: videoMode ? (cinema ? 1920 : 3840) : 4032 },
+        height: { ideal: videoMode ? (cinema ? 1080 : 2160) : 3024 },
+        frameRate: camFrameRateSpec(wantFront),
+      };
   const tries = [];
-  if (deviceId) {
-    tries.push({ audio, video: { deviceId: { exact: deviceId }, ...quality } });
-    tries.push({ audio, video: { deviceId: { exact: deviceId } } });
+  if (phone) {
+    tries.push({ audio, video: { facingMode: { ideal: facing } } });
+    tries.push({ audio, video: { facingMode: facing } });
+    tries.push({ audio, video: { facingMode: { ideal: facing }, ...quality } });
+    if (deviceId) tries.push({ audio, video: { deviceId: { exact: deviceId } } });
+    tries.push({ audio: Boolean(audio), video: true });
+  } else {
+    if (deviceId) {
+      tries.push({ audio, video: { deviceId: { exact: deviceId }, ...quality } });
+      tries.push({ audio, video: { deviceId: { exact: deviceId } } });
+    }
+    tries.push({ audio, video: { facingMode: { exact: facing }, ...quality } });
+    tries.push({ audio, video: { facingMode: { ideal: facing }, ...quality } });
+    if (!wantFront) {
+      tries.push({
+        audio,
+        video: { facingMode: { ideal: facing }, width: quality.width, height: quality.height, frameRate: { ideal: 60 } },
+      });
+    }
+    tries.push({ audio, video: { facingMode: { exact: facing } } });
+    tries.push({ audio, video: { facingMode: { ideal: facing } } });
+    tries.push({ audio: Boolean(audio), video: { facingMode: facing } });
+    tries.push({ audio: Boolean(audio), video: true });
   }
-  tries.push({ audio, video: { facingMode: { exact: facing }, ...quality } });
-  tries.push({ audio, video: { facingMode: { ideal: facing }, ...quality } });
-  if (!wantFront) {
-    tries.push({
-      audio,
-      video: { facingMode: { ideal: facing }, width: quality.width, height: quality.height, frameRate: { ideal: 60, max: 120 } },
-    });
-  }
-  tries.push({ audio, video: { facingMode: { exact: facing } } });
-  tries.push({ audio, video: { facingMode: { ideal: facing } } });
-  tries.push({ audio: Boolean(audio), video: { facingMode: facing } });
   let lastErr = null;
   for (const spec of tries) {
     try {
@@ -743,14 +784,7 @@ async function startCamera({ preserve = false } = {}) {
   syncCaptureMp();
   if (!preserve) cameraStatus.textContent = "İzin bekleniyor...";
   nativeZoomMax = 1;
-  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
-    try {
-      await DeviceMotionEvent.requestPermission();
-    } catch {
-      /* */
-    }
-  }
-  await new Promise((done) => setTimeout(done, camFlipping ? 40 : 160));
+  await new Promise((done) => setTimeout(done, camFlipping ? 40 : 80));
   if (seq !== camStartSeq) return;
   try {
     stream = await camGetStream(requested === "user");
@@ -774,13 +808,9 @@ async function startCamera({ preserve = false } = {}) {
     const track = videoTrack();
     const caps = track?.getCapabilities?.() || {};
     nativeZoomMax = caps.zoom?.max || 1;
-    await applyCamTune(track);
+    await applyCamTune(track, requested === "user");
     if (needsAudio()) await applyIphoneAudio(stream);
-    video.setAttribute("playsinline", "true");
-    video.setAttribute("webkit-playsinline", "true");
-    video.muted = true;
-    video.srcObject = stream;
-    await video.play().catch(() => {});
+    await camAttachAndPlay(stream);
     if (seq !== camStartSeq) return;
     camAdoptOpenedTrack(requested);
     if (preserve) {
@@ -792,8 +822,8 @@ async function startCamera({ preserve = false } = {}) {
     }
     await setZoom(zoomLevel);
     await applyIso();
-    await startEis();
-    if (!needsAudio()) cameraStatus.textContent = "";
+    startEis();
+    cameraStatus.textContent = "";
   } catch {
     if (seq === camStartSeq) {
       cameraStatus.textContent = "Kamera izni gerekli. Telefonda Safari/Chrome ile açın.";
@@ -911,15 +941,18 @@ function stopEis() {
 async function startEis() {
   stopEis();
   eisOn = true;
-  window.addEventListener("devicemotion", eisOnMotion, { passive: true });
+  eisLoop();
+  const listen = () => window.addEventListener("devicemotion", eisOnMotion, { passive: true });
   if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
     try {
-      await DeviceMotionEvent.requestPermission();
+      const state = await DeviceMotionEvent.requestPermission();
+      if (state === "granted") listen();
     } catch {
-      /* iOS izin vermezse dijital EIS kapalı kalır, donanım sabitleme devam eder */
+      /* iOS izin vermezse dijital EIS kapalı kalır */
     }
+    return;
   }
-  eisLoop();
+  listen();
 }
 
 async function applyCamTune(track, front = facingMode === "user", opts = {}) {
@@ -936,15 +969,17 @@ async function applyCamTune(track, front = facingMode === "user", opts = {}) {
   const cinema = camMode === "cinema";
   const size = {};
   if (!opts.fpsOnly) {
-    if (caps.width) size.width = { ideal: videoMode ? (cinema ? 1920 : 3840) : Math.min(4032, caps.width.max || 4032) };
-    if (caps.height) size.height = { ideal: videoMode ? (cinema ? 1080 : 2160) : Math.min(3024, caps.height.max || 3024) };
+    const maxW = isIOS ? 1920 : videoMode ? (cinema ? 1920 : 3840) : Math.min(4032, caps.width?.max || 4032);
+    const maxH = isIOS ? 1080 : videoMode ? (cinema ? 1080 : 2160) : Math.min(3024, caps.height?.max || 3024);
+    if (caps.width) size.width = { ideal: Math.min(maxW, caps.width.max || maxW) };
+    if (caps.height) size.height = { ideal: Math.min(maxH, caps.height.max || maxH) };
   }
   if (caps.frameRate) {
-    const want = camTargetFps(front);
+    const want = isIOS ? Math.min(60, camTargetFps(front)) : camTargetFps(front);
     const capMax = caps.frameRate.max || want;
     const capMin = caps.frameRate.min || 1;
     const fps = Math.max(capMin, Math.min(want, capMax));
-    size.frameRate = { ideal: fps, max: fps };
+    size.frameRate = { ideal: fps };
   }
   if (Object.keys(advanced).length) size.advanced = [advanced];
   try {
@@ -957,7 +992,9 @@ async function applyCamTune(track, front = facingMode === "user", opts = {}) {
       /* tarayıcı kısıtı */
     }
   }
-  await track.applyConstraints({ advanced: [{ imageStabilization: true }] }).catch(() => {});
+  if (!isIOS) {
+    await track.applyConstraints({ advanced: [{ imageStabilization: true }] }).catch(() => {});
+  }
 }
 
 function syncCaptureMp() {
@@ -4028,6 +4065,7 @@ async function clipLiveGetStream(wantFront = clipLive.facing === "user") {
   const rate = camFrameRateSpec(wantFront);
   const quality = { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: rate };
   const specs = [
+    { audio: iphoneAudioConstraints(), video: { facingMode: { ideal: facing } } },
     { audio: iphoneAudioConstraints(), video: quality },
     { audio: iphoneAudioConstraints(), video: { facingMode: { ideal: facing }, frameRate: rate } },
     {
