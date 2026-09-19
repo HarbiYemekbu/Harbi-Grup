@@ -1,7 +1,7 @@
 :root {
   --bg: #ffffff;
-  --bg-elev: #641e7c;
-  --line: rgba(244, 114, 182, 0.28);
+  --bg-elev: #ffffff;
+  --line: rgba(26, 18, 36, 0.12);
   --gold: #d4af37;
   --gold-2: #b8860b;
   --text: #f6f1e6;
@@ -53,19 +53,27 @@ textarea,
 
 .app {
   width: 100%;
-  max-width: min(100%, 6.9in);
+  max-width: min(100%, 1120px);
   min-height: 100dvh;
   min-height: -webkit-fill-available;
-  padding: calc(18px + var(--safe-t)) max(18px, env(safe-area-inset-right)) calc(108px + var(--safe-b))
-    max(18px, env(safe-area-inset-left));
+  padding: calc(18px + var(--safe-t)) max(24px, env(safe-area-inset-right)) calc(40px + var(--safe-b))
+    max(24px, env(safe-area-inset-left));
 }
 
+.site-header,
 .topbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 12px;
+  flex-wrap: nowrap;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(26, 18, 36, 0.12);
+  position: sticky;
+  top: 0;
+  z-index: 16;
+  background: #fff;
 }
 
 .brand {
@@ -80,8 +88,8 @@ body:not(.owner-on) .owner-app-row {
   display: none !important;
 }
 
-.owner-app-row {
-  grid-template-columns: 1fr 1fr;
+.owner-app-row.tile-row-3 {
+  grid-template-columns: 1fr;
 }
 
 .brand-mark {
@@ -95,25 +103,154 @@ body:not(.owner-on) .owner-app-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px 4px 12px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #b44ad0, #7e2aa8);
-  border: 1px solid var(--line);
+  padding: 0;
+  background: none;
+  border: 0;
 }
 
 .brand-title h1 {
   font-size: 20px;
   line-height: 1.1;
-  color: #fff;
+  color: #f97316;
 }
 
-.recycle-mark {
-  display: grid;
-  place-items: center;
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.site-nav button,
+.site-nav a.site-nav-link {
+  border: 0;
+  background: transparent;
+  color: var(--text-page);
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.site-nav a.site-nav-link:hover {
+  background: rgba(26, 18, 36, 0.06);
+}
+
+button.text-link {
+  border: 0;
+  background: transparent;
+  color: var(--text-page);
+  padding: 8px 4px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.site-nav button:hover {
+  background: rgba(26, 18, 36, 0.06);
+}
+
+.site-nav button.gold {
+  color: #1a1404;
+}
+
+.site-hero {
+  margin: 8px 0 22px;
+}
+
+.yol-search {
+  margin: 0 0 8px;
+  padding: 14px 0 10px;
+}
+
+.yol-search-label {
+  display: block;
+  margin: 0 0 8px;
+  font-weight: 700;
+  color: var(--text-page);
+}
+
+.yol-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.yol-search-row input {
+  background: #fff;
+  color: var(--text-page);
+  border: 1px solid var(--line);
+}
+
+.yol-search-row button {
+  width: auto;
   flex-shrink: 0;
-  font-size: 22px;
-  line-height: 1;
-  color: #fff;
+  padding: 12px 18px;
+}
+
+.yol-search-results {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.site-hero h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.1;
+}
+
+.site-hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 17px;
+  max-width: 40rem;
+}
+
+.site-footer {
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.yol-partners,
+.yol-auth {
+  display: grid;
+  gap: 12px;
+}
+
+.yol-auth {
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+
+.yol-auth.yol-auth-one {
+  grid-template-columns: 1fr;
+  max-width: none;
+}
+
+#yolLoginCard {
+  max-width: 440px;
+}
+
+@media (min-width: 860px) {
+  .yol-partners {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .tile-row-2 .tile {
+    min-height: 140px;
+  }
 }
 
 .eyebrow {
@@ -177,8 +314,8 @@ h2 {
   border-radius: 16px;
   padding: 8px 10px;
   cursor: pointer;
-  background: linear-gradient(180deg, rgba(138, 42, 176, 0.96), rgba(92, 22, 132, 0.94));
-  color: #fff;
+  background: #fff;
+  color: var(--text-page);
   font-weight: 700;
   font-size: 13px;
   line-height: 1.25;
@@ -193,8 +330,9 @@ h2 {
 }
 
 .secondary {
-  background: #641e7c;
-  color: var(--text);
+  background: #fff;
+  color: var(--text-page);
+  border: 1px solid var(--line);
 }
 
 .gold {
@@ -222,17 +360,24 @@ h2 {
   gap: 8px;
 }
 
+.tile-row-2 {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
 .tile-row-3 .tile {
   width: 100%;
 }
 
 .tile,
 .card {
-  background: linear-gradient(180deg, rgba(138, 42, 176, 0.96), rgba(92, 22, 132, 0.94));
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  backdrop-filter: blur(10px);
-  color: var(--text);
+  backdrop-filter: none;
+  color: var(--text-page);
 }
 
 .tile {
@@ -249,6 +394,7 @@ h2 {
   border-radius: 16px;
 }
 
+.tile-row-2 .tile strong,
 .tile-row-3 .tile strong {
   font-size: 13px;
   line-height: 1.25;
@@ -259,7 +405,7 @@ h2 {
 }
 
 .tile span:last-child {
-  color: rgba(246, 241, 230, 0.75);
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.3;
 }
@@ -322,9 +468,10 @@ input.iban-text,
 }
 
 [data-view="home"] .tile,
-[data-view="home"] .card {
-  background: linear-gradient(180deg, rgba(158, 58, 198, 0.94), rgba(108, 32, 158, 0.92));
-  border-color: rgba(196, 110, 255, 0.55);
+[data-view="home"] .card,
+[data-view="sell"] .card {
+  background: #fff;
+  border-color: var(--line);
 }
 
 [data-view="home"] .card {
@@ -333,8 +480,8 @@ input.iban-text,
 }
 
 .brand-title {
-  background: linear-gradient(180deg, rgba(186, 92, 228, 0.95), rgba(142, 52, 196, 0.92));
-  border-color: rgba(210, 130, 255, 0.5);
+  background: none;
+  border: 0;
 }
 
 .install-card h2 {
@@ -1099,9 +1246,9 @@ input,
 textarea,
 select {
   width: 100%;
-  background: #641e7c;
+  background: #fff;
   border: 1px solid var(--line);
-  color: var(--text);
+  color: var(--text-page);
   border-radius: 16px;
   padding: 12px 14px;
   font-size: 16px;
@@ -1154,7 +1301,7 @@ select {
   object-fit: cover;
   border-radius: 12px;
   margin: 8px 0 10px;
-  background: #641e7c;
+  background: #f4f4f6;
 }
 
 .home-photos {
@@ -1170,7 +1317,7 @@ select {
   height: 100%;
   object-fit: cover;
   border-radius: 10px;
-  background: #641e7c;
+  background: #f4f4f6;
 }
 
 .home-photos img:first-child {
@@ -1378,19 +1525,7 @@ pre {
 }
 
 .tabbar {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: min(6.9in, 100%);
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  background: #521a62;
-  backdrop-filter: blur(16px);
-  border-top: 1px solid var(--line);
-  padding: 10px max(6px, env(safe-area-inset-right)) calc(14px + var(--safe-b))
-    max(6px, env(safe-area-inset-left));
-  z-index: 15;
+  display: none;
 }
 
 .tab {
@@ -1424,7 +1559,7 @@ pre {
 
 .modal-card,
 .call-overlay {
-  background: #641e7c;
+  background: #f4f4f6;
   border: 1px solid var(--line);
   border-radius: 24px;
 }
@@ -1505,7 +1640,7 @@ pre {
   object-fit: cover;
   border-radius: 12px;
   margin: 8px 0;
-  background: #641e7c;
+  background: #f4f4f6;
 }
 
 .field input[type="checkbox"] {
@@ -1526,6 +1661,26 @@ pre {
   padding: 0 2px;
   font-size: 14px;
   cursor: pointer;
+}
+
+.yol-market .field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #000;
+}
+
+#yolSellerTypeRow,
+#yolSellerTypeRow .field,
+#yolSellerTypeRow .yol-type-label {
+  color: #000 !important;
+  -webkit-text-fill-color: #000;
+}
+
+.yol-market .field input[type="checkbox"],
+#yolSellerTypeRow .field input[type="radio"] {
+  width: auto;
+  margin: 0;
 }
 
 .nfc-identity {
@@ -2007,4 +2162,162 @@ body.clip-live-open .clip-live-flip {
 
 body.music-capture-block #musicStudio {
   filter: brightness(0);
+}
+
+.stats-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.stats-kpis .card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 32px;
+  color: var(--gold);
+}
+
+.stats-apps {
+  display: grid;
+  gap: 10px;
+}
+
+.stats-app {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--text-page);
+  border: 1px solid var(--line);
+}
+
+.stats-app header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.stats-app strong {
+  font-size: 15px;
+}
+
+.stats-app span {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.stats-bar {
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.stats-bar i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+
+.yol-market {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 4px;
+}
+
+.yol-market h2,
+.yol-market h3 {
+  margin: 0;
+  color: var(--text-page);
+}
+
+.yol-market .subhead {
+  margin: 8px 0 0;
+}
+
+.yol-market .card h3 {
+  color: var(--text-page);
+}
+
+.yol-market .card .hint.yol-hint-white {
+  color: var(--text-page);
+}
+
+body.yol-seller-account,
+body.yol-seller-account .hint,
+body.yol-seller-account .yol-hint-white,
+body.yol-seller-account .subhead,
+body.yol-seller-account .pw-toggle,
+body.yol-seller-account .field,
+body.yol-seller-account .yol-search-label,
+body.yol-seller-account .holiday-hit,
+body.yol-seller-account .holiday-hit .hint,
+body.yol-seller-account .price,
+body.yol-seller-account .card,
+body.yol-seller-account .card h3,
+body.yol-seller-account .site-nav button,
+body.yol-seller-account .brand-title h1,
+body.yol-seller-account .secondary,
+body.yol-seller-account input,
+body.yol-seller-account textarea,
+body.yol-seller-account select {
+  color: #000 !important;
+  -webkit-text-fill-color: #000;
+}
+
+body.yol-seller-account input::placeholder,
+body.yol-seller-account textarea::placeholder {
+  color: #000 !important;
+  -webkit-text-fill-color: #000;
+  opacity: 0.7;
+}
+
+.yol-market .card .secondary {
+  width: 100%;
+  margin: 0 0 10px;
+}
+
+.site-header #yolNavRegister,
+.site-header #yolLogoutTop {
+  background: #f4efe8;
+  color: var(--text-page);
+  width: auto;
+  margin: 0;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.site-header #yolNavRegister.gold {
+  background: #f97316;
+  color: #1a1404;
+}
+
+.yol-series-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+@media (min-width: 720px) {
+  .yol-series-row {
+    grid-template-columns: 1.2fr 0.7fr 0.8fr 0.9fr 0.7fr;
+  }
+}
+
+.yol-market .holiday-hit .gk-photo {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 14px;
+}
+
+.yol-market select {
+  width: 100%;
+  background: #fff;
+  color: var(--text-page);
+}
 }

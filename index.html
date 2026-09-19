@@ -8,12 +8,12 @@
     <meta name="color-scheme" content="light" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Harbi Grup" />
+    <meta name="apple-mobile-web-app-title" content="Harbi" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="application-name" content="Harbi Grup" />
+    <meta name="application-name" content="Harbi" />
     <meta name="format-detection" content="telephone=no" />
-    <meta name="description" content="Harbi Grup — Kamera, not defteri, NFC kontrol ve sanal santral" />
-    <title>Harbi Grup</title>
+    <meta name="description" content="Harbi — Pazar yeri" />
+    <title>Harbi</title>
     <link rel="canonical" href="https://www.tolkanugur.com/" />
     <meta property="og:url" content="https://www.tolkanugur.com/" />
     <script>
@@ -32,9 +32,9 @@
       })();
     </script>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon-192.png?v=89" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=89" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=89" />
+    <link rel="icon" href="icons/icon-192.png?v=248" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=248" />
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=248" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -48,6 +48,7 @@
       .brand-mark { width: 62px; height: 62px; border-radius: 16px; object-fit: cover; }
       .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       .tile-row-3 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+      .tile-row-2 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr; gap: 8px; }
       .tile {
         display: flex;
         flex-direction: column;
@@ -62,130 +63,180 @@
         border-radius: 16px;
         background: #6b2288;
       }
-      .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
+      .tabbar { display: none; }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=192" />
+    <link rel="stylesheet" href="css/app.css?v=251" />
   </head>
   <body>
     <div class="app">
-      <header class="topbar">
+      <header class="site-header">
         <div class="brand">
-          <img src="icons/icon-192.png?v=89" alt="HG" class="brand-mark" />
+          <img src="icons/icon-192.png?v=248" alt="Harbi" class="brand-mark" />
           <div class="brand-title">
-            <h1>Harbi Grup</h1>
-            <span class="recycle-mark" title="Geri dönüşüm" aria-hidden="true">♻</span>
+            <h1>Harbi</h1>
           </div>
         </div>
-        <button class="install-home-btn" id="installBtn" type="button">Telefonun Ana Ekranına Ekle</button>
+        <nav class="site-nav" aria-label="Site menüsü">
+          <button type="button" data-go="home">Ana sayfa</button>
+          <button type="button" data-go="nfc">NFC Kontrol</button>
+          <button type="button" id="yolNavPartner">İş Ortaklığı</button>
+          <button type="button" id="yolNavSell" hidden>Ürün yükle</button>
+        </nav>
+        <button type="button" class="gold" id="yolNavRegister">Üye ol / Giriş yap</button>
+        <button type="button" class="secondary" id="yolLogoutTop" hidden>Çıkış yap</button>
       </header>
+      <section class="yol-search" aria-label="Ürün Arama">
+        <form id="yolProductSearch" class="yol-search-form">
+          <label class="yol-search-label" for="yolProductQuery">Ürün Arama</label>
+          <div class="yol-search-row">
+            <input id="yolProductQuery" type="search" placeholder="Ürün ara" maxlength="80" autocomplete="off" />
+            <button class="primary" type="submit">Ara</button>
+          </div>
+        </form>
+        <div class="yol-search-results" id="yolSearchResults" hidden></div>
+      </section>
 
       <main id="views">
         <section class="view active" data-view="home">
           <div class="grid">
-            <div class="tile-row-3">
-              <button class="tile" data-go="camera" type="button">
-                <span class="tile-icon">📷</span>
-                <strong>Kamera</strong>
-                <span>Fotoğraf çek, arşivle</span>
-              </button>
-              <button class="tile" data-go="women" type="button">
-                <span class="tile-icon">💪</span>
-                <strong>Güçlü Kadınların ürünleri</strong>
-                <span>Üye ol, sat</span>
-              </button>
-              <button class="tile" data-go="nfc" type="button">
-                <span class="tile-icon">📡</span>
-                <strong>NFC Kontrol</strong>
-                <span>Etiket oku / yaz</span>
-              </button>
-            </div>
-            <div class="tile-row-3">
-              <button class="tile" data-go="music" type="button">
-                <span class="tile-icon">🎵</span>
-                <strong>Müzik Veya Şarkı Yap</strong>
-                <span>Beste ve söz</span>
-              </button>
-              <button class="tile" data-go="aiclip" type="button">
-                <span class="tile-icon">🎬</span>
-                <strong>Yapay Zeka İle Klip Yap</strong>
-                <span>Görüntü ve söz</span>
-              </button>
-              <button class="tile" data-go="eimza" type="button">
-                <span class="tile-icon">🔏</span>
-                <strong>E-İmza & Mali Mühür</strong>
-                <span>Sertifika başvurusu</span>
-              </button>
-            </div>
-            <div class="tile-row-3">
-              <button class="tile" data-go="notes" type="button">
-                <span class="tile-icon">🗒</span>
-                <strong>Not Defteri</strong>
-                <span>Saha notları</span>
-              </button>
-              <button class="tile" data-go="hygiene" type="button">
-                <span class="tile-icon">🧴</span>
-                <strong>Hijyen Deryası</strong>
-                <span>Ürün ve fiyat</span>
-              </button>
-              <a class="tile" href="https://www.harbiyemek7.com" rel="noopener noreferrer">
-                <span class="tile-icon">🍽</span>
-                <strong>Harbi Yemek 7</strong>
-              </a>
-            </div>
-            <div class="tile-row-3">
-              <button class="tile" data-go="flights" type="button">
-                <span class="tile-icon">✈</span>
-                <strong>Uçak Bileti</strong>
-                <span>Rezervasyon</span>
-              </button>
-              <button class="tile" data-go="holiday" type="button">
-                <span class="tile-icon">🏖</span>
-                <strong>Tatil Rezervasyonu</strong>
-                <span>Otel ve tur</span>
-              </button>
-              <button class="tile" data-go="cars" type="button">
-                <span class="tile-icon">🚗</span>
-                <strong>Oto Kiralama</strong>
-                <span>Araç ve fiyat</span>
-              </button>
-            </div>
-            <div class="tile-row-3">
-              <button class="tile" data-go="homes" type="button">
-                <span class="tile-icon">🏠</span>
-                <strong>Satılık ve Kiralık Ev</strong>
-                <span>Adresle ara</span>
-              </button>
-              <button class="tile" data-go="bikes" type="button">
-                <span class="tile-icon">🏍</span>
-                <strong>Motorsiklet Kiralama</strong>
-                <span>Motor ve fiyat</span>
+            <section class="yol-market">
+              <div id="yolAuthPanel" class="yol-auth yol-auth-one" hidden>
+              <article class="card" id="yolLoginCard" hidden>
+                <h3>Giriş yap</h3>
+                <p class="hint">Ticari, bireysel ve müşteri üyeleri mail adresi ve şifre ile girer.</p>
+                <form id="yolLogin" class="note-form">
+                  <input id="yolLoginUser" type="email" placeholder="Mail adresi" required maxlength="120" autocomplete="email" />
+                  <input id="yolLoginPin" type="password" placeholder="Şifre" required minlength="4" />
+                  <button class="pw-toggle" id="yolLoginShowPin" type="button" aria-pressed="false">Şifreyi göster</button>
+                  <label class="field"><input type="checkbox" id="yolLoginRemember" checked /> Beni hatırla</label>
+                  <p class="hint" id="yolLoginMsg"></p>
+                  <button class="primary" type="submit" id="yolLoginSubmit">Giriş yap</button>
+                  <button class="pw-toggle" id="yolShowRegister" type="button">Üye ol</button>
+                </form>
+              </article>
+              <article class="card" id="yolRegisterCard">
+                <h3>Üye ol</h3>
+                <p class="hint">Önce ticari faaliyet veya bireysel satış üyeliği açın. Aynı telefon veya aynı mail ile ikinci üyelik açılamaz.</p>
+                <div class="yol-partners">
+              <article class="card">
+                <h3>Ticari üyelik</h3>
+                <p class="hint yol-hint-white">İsim, soy isim, telefon, adres, mail ve vergi kimlik no zorunludur. İmza sirküsü, vergi levhası ve ikametgah yükleyin.</p>
+                <p class="hint yol-hint-white">Demo: Ahmet Ticari · demo.ticari@harbiyol.test · şifre 1234</p>
+                <button class="secondary" id="yolDemoTicari" type="button">Demo ticari ile gir</button>
+                <form id="yolTicari" class="note-form">
+                  <input id="yolTicariFirst" placeholder="İsim" required maxlength="40" />
+                  <input id="yolTicariLast" placeholder="Soy isim" required maxlength="40" />
+                  <input id="yolTicariPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                  <textarea id="yolTicariAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                  <input id="yolTicariMail" type="email" placeholder="Mail" required maxlength="120" />
+                  <input id="yolTicariVkn" inputmode="numeric" placeholder="Vergi kimlik no" required maxlength="10" />
+                  <label class="field">İmza Sirküsü yükle
+                    <input id="yolTicariImza" type="file" accept="image/*,.pdf" required />
+                  </label>
+                  <label class="field">Vergi Levhası yükle
+                    <input id="yolTicariVergiLevha" type="file" accept="image/*,.pdf" required />
+                  </label>
+                  <label class="field">İkametgah Yükle
+                    <input id="yolTicariIkamet" type="file" accept="image/*,.pdf" required />
+                  </label>
+                  <input id="yolTicariPin" type="password" placeholder="Şifre" required minlength="4" />
+                  <p class="hint" id="yolTicariMsg"></p>
+                  <button class="gold" type="submit">Ticari üye ol</button>
+                </form>
+              </article>
+              <article class="card">
+                <h3>Bireysel üyelik</h3>
+                <p class="hint yol-hint-white">İsim, soy isim, telefon, mail, adres ve şifre zorunludur. Bireysel satış yalnızca tekli ürün ekler.</p>
+                <p class="hint yol-hint-white">Demo: Elif Bireysel · demo.bireysel@harbiyol.test · şifre 1234</p>
+                <button class="secondary" id="yolDemoBireysel" type="button">Demo bireysel ile gir</button>
+                <form id="yolBireysel" class="note-form">
+                  <input id="yolBireyselFirst" placeholder="İsim" required maxlength="40" />
+                  <input id="yolBireyselLast" placeholder="Soy isim" required maxlength="40" />
+                  <input id="yolBireyselPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                  <input id="yolBireyselMail" type="email" placeholder="Mail" required maxlength="120" />
+                  <textarea id="yolBireyselAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                  <input id="yolBireyselPin" type="password" placeholder="Şifre" required minlength="4" />
+                  <p class="hint" id="yolBireyselMsg"></p>
+                  <button class="gold" type="submit">Bireysel üye ol</button>
+                </form>
+              </article>
+                </div>
+                <h3>Müşteri üye ol</h3>
+                <p class="hint">Alışveriş için isim, soy isim, telefon, mail ve adres zorunludur.</p>
+                <form id="yolRegister" class="note-form">
+                  <input id="yolRegFirst" placeholder="İsim" required maxlength="40" />
+                  <input id="yolRegLast" placeholder="Soy isim" required maxlength="40" />
+                  <input id="yolRegPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                  <input id="yolRegMail" type="email" placeholder="Mail" required maxlength="120" />
+                  <textarea id="yolRegAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                  <input id="yolRegPin" type="password" placeholder="Şifre" required minlength="4" />
+                  <p class="hint" id="yolRegMsg"></p>
+                  <button class="gold" type="submit">Kod gönder</button>
+                  <button class="pw-toggle" id="yolShowLogin" type="button">Zaten üyeyim, giriş yap</button>
+                </form>
+                <form id="yolOtp" class="note-form" hidden>
+                  <p class="hint" id="yolOtpHint">Numaranıza 6 haneli kod gönderildi. Kodu yazın, doğruysa numara onaylanır.</p>
+                  <input id="yolOtpCode" inputmode="numeric" placeholder="6 haneli kod" required maxlength="6" />
+                  <p class="hint" id="yolOtpMsg"></p>
+                  <button class="gold" type="submit">Onayla</button>
+                  <button class="secondary" id="yolOtpResend" type="button">Kodu yeniden gönder</button>
+                  <button class="pw-toggle" id="yolOtpBack" type="button">Geri</button>
+                </form>
+              </article>
+              </div>
+
+              <div id="yolPartnerPanel" hidden></div>
+              <section id="yolMarketBoard">
+                <h2 class="subhead" id="yolMarketTitle">Pazar yeri</h2>
+                <p class="hint" id="yolMarketHint">Çoklu satıcı pazarı. Satıcılar ürün yükler, müşteriler alışveriş yapar.</p>
+                <div class="holiday-results" id="yolMarketList"></div>
+              </section>
+            </section>
+            <div class="tile-row-3 owner-app-row">
+              <button class="tile owner-app" data-go="stats" type="button">
+                <span class="tile-icon">📊</span>
+                <strong>Ziyaretçiler</strong>
+                <span>Aylık giriş ve uygulamalar</span>
               </button>
             </div>
           </div>
-          <article class="card install-card" id="installCard">
-            <h2>Telefonuna Uygulamayı Kısayol İndirmek İçin Alt Kısımdaki Adımları Uygula</h2>
-            <p id="installHint">
-              Uygulamayı ana ekrana ekleyince tam ekran açılır, tarayıcı çubuğu kaybolur.
-            </p>
-            <div class="phone-guides">
-              <div>
-                <strong>iPhone</strong>
-                <ol class="steps" id="iosSteps">
-                  <li>Safari ile açın (Chrome değil)</li>
-                  <li>Paylaş → <strong>Ana Ekrana Ekle</strong></li>
-                  <li>Ekle’ye basın</li>
-                </ol>
-              </div>
-              <div>
-                <strong>Android</strong>
-                <ol class="steps" id="androidSteps">
-                  <li>Chrome ile açın</li>
-                  <li>Sağ üst ⋮ menü</li>
-                  <li><strong>Uygulamayı yükle</strong> veya Ana ekrana ekle</li>
-                </ol>
-              </div>
-            </div>
-          </article>
+        </section>
+
+        <section class="view" data-view="sell" hidden>
+          <section class="yol-market">
+            <article class="card" id="yolSellNeedAuth" hidden>
+              <h3>Ürün yükle</h3>
+              <p class="hint yol-hint-white">Ürün yüklemek için satıcı girişi yapın.</p>
+              <button class="gold" id="yolSellGoAuth" type="button">Üye ol / Giriş yap</button>
+            </article>
+            <article class="card" id="yolSellerCard" hidden>
+              <h3>Ürün yükle</h3>
+              <p class="hint" id="yolSellerHint"></p>
+              <form id="yolSellerForm" class="note-form">
+                <div id="yolSellerTypeRow" class="row">
+                  <label class="field yol-type-label"><input type="radio" name="yolListType" value="single" checked /> Tekli ürün</label>
+                  <label class="field yol-type-label"><input type="radio" name="yolListType" value="series" /> Ürün serisi</label>
+                </div>
+                <div id="yolSingleBox">
+                  <input id="yolProdName" placeholder="Ürün adı" maxlength="80" />
+                  <input id="yolProdPrice" inputmode="decimal" placeholder="Fiyat ₺" />
+                </div>
+                <div id="yolSeriesBox" hidden>
+                  <input id="yolSeriesName" placeholder="Seri adı" maxlength="80" />
+                  <p class="hint yol-hint-white">Her varyant için beden, renk ve cinsiyet yazın.</p>
+                  <div id="yolSeriesRows"></div>
+                  <button class="pw-toggle" id="yolSeriesAddRow" type="button">Varyant ekle</button>
+                </div>
+                <label class="field">Ürün fotoğrafı
+                  <input id="yolProdPhoto" type="file" accept="image/*" />
+                </label>
+                <textarea id="yolProdDesc" placeholder="Açıklama (isteğe bağlı)" maxlength="240" rows="2"></textarea>
+                <p class="hint" id="yolSellerMsg"></p>
+                <button class="gold" type="submit">Ürünü satışa koy</button>
+              </form>
+              <div class="holiday-results" id="yolMyProducts"></div>
+            </article>
+          </section>
         </section>
 
         <section class="view" data-view="camera" hidden>
@@ -599,7 +650,7 @@
         </section>
 
         <section class="view" data-view="women" hidden>
-          <h2>Güçlü Kadınların ürünleri</h2>
+          <h2>Ürünler</h2>
           <p class="hint">Üye olun, ürün ekleyin, satış yapın. Alıcılar yalnızca vitrini ve ödemeyi görür.</p>
           <div class="row" id="gkNav">
             <button class="secondary" type="button" data-gk-tab="shop">Vitrin</button>
@@ -1404,14 +1455,14 @@
           </div>
         </section>
       </main>
+      <footer class="site-footer">
+        <p>© 2026 Harbi pazar yeri</p>
+      </footer>
+      <button class="install-home-btn" id="installBtn" type="button" hidden>Kısayol</button>
+      <p id="installHint" hidden></p>
 
       <nav class="tabbar">
         <button class="tab active" data-go="home" type="button">Ana</button>
-        <button class="tab" data-go="camera" type="button">Kamera</button>
-        <button class="tab" data-go="notes" type="button">Not</button>
-        <button class="tab" data-go="nfc" type="button">NFC</button>
-        <button class="tab" data-go="pbx" type="button">Santral</button>
-        <button class="tab" data-go="hygiene" type="button">Hijyen</button>
       </nav>
     </div>
     <div class="nfc-identity" id="nfcIdentity" hidden>
@@ -1474,6 +1525,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=192"></script>
+    <script src="js/app.js?v=251"></script>
   </body>
 </html>

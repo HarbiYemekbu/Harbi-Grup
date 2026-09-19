@@ -8,4 +8,11 @@ pages_build_output_dir = "."
 # Müzik e-fatura: TRENDYOL_SELLER_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET
 # Fatura e-posta: RESEND_API_KEY, MUSIC_MAIL_FROM
 # İsteğe bağlı: MUSIC_INVOICE_SECRET, TRENDYOL_BASE_URL
-# Anahtarları koda veya sohbete yazmayın.
+# SMS doğrulama (kayıt): NETGSM_USER, NETGSM_PASS, NETGSM_HEADER
+# veya TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM
+# İsteğe bağlı: OTP_SECRET
+
+# Aylık ziyaretçi sayımı (Pages KV)
+[[kv_namespaces]]
+binding = "HARBI_STATS"
+id = "a0edd68b493e44918bc30576976cd5ed"

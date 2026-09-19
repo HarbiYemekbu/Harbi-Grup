@@ -11,6 +11,7 @@ import socket
 import threading
 import time
 import urllib.parse
+import urllib.request
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -24,7 +25,93 @@ _rtc_lock = threading.Lock()
 _rtc_presence = {}
 _rtc_inbox = {}
 _RTC_TTL = 18
-_INVOICE_SECRET = os.environ.get("MUSIC_INVOICE_SECRET") or os.environ.get("TRENDYOL_API_SECRET") or "x"
+_otp_lock = threading.Lock()
+_otp_store = {}
+
+
+def _gsm(raw: str) -> str:
+    d = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    if d.startswith("90") and len(d) >= 12:
+        d = d[2:]
+    if d.startswith("0") and len(d) >= 11:
+        d = d[1:]
+    return d
+
+
+def _otp_hash(gsm: str, code: str) -> str:
+    secret = os.environ.get("OTP_SECRET") or os.environ.get("MUSIC_INVOICE_SECRET") or "harbi-otp"
+    return hashlib.sha256(f"harbi-otp:{secret}:{gsm}:{code}".encode("utf-8")).hexdigest()
+
+
+def _otp_send_sms(gsm: str, code: str) -> str:
+    user = (os.environ.get("NETGSM_USER") or "").strip()
+    password = (os.environ.get("NETGSM_PASS") or "").strip()
+    header = (os.environ.get("NETGSM_HEADER") or "").strip()
+    text = f"Harbi Yol dogrulama kodu: {code}"
+    if user and password and header:
+        qs = urllib.parse.urlencode(
+            {
+                "usercode": user,
+                "password": password,
+                "gsmno": "90" + gsm,
+                "message": text,
+                "msgheader": header,
+            }
+        )
+        with urllib.request.urlopen("https://api.netgsm.com.tr/sms/send/get/?" + qs, timeout=20) as res:
+            body = res.read().decode("utf-8", "ignore").strip()
+        if not body.startswith("00"):
+            raise RuntimeError("sms")
+        return "netgsm"
+    return ""
+
+
+def _phone_otp(body: dict) -> tuple[int, dict]:
+    action = str(body.get("action") or "send")
+    gsm = _gsm(body.get("phone"))
+    if len(gsm) != 10 or not gsm.startswith("5"):
+        return 400, {"ok": False, "error": "Geçerli bir cep telefonu yazın."}
+    now = time.time()
+    with _otp_lock:
+        row = _otp_store.get(gsm)
+        if action == "check":
+            code = "".join(ch for ch in str(body.get("code") or "") if ch.isdigit())
+            if len(code) != 6:
+                return 400, {"ok": False, "error": "6 haneli kodu yazın."}
+            if not row or float(row.get("exp") or 0) < now:
+                _otp_store.pop(gsm, None)
+                return 400, {"ok": False, "error": "Kod süresi doldu. Yeni kod isteyin."}
+            tries = int(row.get("tries") or 0) + 1
+            if tries > 5:
+                _otp_store.pop(gsm, None)
+                return 400, {"ok": False, "error": "Çok fazla deneme. Yeni kod isteyin."}
+            if _otp_hash(gsm, code) != row.get("hash"):
+                row["tries"] = tries
+                return 400, {"ok": False, "error": "Kod hatalı."}
+            _otp_store.pop(gsm, None)
+            return 200, {"ok": True, "verified": True, "phone": gsm}
+        if row and now - float(row.get("sentAt") or 0) < 60:
+            return 429, {"ok": False, "error": "Yeni kod için bir dakika bekleyin."}
+        sends = [t for t in ((row or {}).get("sends") or []) if now - t < 3600]
+        if len(sends) >= 5:
+            return 429, {"ok": False, "error": "Bu numaraya çok kod gönderildi. Daha sonra deneyin."}
+        code = f"{int.from_bytes(os.urandom(3), 'big') % 1000000:06d}"
+        via = ""
+        try:
+            via = _otp_send_sms(gsm, code)
+        except Exception:
+            return 502, {"ok": False, "error": "SMS gönderilemedi. Daha sonra deneyin."}
+        _otp_store[gsm] = {
+            "hash": _otp_hash(gsm, code),
+            "exp": now + 300,
+            "tries": 0,
+            "sentAt": now,
+            "sends": sends + [now],
+        }
+    out = {"ok": True, "sent": True, "phone": gsm}
+    if not via:
+        out["devCode"] = code
+    return 200, out
 _invoices = {}
 _invoice_lock = threading.Lock()
 
@@ -277,6 +364,10 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/music-invoice-check":
             code, payload = _music_invoice_check(body)
+            self._json(code, payload)
+            return
+        if path == "/phone-otp":
+            code, payload = _phone_otp(body)
             self._json(code, payload)
             return
         if path != "/pbx-rtc":

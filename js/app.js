@@ -47,7 +47,7 @@ function resumeSaveFields() {
     state.fields = {};
     $$("#views input, #views textarea, #views select").forEach((el) => {
       if (!el.id || el.type === "password" || el.type === "file") return;
-      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey" || el.id === "eimzaCardNumber" || el.id === "eimzaCardCvc" || el.id === "eimzaHavaleIban" || el.id === "ownerPin") return;
+      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey" || el.id === "eimzaCardNumber" || el.id === "eimzaCardCvc" || el.id === "eimzaHavaleIban" || el.id === "ownerPin" || el.id === "yolLoginPin" || el.id === "yolRegPin") return;
       state.fields[el.id] = el.type === "checkbox" ? el.checked : el.value;
     });
     if ($("#nfcResult")) state.nfcResult = $("#nfcResult").textContent || "";
@@ -136,7 +136,7 @@ const views = $$(".view");
 const tabs = $$(".tab");
 
 views.forEach((view) => {
-  if (view.dataset.view === "home" || view.dataset.view === "camera") return;
+  if (view.dataset.view === "home" || view.dataset.view === "camera" || view.dataset.view === "sell") return;
   const btn = document.createElement("button");
   btn.className = "secondary home-back";
   btn.type = "button";
@@ -154,6 +154,9 @@ function syncOwnerApps() {
 }
 
 function showView(name) {
+  const allowed = new Set(["home", "nfc", "stats", "sell"]);
+  if (!allowed.has(name)) name = "home";
+  if (name === "stats" && !ownerAppsOn()) name = "home";
   const prev = resumeActiveView();
   if (prev && prev !== name) resumeSaveScroll(prev);
   views.forEach((view) => {
@@ -172,20 +175,210 @@ function showView(name) {
   }
   if (name === "music") musicBeginTrial();
   if (name === "aiclip") clipBeginTrial();
-  if (name === "women") renderGk();
   if (name === "pos") renderPos();
   if (name === "eimza") renderEimza();
   if (name === "music") renderMusic();
   if (name === "aiclip") renderAiClip();
   if (name === "nfc") startNfcScan();
   else nfcSleepAudio();
+  if (name === "stats") renderSiteStats();
+  if (name === "sell") renderYolSeller();
+  if (name === "home") renderYolMarket();
+  yolSyncSearch();
+  trackSiteApp(name);
   resumeSaveView(name);
   resumeRestoreScroll(name);
 }
 
 $$("[data-go]").forEach((el) => {
-  el.addEventListener("click", () => showView(el.dataset.go));
+  el.addEventListener("click", () => {
+    if (el.dataset.go === "home") {
+      if ($("#yolAuthPanel")) $("#yolAuthPanel").hidden = true;
+      yolShowPartner(false);
+      renderYolSeller();
+      renderYolMarket();
+    }
+    showView(el.dataset.go);
+  });
 });
+
+const SITE_APP_LABELS = {
+  home: "Ana sayfa",
+  sell: "Ürün yükle",
+  camera: "Kamera",
+  nfc: "NFC Kontrol",
+  music: "Müzik Veya Şarkı Yap",
+  aiclip: "Yapay Zeka İle Klip Yap",
+  eimza: "E-İmza & Mali Mühür",
+  notes: "Not Defteri",
+  hygiene: "Hijyen Deryası",
+  harbiyemek: "Harbi Yemek 7",
+  flights: "Uçak Bileti",
+  holiday: "Tatil Rezervasyonu",
+  cars: "Oto Kiralama",
+  homes: "Satılık ve Kiralık Ev",
+  bikes: "Motorsiklet Kiralama",
+  pbx: "Sanal Santral",
+  pos: "Sanal POS",
+};
+
+const SITE_STATS_KEY = "harbi-site-stats";
+let siteTrackAt = {};
+
+function siteMonthKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+  return `${parts.find((p) => p.type === "year")?.value}-${parts.find((p) => p.type === "month")?.value}`;
+}
+
+function siteMonthTitle(key) {
+  const [year, month] = String(key || "").split("-");
+  const names = ["", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+  return names[Number(month)] ? `${names[Number(month)]} ${year}` : key;
+}
+
+function siteVisitorId() {
+  let id = store.get("harbi-vid", "");
+  if (!id) {
+    id = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    store.set("harbi-vid", id);
+  }
+  return id;
+}
+
+function siteEmptyMonth() {
+  return { visits: 0, unique: 0, apps: {}, ids: {} };
+}
+
+function siteLocalAll() {
+  return store.get(SITE_STATS_KEY, {});
+}
+
+function siteApplyLocal(app) {
+  const month = siteMonthKey();
+  const all = siteLocalAll();
+  const row = all[month] || siteEmptyMonth();
+  const visitor = siteVisitorId();
+  const known = row.ids[visitor];
+  if (!known) {
+    row.unique += 1;
+    row.ids[visitor] = app;
+  } else if (!String(known).split(",").includes(app)) {
+    row.ids[visitor] = `${known},${app}`;
+  }
+  row.visits += 1;
+  const used = row.apps[app] || { visits: 0, unique: 0 };
+  used.visits += 1;
+  if (!String(known || "").split(",").filter(Boolean).includes(app)) used.unique += 1;
+  row.apps[app] = used;
+  all[month] = row;
+  store.set(SITE_STATS_KEY, all);
+}
+
+function sitePublicMonth(row, key) {
+  const apps = Object.entries(row?.apps || {})
+    .map(([id, item]) => ({
+      id,
+      name: SITE_APP_LABELS[id] || id,
+      visits: Number(item.visits) || 0,
+      unique: Number(item.unique) || 0,
+    }))
+    .sort((a, b) => b.visits - a.visits || b.unique - a.unique);
+  return {
+    month: key,
+    title: siteMonthTitle(key),
+    visits: Number(row?.visits) || 0,
+    unique: Number(row?.unique) || 0,
+    apps,
+  };
+}
+
+function trackSiteApp(name) {
+  const app = SITE_APP_LABELS[name] ? name : "";
+  if (!app) return;
+  const now = Date.now();
+  if (now - (siteTrackAt[app] || 0) < 20000) return;
+  siteTrackAt[app] = now;
+  siteApplyLocal(app);
+  fetch("/site-stats", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app, vid: siteVisitorId() }),
+  }).catch(() => {});
+}
+
+function sitePaint(data, live) {
+  const month = data?.month || sitePublicMonth(siteEmptyMonth(), siteMonthKey());
+  const months = data?.months?.length ? data.months : [month];
+  const hint = $("#statsHint");
+  const unique = $("#statsUnique");
+  const visits = $("#statsVisits");
+  const appsEl = $("#statsApps");
+  const monthsEl = $("#statsMonths");
+  const select = $("#statsMonth");
+  if (hint) {
+    hint.textContent = live
+      ? `${month.title} ayında siteye giren kişi sayısı ve kullandıkları uygulamalar.`
+      : "Yerel sayım. Yayın sonrası tüm ziyaretçiler bu ekranda toplanır.";
+  }
+  if (unique) unique.textContent = String(month.unique || 0);
+  if (visits) visits.textContent = String(month.visits || 0);
+  const max = Math.max(1, ...month.apps.map((item) => item.visits));
+  if (appsEl) {
+    appsEl.innerHTML =
+      month.apps
+        .map(
+          (item) =>
+            `<article class="stats-app"><header><strong>${escapeHtml(item.name)}</strong><span>${item.unique} kişi · ${item.visits} açılış</span></header><div class="stats-bar"><i style="width:${Math.max(8, Math.round((item.visits / max) * 100))}%"></i></div></article>`
+        )
+        .join("") || "<p class='hint'>Bu ay henüz uygulama kullanımı yok.</p>";
+  }
+  if (monthsEl) {
+    monthsEl.innerHTML = months
+      .map(
+        (item) =>
+          `<article class="note"><strong>${escapeHtml(item.title)}</strong><p>${item.unique} kişi · ${item.visits} açılış</p></article>`
+      )
+      .join("");
+  }
+  if (select && !select.dataset.ready) {
+    select.innerHTML = months
+      .map((item) => `<option value="${escapeHtml(item.month)}">${escapeHtml(item.title)}</option>`)
+      .join("");
+    select.dataset.ready = "1";
+    select.addEventListener("change", () => renderSiteStats(select.value));
+  }
+  if (select && month.month) select.value = month.month;
+}
+
+async function renderSiteStats(month) {
+  if (!ownerAppsOn()) {
+    sitePaint({ month: sitePublicMonth(siteEmptyMonth(), siteMonthKey()), months: [] }, false);
+    return;
+  }
+  const local = siteLocalAll();
+  const keys = Object.keys(local).sort().reverse();
+  const localMonths = (keys.length ? keys : [siteMonthKey()]).map((key) => sitePublicMonth(local[key] || siteEmptyMonth(), key));
+  const want = month || $("#statsMonth")?.value || siteMonthKey();
+  sitePaint(
+    {
+      month: localMonths.find((item) => item.month === want) || localMonths[0],
+      months: localMonths,
+    },
+    false
+  );
+  try {
+    const res = await fetch(`/site-stats?month=${encodeURIComponent(want)}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data?.ready && data.month) sitePaint(data, true);
+  } catch {
+    /* yerel sayım yeter */
+  }
+}
 
 const isIOS =
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
@@ -208,16 +401,18 @@ const isIOSSafari =
   isIOS && /safari/i.test(ua) && !/crios|fxios|edgios|opios|opt\//i.test(ua);
 
 if (isStandalone) {
-  installBtn.hidden = true;
-  $("#installCard").hidden = true;
-} else if (isIOS) {
-  installHint.textContent = isIOSSafari
-    ? "Safari’de Paylaş > Ana Ekrana Ekle ile telefona kısayol iner."
-    : "iPhone ve iPad’de kısayol için bu sayfayı Safari ile açın.";
-} else if (isAndroid) {
-  installHint.textContent = "Düğmeye basın. Telefon izin verirse ana ekrana ekleme penceresi açılır.";
-} else {
-  installHint.textContent = "Düğmeye basın. Destekleyen tarayıcıda uygulama olarak eklenir.";
+  if (installBtn) installBtn.hidden = true;
+  if ($("#installCard")) $("#installCard").hidden = true;
+} else if (installHint) {
+  if (isIOS) {
+    installHint.textContent = isIOSSafari
+      ? "Safari’de Paylaş > Ana Ekrana Ekle ile telefona kısayol iner."
+      : "iPhone ve iPad’de kısayol için bu sayfayı Safari ile açın.";
+  } else if (isAndroid) {
+    installHint.textContent = "Düğmeye basın. Telefon izin verirse ana ekrana ekleme penceresi açılır.";
+  } else {
+    installHint.textContent = "Düğmeye basın. Destekleyen tarayıcıda uygulama olarak eklenir.";
+  }
 }
 
 function installKind() {
@@ -241,7 +436,7 @@ function installGuide(kind) {
       steps: [
         "Alttaki Paylaş simgesine basın (kare ve yukarı ok).",
         "Aşağı kaydırıp Ana Ekrana Ekle’ye basın.",
-        "Sağ üstte Ekle’ye basın. İkon telefonda Harbi Grup olarak durur.",
+        "Sağ üstte Ekle’ye basın. İkon telefonda Harbi Yol olarak durur.",
       ],
     },
     "ios-other": {
@@ -256,7 +451,7 @@ function installGuide(kind) {
       title: "Samsung Internet ana ekrana ekler.",
       steps: [
         "Alttaki menüden Sayfa ekle veya Ana ekrana ekle’ye basın.",
-        "Harbi Grup adını onaylayın.",
+        "Harbi Yol adını onaylayın.",
         "Ekle deyince ikon ana ekranda görünür.",
       ],
     },
@@ -264,7 +459,7 @@ function installGuide(kind) {
       title: "Huawei tarayıcısında ana ekrana ekleyin.",
       steps: [
         "Menüden Ana ekrana ekle veya Kısayol oluştur’u seçin.",
-        "Adı Harbi Grup bırakın.",
+        "Adı Harbi Yol bırakın.",
         "Ekle’ye basın.",
       ],
     },
@@ -302,7 +497,7 @@ function installGuide(kind) {
     },
     "desktop-chrome": {
       title: "Chrome adres çubuğundaki yükle simgesine basın veya menüden yükleyin.",
-      steps: ["⋮ menü > Uygulamayı yükle / Harbi Grup’u yükle.", "Yükle’ye basın."],
+      steps: ["⋮ menü > Uygulamayı yükle / Harbi Yol’u yükle.", "Yükle’ye basın."],
     },
     generic: {
       title: "Tarayıcı menüsünden Ana ekrana ekle veya Uygulamayı yükle’yi seçin.",
@@ -335,7 +530,7 @@ async function promptInstall() {
     const choice = await deferredPrompt.userChoice;
     deferredPrompt = null;
     modal.hidden = true;
-    if (choice?.outcome === "accepted") installBtn.hidden = true;
+  if (installBtn) installBtn.hidden = true;
     return true;
   } catch {
     deferredPrompt = null;
@@ -346,32 +541,30 @@ async function promptInstall() {
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   deferredPrompt = event;
-  installBtn.hidden = false;
-  if (confirmInstall) confirmInstall.hidden = false;
 });
 
 window.addEventListener("appinstalled", () => {
   deferredPrompt = null;
-  installBtn.hidden = true;
-  modal.hidden = true;
+  if (installBtn) installBtn.hidden = true;
+  if (modal) modal.hidden = true;
   if ($("#installCard")) $("#installCard").hidden = true;
 });
 
 async function openInstall() {
   if (isStandalone) {
-    installBtn.hidden = true;
+    if (installBtn) installBtn.hidden = true;
     return;
   }
   if (await promptInstall()) return;
   showInstallGuide();
 }
 
-installBtn.addEventListener("click", openInstall);
-$("#closeInstall").addEventListener("click", () => {
-  modal.hidden = true;
+installBtn?.addEventListener("click", openInstall);
+$("#closeInstall")?.addEventListener("click", () => {
+  if (modal) modal.hidden = true;
 });
 
-confirmInstall.addEventListener("click", async () => {
+confirmInstall?.addEventListener("click", async () => {
   if (!(await promptInstall())) showInstallGuide();
 });
 
@@ -9046,6 +9239,1027 @@ $("#ownerForm")?.addEventListener("submit", (event) => {
   $("#ownerPin").value = "";
   if ($("#ownerModal")) $("#ownerModal").hidden = true;
   syncOwnerApps();
+  renderSiteStats();
+});
+
+const YOL_MEMBERS = "yol-members";
+const YOL_SESSION = "yol-session";
+const YOL_PARTNERS = "yol-partners";
+const YOL_PRODUCTS = "yol-products";
+const YOL_SELLER = "yol-seller";
+const YOL_LAST = "yol-last";
+const YOL_SITE = "yol-site";
+
+function yolPhone(value) {
+  return String(value || "").replace(/\s+/g, "");
+}
+
+function yolMail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function yolMembers() {
+  return store.get(YOL_MEMBERS, []);
+}
+
+function yolDemoList() {
+  return [
+    {
+      demoId: "demo-ticari",
+      kind: "ticari",
+      role: "satici",
+      first: "Ahmet",
+      last: "Ticari",
+      phone: "5550000101",
+      mail: "demo.ticari@harbiyol.test",
+      pin: "1234",
+      address: "Organize Sanayi, Kayseri",
+      tc: "12345678901",
+      vkn: "1234567890",
+    },
+    {
+      demoId: "demo-bireysel",
+      kind: "bireysel",
+      role: "satici",
+      first: "Elif",
+      last: "Bireysel",
+      phone: "5550000202",
+      mail: "demo.bireysel@harbiyol.test",
+      pin: "1234",
+      address: "Alsancak, İzmir",
+    },
+    {
+      demoId: "demo-musteri",
+      kind: "musteri",
+      role: "musteri",
+      first: "Ayşe",
+      last: "Müşteri",
+      phone: "5550000303",
+      mail: "demo.musteri@harbiyol.test",
+      pin: "1234",
+      address: "Kadıköy, İstanbul",
+    },
+  ];
+}
+
+function yolSite() {
+  const cur = store.get(YOL_SITE, {}) || {};
+  return {
+    marketTitle: cur.marketTitle || "Pazar yeri",
+    marketHint: cur.marketHint || "Çoklu satıcı pazarı. Satıcılar ürün yükler, müşteriler alışveriş yapar.",
+  };
+}
+
+function yolRole(member) {
+  if (!member) return "";
+  if (member.role === "satici") return "satici";
+  if (member.role === "musteri") return "musteri";
+  if (yolPartnerKindFor(member.phone, member.mail)) return "satici";
+  return "musteri";
+}
+
+function yolEnsureDemos() {
+  const demos = yolDemoList();
+  const members = yolMembers();
+  let membersChanged = false;
+  demos.forEach((demo) => {
+    const exists = members.some(
+      (m) => m.demoId === demo.demoId || yolGsm(m.phone) === demo.phone || yolMail(m.mail) === demo.mail
+    );
+    if (exists) return;
+    members.push({
+      id: `demo-member-${demo.kind}`,
+      demoId: demo.demoId,
+      role: demo.role,
+      first: demo.first,
+      last: demo.last,
+      phone: demo.phone,
+      mail: demo.mail,
+      address: demo.address,
+      pin: demo.pin,
+      phoneOk: true,
+    });
+    membersChanged = true;
+  });
+  members.forEach((m) => {
+    if (m.role) return;
+    const demo = demos.find((d) => d.demoId === m.demoId);
+    m.role = demo?.role || (yolPartnerKindFor(m.phone, m.mail) ? "satici" : "musteri");
+    membersChanged = true;
+  });
+  if (membersChanged) store.set(YOL_MEMBERS, members);
+
+  const partners = store.get(YOL_PARTNERS, []);
+  let partnersChanged = false;
+  demos.forEach((demo) => {
+    if (demo.role !== "satici") return;
+    const exists = partners.some(
+      (p) => p.demoId === demo.demoId || yolGsm(p.phone) === demo.phone || yolMail(p.mail) === demo.mail
+    );
+    if (exists) return;
+    const doc = { name: `${demo.kind}-demo.pdf`, type: "application/pdf" };
+    partners.push({
+      id: `demo-partner-${demo.kind}`,
+      demoId: demo.demoId,
+      kind: demo.kind,
+      first: demo.first,
+      last: demo.last,
+      tc: demo.tc || null,
+      vkn: demo.vkn || null,
+      phone: demo.phone,
+      mail: demo.mail,
+      address: demo.address,
+      imza: demo.kind === "ticari" ? doc : null,
+      ikamet: demo.kind === "ticari" ? doc : null,
+      vergiLevha: demo.kind === "ticari" ? doc : null,
+    });
+    partnersChanged = true;
+  });
+  partners.forEach((p) => {
+    if (p.status === "pending") {
+      p.status = "approved";
+      partnersChanged = true;
+    }
+  });
+  if (partnersChanged) store.set(YOL_PARTNERS, partners);
+  let rolesFixed = false;
+  members.forEach((m) => {
+    if (m.role === "admin") {
+      m.role = "musteri";
+      rolesFixed = true;
+    }
+    if (yolPartnerKindFor(m.phone, m.mail) && m.role !== "satici") {
+      m.role = "satici";
+      rolesFixed = true;
+    }
+  });
+  if (rolesFixed) store.set(YOL_MEMBERS, members);
+
+  const products = store.get(YOL_PRODUCTS, []);
+  const demoSeriesItems = [
+    { name: "Mont M", size: "M", color: "Siyah", gender: "Unisex", price: "1299" },
+    { name: "Mont L", size: "L", color: "Lacivert", gender: "Unisex", price: "1399" },
+  ];
+  const demoSeries = products.find((p) => p.demoId === "demo-ticari-series");
+  if (demoSeries) demoSeries.items = demoSeriesItems;
+  else {
+    products.unshift({
+      id: "demo-prod-ticari-series",
+      demoId: "demo-ticari-series",
+      type: "series",
+      name: "Harbi Kışlık Serisi",
+      desc: "Demo ticari ürün serisi",
+      sellerKind: "ticari",
+      sellerPhone: "5550000101",
+      sellerMail: "demo.ticari@harbiyol.test",
+      sellerName: "Ahmet Ticari",
+      items: demoSeriesItems,
+    });
+  }
+  if (!products.some((p) => p.demoId === "demo-bireysel-single")) {
+    products.unshift({
+      id: "demo-prod-bireysel-single",
+      demoId: "demo-bireysel-single",
+      type: "single",
+      name: "El yapımı sabun",
+      price: "85",
+      desc: "Demo bireysel tekli ürün",
+      sellerKind: "bireysel",
+      sellerPhone: "5550000202",
+      sellerMail: "demo.bireysel@harbiyol.test",
+      sellerName: "Elif Bireysel",
+    });
+  }
+  store.set(YOL_PRODUCTS, products.slice(0, 200));
+}
+
+function yolEnterDemo(kind) {
+  yolEnsureDemos();
+  const demo = yolDemoList().find((item) => item.kind === kind);
+  if (!demo) return;
+  const member = yolMembers().find((m) => m.demoId === demo.demoId) || yolFindMember(demo.phone, demo.mail);
+  const partner = yolPartnerKindFor(demo.phone, demo.mail);
+  if (!member) return;
+  yolRememberLast(member);
+  store.set(YOL_SESSION, member.id);
+  if (partner) store.set(YOL_SELLER, { id: partner.id, kind: partner.kind, phone: partner.phone, mail: partner.mail });
+  renderYol();
+  showView("sell");
+  renderYolSeller();
+}
+
+function yolMe() {
+  const id = store.get(YOL_SESSION, null);
+  return yolMembers().find((m) => m.id === id) || null;
+}
+
+function yolPartnerKindFor(phone, mail) {
+  const gsm = yolGsm(phone);
+  const email = yolMail(mail);
+  const mine = store.get(YOL_PARTNERS, []).filter(
+    (p) => p.status !== "rejected" && ((gsm && yolGsm(p.phone) === gsm) || (email && yolMail(p.mail) === email))
+  );
+  if (!mine.length) return null;
+  return mine.find((p) => p.kind === "ticari") || mine[0];
+}
+
+function yolSeller() {
+  const me = yolMe();
+  if (!me) return null;
+  const partner = yolPartnerKindFor(me.phone, me.mail);
+  if (!partner && yolRole(me) !== "satici") return null;
+  const kind = partner?.kind === "ticari" ? "ticari" : partner?.kind === "bireysel" ? "bireysel" : "uye";
+  return {
+    kind,
+    first: me.first,
+    last: me.last,
+    phone: me.phone,
+    mail: me.mail,
+    memberId: me.id,
+    role: "satici",
+  };
+}
+
+function yolSellerListingType() {
+  const seller = yolSeller();
+  if (!seller || seller.kind !== "ticari") return "single";
+  const picked = document.querySelector('input[name="yolListType"]:checked')?.value;
+  return picked === "series" ? "series" : "single";
+}
+
+function yolSeriesRowHtml() {
+  return `<div class="yol-series-row">
+    <input class="yol-var-name" placeholder="Varyant adı" maxlength="80" />
+    <input class="yol-var-size" placeholder="Beden" maxlength="20" />
+    <input class="yol-var-color" placeholder="Renk" maxlength="30" />
+    <select class="yol-var-gender">
+      <option value="">Cinsiyet</option>
+      <option value="Kadın">Kadın</option>
+      <option value="Erkek">Erkek</option>
+      <option value="Unisex">Unisex</option>
+      <option value="Çocuk">Çocuk</option>
+    </select>
+    <input class="yol-var-price" inputmode="decimal" placeholder="Fiyat ₺" />
+  </div>`;
+}
+
+function yolEnsureSeriesRows() {
+  const box = $("#yolSeriesRows");
+  if (!box) return;
+  if (!box.children.length) {
+    box.insertAdjacentHTML("beforeend", yolSeriesRowHtml() + yolSeriesRowHtml());
+  }
+}
+
+function yolSyncSellerTypeUi() {
+  const seller = yolSeller();
+  const noSeries = !seller || seller.kind !== "ticari";
+  const type = yolSellerListingType();
+  if ($("#yolSellerTypeRow")) $("#yolSellerTypeRow").hidden = noSeries;
+  if (noSeries) {
+    const single = document.querySelector('input[name="yolListType"][value="single"]');
+    if (single) single.checked = true;
+  }
+  const series = !noSeries && type === "series";
+  if ($("#yolSingleBox")) $("#yolSingleBox").hidden = series;
+  if ($("#yolSeriesBox")) $("#yolSeriesBox").hidden = !series;
+  if (series) yolEnsureSeriesRows();
+}
+
+function yolVariantLine(v) {
+  const bits = [v.name, v.gender, v.color && `Renk ${v.color}`, v.size && `Beden ${v.size}`].filter(Boolean);
+  const label = bits.join(" · ") || "Varyant";
+  return `<p class="hint">${escapeHtml(label)} · ${formatTry(parseMoney(v.price))}</p>`;
+}
+
+function yolPhotoSrc(item) {
+  const u = item?.photo?.dataUrl || "";
+  return String(u).startsWith("data:image") ? u : "";
+}
+
+function yolProductCardHtml(item, canDelete) {
+  const src = yolPhotoSrc(item);
+  const extra =
+    item.type === "series" && Array.isArray(item.items)
+      ? item.items.map(yolVariantLine).join("")
+      : `<p class="price">${formatTry(parseMoney(item.price))}</p>`;
+  return `<article class="holiday-hit">
+    ${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}
+    <strong>${escapeHtml(item.name || "Ürün")}</strong>
+    <p class="hint">${escapeHtml(item.sellerName || "Satıcı")} · ${item.type === "series" ? "Ürün serisi" : "Tekli ürün"}</p>
+    <p>${escapeHtml(item.desc || "")}</p>
+    ${extra}
+    ${canDelete ? `<button class="linkish" type="button" data-yol-del="${item.id}">Kaldır</button>` : ""}
+  </article>`;
+}
+
+function renderYolMarket() {
+  const board = $("#yolMarketBoard");
+  const box = $("#yolMarketList");
+  if (!board || !box) return;
+  const view = document.querySelector(".view.active")?.dataset.view || "home";
+  const authOpen = Boolean($("#yolAuthPanel") && !$("#yolAuthPanel").hidden);
+  const partnerOpen = Boolean($("#yolPartnerPanel") && !$("#yolPartnerPanel").hidden);
+  const searching = Boolean($("#yolSearchResults") && !$("#yolSearchResults").hidden);
+  board.hidden = view !== "home" || authOpen || partnerOpen || searching;
+  if (board.hidden) return;
+  const site = yolSite();
+  if ($("#yolMarketTitle")) $("#yolMarketTitle").textContent = site.marketTitle;
+  if ($("#yolMarketHint")) $("#yolMarketHint").textContent = site.marketHint;
+  const products = store.get(YOL_PRODUCTS, []);
+  box.innerHTML = products.length
+    ? products.map((item) => yolProductCardHtml(item, false)).join("")
+    : "<p class='hint'>Henüz ürün yok.</p>";
+}
+
+function renderYolSeller() {
+  const onSell = document.querySelector(".view.active")?.dataset.view === "sell";
+  const seller = yolSeller();
+  if ($("#yolSellNeedAuth")) $("#yolSellNeedAuth").hidden = !onSell || Boolean(seller);
+  const card = $("#yolSellerCard");
+  if (card) card.hidden = !onSell || !seller;
+  if (!onSell || !seller) return;
+  yolSyncSearch();
+  if ($("#yolSellerHint")) {
+    $("#yolSellerHint").textContent =
+      seller.kind === "ticari"
+        ? "Bu sizin ürün yükleme sayfanız. Ticari faaliyet tekli ürün veya ürün serisi yükler. Yukarıdaki arama ile kendi ürünlerinizi kontrol edin."
+        : seller.kind === "bireysel"
+          ? "Bu sizin ürün yükleme sayfanız. Bireysel satış yalnızca tekli ürün yükler; ürün serisi eklenemez."
+          : "Bu sizin ürün yükleme sayfanız. Tekli ürün ve fotoğraf yükleyebilirsiniz.";
+  }
+  yolSyncSellerTypeUi();
+  const mine = store.get(YOL_PRODUCTS, []).filter((p) => yolOwnProduct(seller, p));
+  const box = $("#yolMyProducts");
+  if (!box) return;
+  box.innerHTML = mine.length
+    ? mine.map((item) => yolProductCardHtml(item, true)).join("")
+    : "<p class='hint'>Henüz ürün yok. İlk ürününüzü yükleyin.</p>";
+}
+
+function yolOwnProduct(seller, item) {
+  if (!seller || !item) return false;
+  const gsm = yolGsm(seller.phone);
+  const email = yolMail(seller.mail);
+  return (
+    (seller.memberId && item.sellerId === seller.memberId) ||
+    (gsm && yolGsm(item.sellerPhone) === gsm) ||
+    (email && yolMail(item.sellerMail) === email)
+  );
+}
+
+function yolIsBireysel() {
+  return yolSeller()?.kind === "bireysel";
+}
+
+function yolIsTicari() {
+  return yolSeller()?.kind === "ticari";
+}
+
+function yolOnSellerDesk() {
+  return document.querySelector(".view.active")?.dataset.view === "sell" && Boolean(yolSeller());
+}
+
+function yolSyncSearch() {
+  const search = document.querySelector(".yol-search");
+  if (!search) return;
+  const view = document.querySelector(".view.active")?.dataset.view || "home";
+  const authOpen = Boolean($("#yolAuthPanel") && !$("#yolAuthPanel").hidden);
+  const partnerOpen = Boolean($("#yolPartnerPanel") && !$("#yolPartnerPanel").hidden);
+  const onHome = view === "home" && !authOpen && !partnerOpen;
+  const onSellerSell = view === "sell" && (yolIsBireysel() || yolIsTicari());
+  const show = onHome || onSellerSell;
+  search.hidden = !show;
+  if (!show) {
+    const box = $("#yolSearchResults");
+    if (box) {
+      box.hidden = true;
+      box.innerHTML = "";
+    }
+  }
+}
+
+function yolShowPartner(open) {
+  if ($("#yolPartnerPanel")) $("#yolPartnerPanel").hidden = !open;
+}
+
+function yolOpenPartner() {
+  yolOpenAuth("register");
+}
+
+function yolGsm(value) {
+  let d = String(value || "").replace(/\D/g, "");
+  if (d.startsWith("90") && d.length >= 12) d = d.slice(2);
+  if (d.startsWith("0") && d.length >= 11) d = d.slice(1);
+  return d;
+}
+
+function yolFindMember(phone, mail) {
+  const gsm = yolGsm(phone);
+  const email = yolMail(mail);
+  return yolMembers().find((m) => (gsm && yolGsm(m.phone) === gsm) || (email && yolMail(m.mail) === email)) || null;
+}
+
+function yolRememberLast(memberOrLast) {
+  if (!memberOrLast) return;
+  store.set(YOL_LAST, {
+    phone: yolGsm(memberOrLast.phone),
+    mail: yolMail(memberOrLast.mail),
+  });
+}
+
+function yolLastMember() {
+  const last = store.get(YOL_LAST, null);
+  if (!last) return null;
+  return yolFindMember(last.phone, last.mail);
+}
+
+function yolFillLogin(user, message) {
+  if ($("#yolLoginUser") && user) $("#yolLoginUser").value = user;
+  if ($("#yolLoginPin")) $("#yolLoginPin").value = "";
+  if ($("#yolLoginMsg") && message) $("#yolLoginMsg").textContent = message;
+}
+
+function yolShowAuth(mode) {
+  const me = yolMe();
+  if (me) {
+    if ($("#yolAuthPanel")) $("#yolAuthPanel").hidden = true;
+    yolShowPartner(false);
+    yolSyncSearch();
+    renderYolMarket();
+    return;
+  }
+  const loginOnly = mode === "login" || (mode !== "register" && Boolean(yolLastMember()));
+  if ($("#yolAuthPanel")) $("#yolAuthPanel").hidden = false;
+  if ($("#yolLoginCard")) $("#yolLoginCard").hidden = !loginOnly;
+  if ($("#yolRegisterCard")) $("#yolRegisterCard").hidden = loginOnly;
+  if ($("#yolRegister")) $("#yolRegister").hidden = false;
+  if ($("#yolOtp")) $("#yolOtp").hidden = true;
+  if ($("#yolShowRegister")) $("#yolShowRegister").hidden = Boolean(yolLastMember());
+  if (loginOnly) {
+    const last = store.get(YOL_LAST, null);
+    const known = yolLastMember();
+    yolFillLogin(last?.mail || known?.mail || "", "");
+  }
+  yolShowPartner(false);
+  yolSyncSearch();
+  renderYolMarket();
+}
+
+function yolOpenAuth(mode) {
+  showView("home");
+  yolShowAuth(mode || "login");
+  const target = $("#yolLoginCard")?.hidden === false ? $("#yolLoginCard") : $("#yolRegisterCard");
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function yolSyncNav() {
+  const me = yolMe();
+  const role = yolRole(me);
+  const logged = Boolean(me);
+  const seller = Boolean(yolSeller());
+  if ($("#yolLogoutTop")) $("#yolLogoutTop").hidden = !logged;
+  if ($("#yolNavRegister")) $("#yolNavRegister").hidden = logged;
+  if ($("#yolNavPartner")) $("#yolNavPartner").hidden = seller;
+  if ($("#yolNavSell")) $("#yolNavSell").hidden = role !== "satici";
+  if (seller) yolShowPartner(false);
+  document.body.classList.toggle("yol-seller-account", seller);
+  $$(".home-back").forEach((btn) => {
+    btn.hidden = seller;
+  });
+}
+
+function renderYol() {
+  yolEnsureDemos();
+  const me = yolMe();
+  if (me) yolRememberLast(me);
+  yolSyncNav();
+  if (me) {
+    yolShowAuth();
+    renderYolSeller();
+    renderYolMarket();
+    return;
+  }
+  if ($("#yolAuthPanel")) $("#yolAuthPanel").hidden = true;
+  yolShowPartner(false);
+  renderYolSeller();
+  renderYolMarket();
+  yolSyncSearch();
+}
+$("#yolNavRegister")?.addEventListener("click", () => yolOpenAuth());
+$("#yolNavPartner")?.addEventListener("click", () => yolOpenPartner());
+let yolAfterLogin = "";
+function yolOpenSell() {
+  yolShowPartner(false);
+  if ($("#yolAuthPanel")) $("#yolAuthPanel").hidden = true;
+  const seller = yolSeller();
+  if (!seller) {
+    yolAfterLogin = "sell";
+    if (yolMe()) yolOpenPartner();
+    else yolOpenAuth("login");
+    return;
+  }
+  yolAfterLogin = "";
+  showView("sell");
+}
+$("#yolNavSell")?.addEventListener("click", () => yolOpenSell());
+$("#yolSellGoAuth")?.addEventListener("click", () => {
+  yolAfterLogin = "sell";
+  yolOpenAuth("login");
+  yolFillLogin("", "Ürün yüklemek için mail adresi ve şifre ile giriş yapın.");
+});
+$("#yolDemoTicari")?.addEventListener("click", () => yolEnterDemo("ticari"));
+$("#yolDemoBireysel")?.addEventListener("click", () => yolEnterDemo("bireysel"));
+
+function yolDoLogout() {
+  store.set(YOL_SESSION, null);
+  yolAfterLogin = "";
+  renderYol();
+  showView("home");
+}
+
+$("#yolLogoutTop")?.addEventListener("click", yolDoLogout);
+
+let yolPending = null;
+
+async function yolOtpRequest(phone) {
+  const res = await fetch("/phone-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "send", phone }),
+  });
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok || !data.ok) throw new Error(data.error || "Kod gönderilemedi.");
+  return data;
+}
+
+async function yolOtpCheck(phone, code) {
+  const res = await fetch("/phone-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "check", phone, code }),
+  });
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok || !data.ok) throw new Error(data.error || "Kod doğrulanamadı.");
+  return data;
+}
+
+function yolFinishRegister(pending) {
+  const members = yolMembers();
+  const existing = yolFindMember(pending.phone, pending.mail);
+  if (existing) {
+    yolRememberLast(existing);
+    yolPending = null;
+    $("#yolRegister")?.reset();
+    if ($("#yolOtp")) $("#yolOtp").reset();
+    yolShowAuth("login");
+    yolFillLogin(existing.mail || existing.phone, "Bu telefon veya mail ile üyelik var. Giriş yapın.");
+    $("#yolLoginCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  const member = {
+    id: Date.now(),
+    role: "musteri",
+    first: pending.first,
+    last: pending.last,
+    phone: pending.phone,
+    mail: pending.mail,
+    address: pending.address,
+    pin: pending.pin,
+    phoneOk: true,
+  };
+  members.unshift(member);
+  store.set(YOL_MEMBERS, members);
+  yolRememberLast(member);
+  yolPending = null;
+  $("#yolRegister")?.reset();
+  if ($("#yolOtp")) $("#yolOtp").reset();
+  yolShowAuth("login");
+  yolFillLogin(member.mail || member.phone, "Kayıt tamam. Numara onaylandı. Giriş yapın.");
+  $("#yolLoginCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  $("#yolLoginPin")?.focus();
+}
+
+function yolShowOtp(data) {
+  if ($("#yolRegister")) $("#yolRegister").hidden = true;
+  if ($("#yolOtp")) $("#yolOtp").hidden = false;
+  const hint = $("#yolOtpHint");
+  const gsm = yolPending?.phone || "";
+  const masked = gsm.length >= 7 ? gsm.slice(0, 3) + "****" + gsm.slice(-3) : gsm;
+  if (hint) {
+    hint.textContent = data?.devCode
+      ? `Yerel deneme kodu: ${data.devCode}. Numara ${masked}.`
+      : `${masked} numarasına kod gönderildi. Kodu yazın, doğruysa numara onaylanır.`;
+  }
+  if ($("#yolOtpCode")) $("#yolOtpCode").value = "";
+  if ($("#yolOtpMsg")) $("#yolOtpMsg").textContent = "";
+  $("#yolOtpCode")?.focus();
+}
+
+$("#yolRegister")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const first = $("#yolRegFirst").value.trim();
+  const last = $("#yolRegLast").value.trim();
+  const phone = yolGsm($("#yolRegPhone").value);
+  const mail = yolMail($("#yolRegMail").value);
+  const address = $("#yolRegAddress").value.trim();
+  const pin = $("#yolRegPin").value;
+  const msg = $("#yolRegMsg");
+  if (!first || !last || !phone || !mail || !address || !pin) {
+    if (msg) msg.textContent = "İsim, soy isim, telefon, mail ve adres zorunludur.";
+    return;
+  }
+  if (!/^5\d{9}$/.test(phone)) {
+    if (msg) msg.textContent = "Geçerli bir cep telefonu yazın.";
+    return;
+  }
+  const byPhone = yolMembers().find((m) => yolGsm(m.phone) === phone);
+  const byMail = yolMembers().find((m) => yolMail(m.mail) === mail);
+  if (byPhone || byMail) {
+    const known = byPhone || byMail;
+    yolRememberLast(known);
+    yolShowAuth("login");
+    yolFillLogin(
+      byMail ? mail : phone,
+      byPhone && byMail && byPhone.id !== byMail.id
+        ? "Bu telefon ve mail ayrı üyeliklerde kayıtlı. Giriş yapın."
+        : "Bu telefon veya mail ile üyelik var. Giriş yapın."
+    );
+    $("#yolLoginCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  yolPending = { first, last, phone, mail, address, pin };
+  if (msg) msg.textContent = "Kod gönderiliyor…";
+  try {
+    const data = await yolOtpRequest(phone);
+    if (msg) msg.textContent = "";
+    yolShowOtp(data);
+  } catch (error) {
+    yolPending = null;
+    if (msg) msg.textContent = error.message || "Kod gönderilemedi.";
+  }
+});
+
+$("#yolOtp")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const msg = $("#yolOtpMsg");
+  if (!yolPending) {
+    if (msg) msg.textContent = "Önce kayıt bilgilerini girin.";
+    return;
+  }
+  const code = String($("#yolOtpCode")?.value || "").replace(/\D/g, "");
+  if (msg) msg.textContent = "Kod kontrol ediliyor…";
+  try {
+    await yolOtpCheck(yolPending.phone, code);
+    if (msg) msg.textContent = "Numara onaylandı.";
+    yolFinishRegister(yolPending);
+  } catch (error) {
+    if (msg) msg.textContent = error.message || "Kod hatalı.";
+  }
+});
+
+$("#yolOtpResend")?.addEventListener("click", async () => {
+  const msg = $("#yolOtpMsg");
+  if (!yolPending) return;
+  if (msg) msg.textContent = "Kod gönderiliyor…";
+  try {
+    const data = await yolOtpRequest(yolPending.phone);
+    yolShowOtp(data);
+    if (msg) msg.textContent = "Yeni kod gönderildi.";
+  } catch (error) {
+    if (msg) msg.textContent = error.message || "Kod gönderilemedi.";
+  }
+});
+
+$("#yolOtpBack")?.addEventListener("click", () => {
+  yolPending = null;
+  if ($("#yolOtp")) $("#yolOtp").hidden = true;
+  if ($("#yolRegister")) $("#yolRegister").hidden = false;
+  if ($("#yolRegMsg")) $("#yolRegMsg").textContent = "";
+});
+
+$("#yolShowLogin")?.addEventListener("click", () => {
+  yolShowAuth("login");
+  $("#yolLoginCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("#yolShowRegister")?.addEventListener("click", () => {
+  yolShowAuth("register");
+  $("#yolRegisterCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+$("#yolLoginShowPin")?.addEventListener("click", () => {
+  const pin = $("#yolLoginPin");
+  const btn = $("#yolLoginShowPin");
+  if (!pin || !btn) return;
+  const show = pin.type === "password";
+  pin.type = show ? "text" : "password";
+  btn.textContent = show ? "Şifreyi gizle" : "Şifreyi göster";
+  btn.setAttribute("aria-pressed", String(show));
+});
+
+$("#yolLogin")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const mail = yolMail($("#yolLoginUser").value);
+  const pin = $("#yolLoginPin").value;
+  const msg = $("#yolLoginMsg");
+  if (!mail || !mail.includes("@")) {
+    if (msg) msg.textContent = "Mail adresi yazın.";
+    return;
+  }
+  const member = yolMembers().find((m) => yolMail(m.mail) === mail && m.pin === pin);
+  if (!member) {
+    if (msg) msg.textContent = "Mail veya şifre hatalı.";
+    return;
+  }
+  const role = yolRole(member);
+  yolRememberLast(member);
+  store.set(YOL_SESSION, member.id);
+  if (msg) msg.textContent = "";
+  $("#yolLogin").reset();
+  const next = yolAfterLogin;
+  yolAfterLogin = "";
+  renderYol();
+  if (role === "satici" || next === "sell") showView("sell");
+  else showView("home");
+});
+
+async function yolPartnerSubmit(kind, ids) {
+  const first = $(ids.first).value.trim();
+  const last = $(ids.last).value.trim();
+  const phone = yolPhone($(ids.phone).value);
+  const mail = yolMail($(ids.mail).value);
+  const address = $(ids.address).value.trim();
+  const tc = ids.tc ? String($(ids.tc).value || "").replace(/\D/g, "") : "";
+  const vkn = ids.vkn ? String($(ids.vkn).value || "").replace(/\D/g, "") : "";
+  const pin = ids.pin ? $(ids.pin).value : "";
+  const msg = $(ids.msg);
+  if (!first || !last || !phone || !mail || !address) {
+    if (msg) msg.textContent = "İsim, soy isim, telefon, mail ve adres zorunludur.";
+    return;
+  }
+  if (!pin || pin.length < 4) {
+    if (msg) msg.textContent = "En az 4 haneli şifre yazın.";
+    return;
+  }
+  let imza = null;
+  let ikamet = null;
+  let vergiLevha = null;
+  if (kind === "ticari") {
+    if (!/^\d{10}$/.test(vkn)) {
+      if (msg) msg.textContent = "Vergi kimlik no 10 haneli olmalıdır.";
+      return;
+    }
+    try {
+      [imza, ikamet, vergiLevha] = await Promise.all([
+        posReadDoc($(ids.imza)),
+        posReadDoc($(ids.ikamet)),
+        posReadDoc($(ids.vergiLevha)),
+      ]);
+    } catch (error) {
+      if (msg) msg.textContent = error.message || "İmza sirküsü, ikametgah belgesi ve vergi levhası yükleyin.";
+      return;
+    }
+  }
+  const partners = store.get(YOL_PARTNERS, []);
+  partners.unshift({
+    id: Date.now(),
+    kind,
+    first,
+    last,
+    tc: tc || null,
+    vkn: vkn || null,
+    phone,
+    mail,
+    address,
+    imza: imza ? { name: imza.name, type: imza.type } : null,
+    ikamet: ikamet ? { name: ikamet.name, type: ikamet.type } : null,
+    vergiLevha: vergiLevha ? { name: vergiLevha.name, type: vergiLevha.type } : null,
+  });
+  store.set(YOL_PARTNERS, partners.slice(0, 80));
+  let members = yolMembers();
+  let member = yolFindMember(phone, mail);
+  if (!member) {
+    member = {
+      id: Date.now() + 1,
+      role: "satici",
+      first,
+      last,
+      phone: yolGsm(phone),
+      mail,
+      address,
+      pin,
+      phoneOk: true,
+    };
+    members.unshift(member);
+  } else {
+    member.role = "satici";
+    member.pin = pin;
+  }
+  store.set(YOL_MEMBERS, members);
+  store.set(YOL_SELLER, { id: partners[0].id, kind, phone, mail });
+  yolRememberLast(member);
+  if (msg) {
+    msg.textContent = "Üyelik alındı. Mail ve şifre ile giriş yapın.";
+  }
+  $(ids.form).reset();
+  yolShowAuth("login");
+  yolFillLogin(mail, "Üyelik tamam. Mail ve şifre ile giriş yapın.");
+  $("#yolLoginCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  renderYolSeller();
+  renderYolMarket();
+}
+
+$("#yolTicari")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  yolPartnerSubmit("ticari", {
+    form: "#yolTicari",
+    first: "#yolTicariFirst",
+    last: "#yolTicariLast",
+    phone: "#yolTicariPhone",
+    mail: "#yolTicariMail",
+    address: "#yolTicariAddress",
+    vkn: "#yolTicariVkn",
+    imza: "#yolTicariImza",
+    ikamet: "#yolTicariIkamet",
+    vergiLevha: "#yolTicariVergiLevha",
+    pin: "#yolTicariPin",
+    msg: "#yolTicariMsg",
+  });
+});
+
+$("#yolBireysel")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  yolPartnerSubmit("bireysel", {
+    form: "#yolBireysel",
+    first: "#yolBireyselFirst",
+    last: "#yolBireyselLast",
+    phone: "#yolBireyselPhone",
+    mail: "#yolBireyselMail",
+    address: "#yolBireyselAddress",
+    pin: "#yolBireyselPin",
+    msg: "#yolBireyselMsg",
+  });
+});
+
+document.querySelectorAll('input[name="yolListType"]').forEach((input) => {
+  input.addEventListener("change", yolSyncSellerTypeUi);
+});
+
+$("#yolSeriesAddRow")?.addEventListener("click", () => {
+  $("#yolSeriesRows")?.insertAdjacentHTML("beforeend", yolSeriesRowHtml());
+});
+
+$("#yolSellerForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const seller = yolSeller();
+  const msg = $("#yolSellerMsg");
+  if (!seller) {
+    if (msg) msg.textContent = "Ürün yüklemek için giriş yapın.";
+    return;
+  }
+  const type = yolSellerListingType();
+  if (seller.kind !== "ticari" && type === "series") {
+    if (msg) msg.textContent = "Ürün serisi yalnızca ticari faaliyet üyelerine açıktır. Tekli ürün yükleyin.";
+    yolSyncSellerTypeUi();
+    return;
+  }
+  const desc = $("#yolProdDesc")?.value.trim() || "";
+  let photo = null;
+  try {
+    const input = $("#yolProdPhoto");
+    if (input?.files?.[0]) photo = await posReadDoc(input);
+  } catch (error) {
+    if (msg) msg.textContent = error.message || "Fotoğraf yüklenemedi.";
+    return;
+  }
+  let product = null;
+  if (type === "series") {
+    const name = $("#yolSeriesName")?.value.trim() || "";
+    const items = $$("#yolSeriesRows .yol-series-row")
+      .map((row) => {
+        const size = row.querySelector(".yol-var-size")?.value.trim() || "";
+        const color = row.querySelector(".yol-var-color")?.value.trim() || "";
+        const gender = row.querySelector(".yol-var-gender")?.value || "";
+        const price = row.querySelector(".yol-var-price")?.value.trim() || "";
+        let name = row.querySelector(".yol-var-name")?.value.trim() || "";
+        if (!name) name = [gender, color, size].filter(Boolean).join(" · ");
+        return { name, size, color, gender, price };
+      })
+      .filter((row) => row.size && row.color && row.gender && parseMoney(row.price) > 0);
+    if (!name || items.length < 2) {
+      if (msg) msg.textContent = "Seri adı ve en az iki varyant yazın. Her varyantta beden, renk, cinsiyet ve fiyat zorunludur.";
+      return;
+    }
+    product = { type: "series", name, items, desc };
+  } else {
+    const name = $("#yolProdName")?.value.trim() || "";
+    const price = $("#yolProdPrice")?.value.trim() || "";
+    if (!name || !(parseMoney(price) > 0)) {
+      if (msg) msg.textContent = "Ürün adı ve fiyat yazın.";
+      return;
+    }
+    product = { type: "single", name, price, desc };
+  }
+  const products = store.get(YOL_PRODUCTS, []);
+  products.unshift({
+    id: Date.now(),
+    sellerId: seller.memberId || null,
+    sellerKind: seller.kind,
+    sellerPhone: seller.phone,
+    sellerMail: seller.mail,
+    sellerName: `${seller.first || ""} ${seller.last || ""}`.trim(),
+    photo: photo ? { name: photo.name, type: photo.type, dataUrl: photo.dataUrl } : null,
+    ...product,
+  });
+  store.set(YOL_PRODUCTS, products.slice(0, 200));
+  $("#yolSellerForm")?.reset();
+  const single = document.querySelector('input[name="yolListType"][value="single"]');
+  if (single) single.checked = true;
+  if ($("#yolSeriesRows")) $("#yolSeriesRows").innerHTML = "";
+  if (msg) msg.textContent = product.type === "series" ? "Ürün serisi satışa kondu." : "Ürün satışa kondu.";
+  renderYolSeller();
+  renderYolMarket();
+});
+
+function yolDeleteProduct(id) {
+  store.set(
+    YOL_PRODUCTS,
+    store.get(YOL_PRODUCTS, []).filter((p) => String(p.id) !== String(id))
+  );
+  renderYolSeller();
+  renderYolMarket();
+  const q = $("#yolProductQuery")?.value || "";
+  if (String(q).trim()) renderYolProductSearch(q);
+}
+
+function yolBindProductDeletes(root) {
+  root?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-yol-del]");
+    if (!btn) return;
+    const seller = yolSeller();
+    if (!seller) return;
+    const mine = store.get(YOL_PRODUCTS, []).find((p) => String(p.id) === btn.dataset.yolDel);
+    if (!mine || !yolOwnProduct(seller, mine)) return;
+    yolDeleteProduct(btn.dataset.yolDel);
+  });
+}
+
+yolBindProductDeletes($("#yolMyProducts"));
+yolBindProductDeletes($("#yolSearchResults"));
+
+function renderYolProductSearch(query) {
+  const box = $("#yolSearchResults");
+  if (!box) return;
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) {
+    box.hidden = true;
+    box.innerHTML = "";
+    renderYolMarket();
+    renderYolSeller();
+    return;
+  }
+  const qn = q.toLocaleLowerCase("tr-TR");
+  const seller = yolSeller();
+  const ownOnly = yolIsTicari() && yolOnSellerDesk();
+  let list = store.get(YOL_PRODUCTS, []);
+  if (ownOnly && seller) list = list.filter((item) => yolOwnProduct(seller, item));
+  const yolHits = list.filter((item) => {
+    const title = String(item.name || "").toLocaleLowerCase("tr-TR");
+    const variants = (item.items || [])
+      .map((v) => [v.name, v.size, v.color, v.gender].filter(Boolean).join(" "))
+      .join(" ")
+      .toLocaleLowerCase("tr-TR");
+    const who = String(item.sellerName || "").toLocaleLowerCase("tr-TR");
+    return title.includes(qn) || variants.includes(qn) || who.includes(qn);
+  });
+  box.hidden = false;
+  box.innerHTML = yolHits.length
+    ? yolHits.map((item) => yolProductCardHtml(item, ownOnly)).join("")
+    : "<p class='hint'>Bu aramaya uygun ürün yok.</p>";
+  renderYolMarket();
+}
+
+$("#yolProductSearch")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!yolOnSellerDesk() || !(yolIsBireysel() || yolIsTicari())) {
+    showView("home");
+  }
+  renderYolProductSearch($("#yolProductQuery")?.value || "");
+});
+
+$("#yolProductQuery")?.addEventListener("input", () => {
+  const q = $("#yolProductQuery")?.value || "";
+  if (!String(q).trim()) renderYolProductSearch("");
 });
 
 resumeRestoreCam();
@@ -9066,3 +10280,6 @@ renderPos();
 renderEimza();
 renderMusic();
 renderAiClip();
+trackSiteApp("home");
+renderYol();
+if (ownerAppsOn()) renderSiteStats();
