@@ -154,7 +154,7 @@ function syncOwnerApps() {
 }
 
 function showView(name) {
-  const allowed = new Set(["home", "nfc", "stats", "sell", "about", "career", "contact", "recall", "sellerSell", "sellerBasics", "sellerAcademy", "helpFaq", "helpLive", "helpReturn", "helpGuide", "countrySelect", "safeShop", "securityCert"]);
+  const allowed = new Set(["home", "nfc", "stats", "sell", "desk", "about", "career", "contact", "recall", "sellerSell", "sellerBasics", "sellerAcademy", "helpFaq", "helpLive", "helpReturn", "helpGuide", "countrySelect", "safeShop", "securityCert"]);
   if (!allowed.has(name)) name = "home";
   if (name === "stats" && !ownerAppsOn()) name = "home";
   const prev = resumeActiveView();
@@ -175,7 +175,6 @@ function showView(name) {
   }
   if (name === "music") musicBeginTrial();
   if (name === "aiclip") clipBeginTrial();
-  if (name === "pos") renderPos();
   if (name === "eimza") renderEimza();
   if (name === "music") renderMusic();
   if (name === "aiclip") renderAiClip();
@@ -183,8 +182,10 @@ function showView(name) {
   else nfcSleepAudio();
   if (name === "stats") renderSiteStats();
   if (name === "sell") renderYolSeller();
+  if (name === "desk") renderYolDesk();
   if (name === "home") renderYolMarket();
   yolSyncSearch();
+  yolSyncNav();
   trackSiteApp(name);
   resumeSaveView(name);
   resumeRestoreScroll(name);
@@ -219,6 +220,7 @@ const SITE_APP_LABELS = {
   safeShop: "Güvenli Alışveriş",
   securityCert: "Güvenlik Sertifikası",
   sell: "Ürün yükle",
+  desk: "Kontrol paneli",
   camera: "Kamera",
   nfc: "NFC Kontrol",
   music: "Müzik Veya Şarkı Yap",
@@ -233,7 +235,6 @@ const SITE_APP_LABELS = {
   homes: "Satılık ve Kiralık Ev",
   bikes: "Motorsiklet Kiralama",
   pbx: "Sanal Santral",
-  pos: "Sanal POS",
 };
 
 const SITE_STATS_KEY = "harbi-site-stats";
@@ -403,6 +404,10 @@ const isStandalone =
 
 document.documentElement.classList.add(isIOS ? "is-ios" : isAndroid ? "is-android" : "is-desktop");
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
+
 let deferredPrompt = null;
 const installBtn = $("#installBtn");
 const installHint = $("#installHint");
@@ -517,11 +522,11 @@ function installGuide(kind) {
       steps: ["⋮ menüyü açın.", "Ana ekrana ekle.", "Ekle’ye basın."],
     },
     "android-chrome": {
-      title: "Chrome bu uygulamayı ana ekrana ekler.",
+      title: "Telefona kısayol eklemek için aşağıdaki düğmeye basın. Pencere açılmazsa Chrome menüsünden Uygulamayı yükle’yi seçin.",
       steps: [
-        "Sağ üst ⋮ menüyü açın.",
-        "Uygulamayı yükle veya Ana ekrana ekle’ye basın.",
-        "Yükle’yi onaylayın.",
+        "Tel. Kısayol Ekle veya Ana ekrana ekle’ye basın.",
+        "Açılan pencerede Yükle / Ekle’yi onaylayın.",
+        "Harbi ikonu ana ekranda görünür.",
       ],
     },
     "desktop-edge": {
@@ -575,6 +580,7 @@ async function promptInstall() {
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   deferredPrompt = event;
+  if (installBtn && !shortcutAlreadyAdded()) installBtn.hidden = false;
 });
 
 window.addEventListener("appinstalled", () => {
@@ -587,7 +593,10 @@ async function openInstall() {
     markShortcutAdded();
     return;
   }
-  if (await promptInstall()) return;
+  if (deferredPrompt) {
+    await promptInstall();
+    return;
+  }
   showInstallGuide();
 }
 
@@ -1806,7 +1815,9 @@ function hygieneProducts() {
 }
 
 function parseMoney(value) {
-  const n = Number(String(value ?? "").replace(/[^\d,.-]/g, "").replace(",", "."));
+  const raw = String(value ?? "").replace(/[^\d,.-]/g, "").replace(",", ".");
+  if (!raw || raw === "-" || raw === "." || raw === "-.") return Number.POSITIVE_INFINITY;
+  const n = Number(raw);
   return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
 }
 
@@ -6919,952 +6930,6 @@ $("#bikeResults").addEventListener("click", (event) => {
   renderBikes();
 });
 
-const GK_MEMBERS = "gk-members";
-const GK_PRODUCTS = "gk-products";
-const GK_ORDERS = "gk-orders";
-const GK_CART = "gk-cart";
-const GK_INTEG = "gk-integrations";
-const GK_SESSION = "gk-session";
-const GK_ADMIN_ON = "gk-admin-on";
-const GK_ADMIN_REMEMBER = "gk-admin-remember";
-const GK_LAST_TAB = "gk-last-tab";
-const GK_ADMIN_USER = "superadmin";
-const GK_ADMIN_PIN = "HarbiAdmin2026";
-const GK_COMMISSION = 0.05;
-const GK_CARGO = {
-  yurtici: "Yurtiçi Kargo",
-  aras: "Aras Kargo",
-  mng: "MNG Kargo",
-  ptt: "PTT Kargo",
-  surat: "Sürat Kargo",
-};
-const GK_PHOTO =
-  "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=70";
-
-function gkDigits(value) {
-  return String(value || "").replace(/\D/g, "");
-}
-
-function gkIban(value) {
-  return String(value || "").replace(/\s+/g, "").toUpperCase();
-}
-
-function gkValidTc(value) {
-  const tc = gkDigits(value);
-  if (!/^[1-9]\d{10}$/.test(tc)) return false;
-  const d = [...tc].map(Number);
-  const odd = d[0] + d[2] + d[4] + d[6] + d[8];
-  const even = d[1] + d[3] + d[5] + d[7];
-  if (((odd * 7 - even) % 10 + 10) % 10 !== d[9]) return false;
-  return d.slice(0, 10).reduce((a, b) => a + b, 0) % 10 === d[10];
-}
-
-function gkValidIban(value) {
-  return /^TR\d{24}$/.test(gkIban(value));
-}
-
-function gkFee(amount) {
-  const gross = Number(amount) || 0;
-  const commission = Math.round(gross * GK_COMMISSION * 100) / 100;
-  const net = Math.round((gross - commission) * 100) / 100;
-  return { gross, commission, net };
-}
-
-function gkUpdateCommissionHint() {
-  const el = $("#gkCommissionHint");
-  if (!el) return;
-  const price = parseMoney($("#gkProdPrice")?.value);
-  if (!Number.isFinite(price) || price <= 0 || price === Number.POSITIVE_INFINITY) {
-    el.textContent =
-      "Ürününüz satılmadan önce: her satıştan %5 komisyon otomatik kesilir. Kalan %95 ertesi gün IBAN’ınıza yatırılır.";
-    return;
-  }
-  const fee = gkFee(price);
-  el.textContent = `Bu fiyattan satışta %5 komisyon ${formatTry(fee.commission)} kesilir. IBAN’ınıza ${formatTry(fee.net)} yatırılır.`;
-}
-
-function gkMaskIban(value) {
-  const iban = gkIban(value);
-  if (iban.length < 8) return iban || "—";
-  return `${iban.slice(0, 4)} **** ${iban.slice(-4)}`;
-}
-
-function gkNextPayoutAt(from = Date.now()) {
-  const day = new Date(from);
-  day.setDate(day.getDate() + 1);
-  day.setHours(0, 0, 0, 0);
-  return day.getTime();
-}
-
-function gkPayoutText(order) {
-  const fee = order.commission != null && order.payoutAmount != null
-    ? { commission: order.commission, net: order.payoutAmount }
-    : gkFee(order.amount);
-  if (order.payoutStatus === "yatırıldı") {
-    return `IBAN’a yatırıldı ${formatTry(fee.net)} (%5 komisyon ${formatTry(fee.commission)}) · ${gkMaskIban(order.payoutIban)} · ${new Date(order.payoutDoneAt).toLocaleString("tr-TR")}`;
-  }
-  if (order.payoutStatus === "iban-bekleniyor") {
-    return "Ödeme bekliyor: satıcı IBAN kaydı zorunlu.";
-  }
-  const when = order.payoutAt ? new Date(order.payoutAt).toLocaleDateString("tr-TR") : "ertesi gün";
-  return `Ödeme ${when} tarihinde IBAN’a ${formatTry(fee.net)} yatırılacak · %5 komisyon ${formatTry(fee.commission)} kesildi`;
-}
-
-function gkProcessPayouts() {
-  const now = Date.now();
-  const members = store.get(GK_MEMBERS, []);
-  let changed = false;
-  const orders = store.get(GK_ORDERS, []).map((order) => {
-    const sold = order.status === "Ödendi" || String(order.status || "").startsWith("Kargoda");
-    if (!sold) return order;
-    const next = { ...order };
-    const fee = gkFee(next.amount);
-    if (next.commission == null || next.payoutAmount == null) {
-      next.commission = fee.commission;
-      next.payoutAmount = fee.net;
-      changed = true;
-    }
-    if (next.payoutStatus === "yatırıldı") return next;
-    if (!next.payoutAt) {
-      next.payoutAt = gkNextPayoutAt(next.id || now);
-      changed = true;
-    }
-    const seller = members.find((m) => m.id === next.sellerId);
-    const iban = next.sellerIban || seller?.iban;
-    if (!gkValidIban(iban)) {
-      if (next.payoutStatus !== "iban-bekleniyor") {
-        next.payoutStatus = "iban-bekleniyor";
-        changed = true;
-      }
-      return next;
-    }
-    if (now < next.payoutAt) {
-      if (next.payoutStatus !== "bekliyor") {
-        next.payoutStatus = "bekliyor";
-        next.sellerIban = gkIban(iban);
-        changed = true;
-      }
-      return next;
-    }
-    changed = true;
-    next.payoutStatus = "yatırıldı";
-    next.payoutDoneAt = now;
-    next.payoutIban = gkIban(iban);
-    next.sellerIban = gkIban(iban);
-    return next;
-  });
-  if (changed) store.set(GK_ORDERS, orders);
-  return changed;
-}
-
-function gkProfileOk(member) {
-  return Boolean(member && gkValidTc(member.tc) && String(member.address || "").trim() && gkValidIban(member.iban));
-}
-
-function gkSaveMember(next) {
-  store.set(
-    GK_MEMBERS,
-    store.get(GK_MEMBERS, []).map((m) => (m.id === next.id ? next : m))
-  );
-}
-
-function gkIntegrations() {
-  return (
-    store.get(GK_INTEG, null) || {
-      pos: { provider: "demo", merchant: "", key: "", secret: "", active: false },
-      cargo: { yurtici: "", aras: "", mng: "", ptt: "", surat: "" },
-    }
-  );
-}
-
-function gkMember() {
-  const id = store.get(GK_SESSION, null);
-  return store.get(GK_MEMBERS, []).find((m) => m.id === id) || null;
-}
-
-function gkIsAdmin() {
-  return store.get(GK_ADMIN_ON, false) === true;
-}
-
-function gkRememberedAdmin() {
-  return store.get(GK_ADMIN_REMEMBER, null);
-}
-
-function gkFillAdminForm() {
-  const saved = gkRememberedAdmin();
-  const remember = Boolean(saved?.remember);
-  $("#gkAdminRemember").checked = saved ? remember : true;
-  if (remember && saved?.user) $("#gkAdminUser").value = saved.user;
-  if (remember && saved?.pin) $("#gkAdminPin").value = saved.pin;
-}
-
-function gkShow(id) {
-  ["gkShop", "gkCart", "gkAuth", "gkSeller", "gkBuy", "gkAdminLogin", "gkAdminPanel"].forEach((key) => {
-    const el = $("#" + key);
-    if (el) el.hidden = key !== id;
-  });
-}
-
-function gkCartItems() {
-  return store.get(GK_CART, []);
-}
-
-function gkCartCount() {
-  return gkCartItems().reduce((n, item) => n + Math.max(1, Number(item.qty) || 1), 0);
-}
-
-function gkRenderCartBadge() {
-  const btn = $("#gkCartTabBtn");
-  if (!btn) return;
-  const n = gkCartCount();
-  btn.textContent = n ? `Alışveriş Sepeti (${n})` : "Alışveriş Sepeti";
-}
-
-function gkSetCart(items) {
-  store.set(GK_CART, items);
-  gkRenderCartBadge();
-}
-
-function gkAddToCart(productId) {
-  const items = gkCartItems();
-  const hit = items.find((item) => String(item.productId) === String(productId));
-  if (hit) hit.qty = Math.min(99, Math.max(1, Number(hit.qty) || 1) + 1);
-  else items.push({ productId, qty: 1 });
-  gkSetCart(items);
-}
-
-function gkCartLines() {
-  const products = store.get(GK_PRODUCTS, []);
-  return gkCartItems()
-    .map((line) => {
-      const product = products.find((item) => String(item.id) === String(line.productId));
-      return product ? { product, qty: Math.max(1, Number(line.qty) || 1) } : null;
-    })
-    .filter(Boolean);
-}
-
-function renderGkCart() {
-  gkRenderCartBadge();
-  const items = gkCartLines();
-  const box = $("#gkCartList");
-  if (!box) return;
-  if (!items.length) {
-    box.innerHTML = "<p class='hint'>Sepetiniz boş. Vitrinden sepete ekleyin.</p>";
-    $("#gkCartTotal").textContent = "";
-    if ($("#gkCartCheckout")) $("#gkCartCheckout").disabled = true;
-    return;
-  }
-  if ($("#gkCartCheckout")) $("#gkCartCheckout").disabled = false;
-  const total = items.reduce((sum, line) => sum + parseMoney(line.product.price) * line.qty, 0);
-  box.innerHTML = items
-    .map(
-      (line) => `
-      <article class="note">
-        <strong>${escapeHtml(line.product.name)}</strong>
-        <p class="price">${formatTry(parseMoney(line.product.price))} × ${line.qty} = ${formatTry(parseMoney(line.product.price) * line.qty)}</p>
-        <div class="row">
-          <button class="secondary" type="button" data-gk-qty="${line.product.id}" data-delta="-1">−</button>
-          <button class="secondary" type="button" data-gk-qty="${line.product.id}" data-delta="1">+</button>
-          <button class="linkish" type="button" data-gk-cart-del="${line.product.id}">Kaldır</button>
-        </div>
-      </article>`
-    )
-    .join("");
-  $("#gkCartTotal").textContent = `Toplam ${formatTry(total)}`;
-}
-
-function renderGkShop() {
-  const dir = $("#gkShopSort")?.value || "asc";
-  const products = [...store.get(GK_PRODUCTS, [])].sort(byPrice(dir, (p) => parseMoney(p.price)));
-  const members = store.get(GK_MEMBERS, []);
-  const box = $("#gkShopList");
-  if (!products.length) {
-    box.innerHTML = "<p class='hint'>Henüz ürün yok. Üye olup ilk ürünü ekleyin.</p>";
-    return;
-  }
-  box.innerHTML = products
-    .map((item) => {
-      const seller = members.find((m) => m.id === item.sellerId);
-      return `
-        <article class="holiday-hit">
-          <img class="gk-photo" src="${escapeHtml(item.photo || GK_PHOTO)}" alt="" loading="lazy" />
-          <strong>${escapeHtml(item.name)}</strong>
-          <p class="hint">${escapeHtml(seller?.name || "Üye")} · ${escapeHtml(GK_CARGO[item.cargo] || "")}</p>
-          <p>${escapeHtml(item.desc || "")}</p>
-          <p class="price">${formatTry(parseMoney(item.price))}</p>
-          <div class="row">
-            <button class="secondary" type="button" data-gk-cart="${item.id}">Sepete ekle</button>
-            <button class="gold" type="button" data-gk-buy="${item.id}">Satın al</button>
-          </div>
-        </article>`;
-    })
-    .join("");
-}
-
-function renderGkSeller() {
-  const me = gkMember();
-  if (!me) return;
-  gkProcessPayouts();
-  $("#gkSellerHello").textContent = `${me.name} · kargo: ${GK_CARGO[me.cargo] || me.cargo} · satışta %5 komisyon`;
-  gkUpdateCommissionHint();
-  $("#gkProfTc").value = me.tc || "";
-  $("#gkProfAddress").value = me.address || "";
-  $("#gkProfIban").value = me.iban || "";
-  $("#gkProdCargo").value = me.cargo || "yurtici";
-  const mine = store.get(GK_PRODUCTS, []).filter((p) => p.sellerId === me.id);
-  $("#gkMyProducts").innerHTML = mine
-    .map(
-      (item) => `
-      <article class="holiday-hit">
-        <img class="gk-photo" src="${escapeHtml(item.photo || GK_PHOTO)}" alt="" />
-        <strong>${escapeHtml(item.name)}</strong>
-        <p class="price">${formatTry(parseMoney(item.price))}</p>
-        <button class="linkish" type="button" data-gk-del="${item.id}">Kaldır</button>
-      </article>`
-    )
-    .join("") || "<p class='hint'>Ürününüz yok.</p>";
-  const orders = store.get(GK_ORDERS, []).filter((o) => o.sellerId === me.id);
-  $("#gkSellerOrders").innerHTML = orders
-    .map(
-      (o) => `
-      <article class="note">
-        <strong>${escapeHtml(o.productName)}</strong>
-        <p>${escapeHtml(o.buyerName)} · ${escapeHtml(o.address)} · satış ${formatTry(o.amount)} · net ${formatTry(o.payoutAmount != null ? o.payoutAmount : gkFee(o.amount).net)}</p>
-        <p class="hint">${escapeHtml(o.status)}${o.tracking ? " · " + escapeHtml(o.tracking) : ""}</p>
-        <p class="hint">${escapeHtml(gkPayoutText(o))}</p>
-        ${
-          o.status === "Ödendi"
-            ? `<select data-gk-ship-cargo="${o.id}">
-                ${Object.entries(GK_CARGO)
-                  .map(([k, n]) => `<option value="${k}" ${k === o.cargo ? "selected" : ""}>${n}</option>`)
-                  .join("")}
-              </select>
-              <button class="gold" type="button" data-gk-ship="${o.id}">Kargoya ver</button>`
-            : ""
-        }
-      </article>`
-    )
-    .join("") || "<p class='hint'>Sipariş yok.</p>";
-}
-
-function renderGkAdmin() {
-  gkProcessPayouts();
-  posEnsureGateway();
-  const integ = gkIntegrations();
-  $("#gkPosProvider").value = integ.pos.provider || "demo";
-  $("#gkPosMerchant").value = integ.pos.merchant || "";
-  $("#gkPosKey").value = integ.pos.key || "";
-  $("#gkPosSecret").value = integ.pos.secret || "";
-  $("#gkPosOn").checked = Boolean(integ.pos.active);
-  $("#gkCargoYurtici").value = integ.cargo.yurtici || "";
-  $("#gkCargoAras").value = integ.cargo.aras || "";
-  $("#gkCargoMng").value = integ.cargo.mng || "";
-  $("#gkCargoPtt").value = integ.cargo.ptt || "";
-  $("#gkCargoSurat").value = integ.cargo.surat || "";
-  const members = store.get(GK_MEMBERS, []);
-  const box = $("#gkAdminPayouts");
-  if (box) {
-    const rows = store.get(GK_ORDERS, []);
-    const commissionSum = rows.reduce((n, o) => n + (o.commission != null ? o.commission : gkFee(o.amount).commission), 0);
-    box.innerHTML = (rows.length ? `<p class="hint">Toplam kesilen komisyon: ${formatTry(commissionSum)}</p>` : "") + (rows.length
-      ? rows
-          .map((o) => {
-            const seller = members.find((m) => m.id === o.sellerId);
-            const fee = o.commission != null ? o : gkFee(o.amount);
-            return `<article class="note">
-              <strong>${escapeHtml(o.productName)} · satış ${formatTry(o.amount)}</strong>
-              <p>${escapeHtml(seller?.name || "Satıcı")} · ${escapeHtml(gkMaskIban(o.payoutIban || o.sellerIban || seller?.iban))}</p>
-              <p class="hint">Komisyon %5 ${formatTry(fee.commission || o.commission)} · satıcıya ${formatTry(o.payoutAmount != null ? o.payoutAmount : gkFee(o.amount).net)}</p>
-              <p class="hint">${escapeHtml(gkPayoutText(o))}</p>
-            </article>`;
-          })
-          .join("")
-      : "<p class='hint'>Henüz satış ödemesi yok.</p>");
-  }
-}
-
-function gkHasAccount() {
-  return store.get(GK_MEMBERS, []).length > 0;
-}
-
-function gkSyncAuthUi() {
-  const joined = gkHasAccount();
-  const me = gkMember();
-  const registerCard = $("#gkRegisterCard");
-  const authTab = $("#gkAuthTabBtn");
-  if (registerCard) registerCard.hidden = joined;
-  if (authTab) {
-    authTab.hidden = Boolean(me);
-    authTab.textContent = joined ? "Giriş" : "Üye ol / Giriş";
-  }
-}
-
-function renderGk() {
-  gkProcessPayouts();
-  const me = gkMember();
-  $("#gkSellerTab").hidden = !me;
-  gkSyncAuthUi();
-  gkFillAdminForm();
-  gkRenderCartBadge();
-  renderGkShop();
-  const last = store.get(GK_LAST_TAB, "shop");
-  if (last === "auth" && me) {
-    gkOpenTab("seller", { silent: true });
-    return;
-  }
-  if (last) gkOpenTab(last, { silent: true });
-}
-
-function gkOpenTab(tab, opts = {}) {
-  if (!opts.silent) gkMsg("");
-  store.set(GK_LAST_TAB, tab);
-  if (tab === "shop") gkShow("gkShop");
-  if (tab === "cart") {
-    renderGkCart();
-    gkShow("gkCart");
-  }
-  if (tab === "auth") {
-    if (gkMember()) {
-      renderGkSeller();
-      gkShow("gkSeller");
-      store.set(GK_LAST_TAB, "seller");
-      return;
-    }
-    gkSyncAuthUi();
-    gkShow("gkAuth");
-  }
-  if (tab === "seller") {
-    if (!gkMember()) {
-      gkShow("gkAuth");
-      if (!opts.silent) gkMsg("Satış için üye girişi yapın.");
-      return;
-    }
-    renderGkSeller();
-    gkShow("gkSeller");
-  }
-  if (tab === "adminLogin") {
-    if (gkIsAdmin()) {
-      renderGkAdmin();
-      gkShow("gkAdminPanel");
-    } else {
-      gkFillAdminForm();
-      gkShow("gkAdminLogin");
-    }
-  }
-}
-
-$("#gkNav").addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-gk-tab]");
-  if (btn) gkOpenTab(btn.dataset.gkTab);
-});
-
-$("#gkShopSort")?.addEventListener("change", renderGkShop);
-
-$("#gkRegister").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const phone = $("#gkRegPhone").value.trim();
-  const tc = gkDigits($("#gkRegTc").value);
-  const address = $("#gkRegAddress").value.trim();
-  const iban = gkIban($("#gkRegIban").value);
-  const members = store.get(GK_MEMBERS, []);
-  if (members.some((m) => m.phone === phone)) {
-    gkMsg("Bu telefon kayıtlı. Giriş yapın.");
-    return;
-  }
-  if (!gkValidTc(tc)) {
-    gkMsg("Geçerli bir TC kimlik no girin.");
-    return;
-  }
-  if (!address) {
-    gkMsg("Adres zorunludur.");
-    return;
-  }
-  if (!gkValidIban(iban)) {
-    gkMsg("Geçerli bir TR IBAN girin.");
-    return;
-  }
-  if (members.some((m) => gkDigits(m.tc) === tc)) {
-    gkMsg("Bu TC kimlik no kayıtlı.");
-    return;
-  }
-  const member = {
-    id: Date.now(),
-    name: $("#gkRegName").value.trim(),
-    phone,
-    tc,
-    address,
-    iban,
-    pin: $("#gkRegPin").value,
-    cargo: $("#gkRegCargo").value,
-  };
-  members.unshift(member);
-  store.set(GK_MEMBERS, members);
-  store.set(GK_SESSION, member.id);
-  gkMsg("Üyeliğiniz açıldı.");
-  $("#gkRegister").reset();
-  renderGk();
-  gkOpenTab("seller");
-});
-
-$("#gkLogin").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const phone = $("#gkLoginPhone").value.trim();
-  const pin = $("#gkLoginPin").value;
-  const member = store.get(GK_MEMBERS, []).find((m) => m.phone === phone && m.pin === pin);
-  if (!member) {
-    gkMsg("Telefon veya şifre hatalı.");
-    return;
-  }
-  store.set(GK_SESSION, member.id);
-  gkMsg("");
-  renderGk();
-  gkOpenTab("seller");
-});
-
-$("#gkLogout").addEventListener("click", () => {
-  store.set(GK_SESSION, null);
-  renderGk();
-  gkOpenTab("shop");
-});
-
-$("#gkForgotOpen").addEventListener("click", () => {
-  $("#gkForgot").hidden = false;
-  $("#gkForgotPhone").value = $("#gkLoginPhone").value;
-});
-
-$("#gkForgotCancel").addEventListener("click", () => {
-  $("#gkForgot").hidden = true;
-});
-
-$("#gkForgot").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const phone = $("#gkForgotPhone").value.trim();
-  const tc = gkDigits($("#gkForgotTc").value);
-  const pin = $("#gkForgotPin").value;
-  if (pin !== $("#gkForgotPin2").value) {
-    gkMsg("Yeni şifreler aynı olmalı.");
-    return;
-  }
-  const members = store.get(GK_MEMBERS, []);
-  const member = members.find((m) => m.phone === phone && gkDigits(m.tc) === tc);
-  if (!member) {
-    gkMsg("Telefon ve TC eşleşmedi.");
-    return;
-  }
-  member.pin = pin;
-  store.set(GK_MEMBERS, members);
-  $("#gkForgot").reset();
-  $("#gkForgot").hidden = true;
-  gkMsg("Şifreniz güncellendi. Giriş yapın.");
-});
-
-$("#gkProfileForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const me = gkMember();
-  if (!me) return;
-  const tc = gkDigits($("#gkProfTc").value);
-  const address = $("#gkProfAddress").value.trim();
-  const iban = gkIban($("#gkProfIban").value);
-  if (!gkValidTc(tc)) {
-    gkMsg("Geçerli bir TC kimlik no girin.");
-    return;
-  }
-  if (!address) {
-    gkMsg("Adres zorunludur.");
-    return;
-  }
-  if (!gkValidIban(iban)) {
-    gkMsg("Geçerli bir TR IBAN girin.");
-    return;
-  }
-  const taken = store.get(GK_MEMBERS, []).some((m) => m.id !== me.id && gkDigits(m.tc) === tc);
-  if (taken) {
-    gkMsg("Bu TC kimlik no kayıtlı.");
-    return;
-  }
-  me.tc = tc;
-  me.address = address;
-  me.iban = iban;
-  gkSaveMember(me);
-  store.set(
-    GK_ORDERS,
-    store.get(GK_ORDERS, []).map((o) =>
-      o.sellerId === me.id && o.payoutStatus !== "yatırıldı" ? { ...o, sellerIban: iban } : o
-    )
-  );
-  gkMsg("Üye bilgileri kaydedildi.");
-  renderGkSeller();
-});
-
-$("#gkPassForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const me = gkMember();
-  if (!me) return;
-  if ($("#gkPassOld").value !== me.pin) {
-    gkMsg("Mevcut şifre hatalı.");
-    return;
-  }
-  const next = $("#gkPassNew").value;
-  if (next !== $("#gkPassNew2").value) {
-    gkMsg("Yeni şifreler aynı olmalı.");
-    return;
-  }
-  me.pin = next;
-  gkSaveMember(me);
-  $("#gkPassForm").reset();
-  gkMsg("Şifreniz değiştirildi.");
-});
-
-$("#gkProductForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const me = gkMember();
-  if (!me) return;
-  if (!gkProfileOk(me)) {
-    gkMsg("Ürün eklemek için TC, adres ve IBAN zorunludur.");
-    return;
-  }
-  if (!$("#gkCommissionOk").checked) {
-    gkMsg("Ürünü satışa koymadan önce %5 komisyonu kabul etmeniz gerekir.");
-    return;
-  }
-  const products = store.get(GK_PRODUCTS, []);
-  products.unshift({
-    id: Date.now(),
-    sellerId: me.id,
-    name: $("#gkProdName").value.trim(),
-    price: $("#gkProdPrice").value.trim(),
-    photo: $("#gkProdPhoto").value.trim(),
-    desc: $("#gkProdDesc").value.trim(),
-    cargo: $("#gkProdCargo").value,
-    commissionRate: GK_COMMISSION,
-  });
-  store.set(GK_PRODUCTS, products);
-  me.cargo = $("#gkProdCargo").value;
-  const members = store.get(GK_MEMBERS, []).map((m) => (m.id === me.id ? me : m));
-  store.set(GK_MEMBERS, members);
-  $("#gkProductForm").reset();
-  renderGkSeller();
-  renderGkShop();
-});
-
-$("#gkProdPrice")?.addEventListener("input", gkUpdateCommissionHint);
-
-$("#gkMyProducts").addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-gk-del]");
-  if (!btn) return;
-  store.set(
-    GK_PRODUCTS,
-    store.get(GK_PRODUCTS, []).filter((p) => String(p.id) !== btn.dataset.gkDel)
-  );
-  renderGkSeller();
-  renderGkShop();
-});
-
-let gkBuyId = null;
-let gkCheckoutCart = false;
-
-function gkOrderFromProduct(product, qty, buyer) {
-  const seller = store.get(GK_MEMBERS, []).find((m) => m.id === product.sellerId);
-  const amount = parseMoney(product.price) * Math.max(1, qty);
-  const fee = gkFee(amount);
-  return {
-    id: Date.now() + Math.floor(Math.random() * 1000),
-    productId: product.id,
-    productName: product.name,
-    sellerId: product.sellerId,
-    amount,
-    commission: fee.commission,
-    payoutAmount: fee.net,
-    qty: Math.max(1, qty),
-    buyerName: buyer.name,
-    buyerPhone: buyer.phone,
-    address: buyer.address,
-    cargo: product.cargo,
-    status: "Ödendi",
-    tracking: "",
-    pos: buyer.pos,
-    sellerIban: gkIban(seller?.iban || ""),
-    payoutAt: gkNextPayoutAt(),
-    payoutStatus: gkValidIban(seller?.iban) ? "bekliyor" : "iban-bekleniyor",
-  };
-}
-
-$("#gkShopList").addEventListener("click", (event) => {
-  const cartBtn = event.target.closest("[data-gk-cart]");
-  if (cartBtn) {
-    const product = store.get(GK_PRODUCTS, []).find((p) => String(p.id) === cartBtn.dataset.gkCart);
-    if (!product) return;
-    gkAddToCart(product.id);
-    gkMsg(`${product.name} sepete eklendi.`);
-    return;
-  }
-  const btn = event.target.closest("[data-gk-buy]");
-  if (!btn) return;
-  const product = store.get(GK_PRODUCTS, []).find((p) => String(p.id) === btn.dataset.gkBuy);
-  if (!product) return;
-  gkBuyId = product.id;
-  gkCheckoutCart = false;
-  $("#gkBuySummary").textContent = `${product.name} · ${formatTry(parseMoney(product.price))}`;
-  gkShow("gkBuy");
-});
-
-$("#gkCartList").addEventListener("click", (event) => {
-  const del = event.target.closest("[data-gk-cart-del]");
-  if (del) {
-    gkSetCart(gkCartItems().filter((item) => String(item.productId) !== del.dataset.gkCartDel));
-    renderGkCart();
-    return;
-  }
-  const qtyBtn = event.target.closest("[data-gk-qty]");
-  if (!qtyBtn) return;
-  const delta = Number(qtyBtn.dataset.delta) || 0;
-  const items = gkCartItems()
-    .map((item) => {
-      if (String(item.productId) !== qtyBtn.dataset.gkQty) return item;
-      return { ...item, qty: Math.max(1, Math.min(99, (Number(item.qty) || 1) + delta)) };
-    });
-  gkSetCart(items);
-  renderGkCart();
-});
-
-$("#gkCartClear").addEventListener("click", () => {
-  gkSetCart([]);
-  renderGkCart();
-  gkMsg("Sepet boşaltıldı.");
-});
-
-$("#gkCartCheckout").addEventListener("click", () => {
-  const items = gkCartLines();
-  if (!items.length) {
-    gkMsg("Sepet boş.");
-    return;
-  }
-  const total = items.reduce((sum, line) => sum + parseMoney(line.product.price) * line.qty, 0);
-  gkBuyId = null;
-  gkCheckoutCart = true;
-  $("#gkBuySummary").textContent = items
-    .map((line) => `${line.product.name} × ${line.qty}`)
-    .join(" · ") + ` · Toplam ${formatTry(total)}`;
-  gkShow("gkBuy");
-});
-
-$("#gkBuyCancel").addEventListener("click", () => {
-  const back = gkCheckoutCart ? "cart" : "shop";
-  gkBuyId = null;
-  gkCheckoutCart = false;
-  gkOpenTab(back);
-});
-
-$("#gkBuyCardNumber").addEventListener("input", () => {
-  const num = $("#gkBuyCardNumber").value.replace(/\D/g, "");
-  const brand = posCardBrandFromNumber(num);
-  if (brand && [...$("#gkBuyBrand").options].some((o) => o.value === brand)) {
-    $("#gkBuyBrand").value = brand;
-  }
-});
-
-$("#gkBuyExp").addEventListener("input", () => {
-  let v = $("#gkBuyExp").value.replace(/\D/g, "").slice(0, 4);
-  if (v.length >= 3) v = v.slice(0, 2) + "/" + v.slice(2);
-  $("#gkBuyExp").value = v;
-});
-
-$("#gkBuyForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  posEnsureGateway();
-  const pos = gkIntegrations().pos;
-  if (!posPayOn("shop") || !pos.active || !pos.key || !pos.secret) {
-    gkMsg("Ürün ödemesi süper admin tarafından kapalı veya anahtar yok.");
-    return;
-  }
-  const num = $("#gkBuyCardNumber").value.replace(/\D/g, "");
-  const exp = $("#gkBuyExp").value.trim();
-  const cvc = $("#gkBuyCvc").value.replace(/\D/g, "");
-  const brand = $("#gkBuyBrand").value;
-  if (num.length < 13 || num.length > 19) {
-    gkMsg("Geçerli kart numarası girin.");
-    return;
-  }
-  if (!/^\d{2}\/\d{2}$/.test(exp)) {
-    gkMsg("Son kullanma AA/YY olsun.");
-    return;
-  }
-  if (cvc.length < 3) {
-    gkMsg("CVC girin.");
-    return;
-  }
-  const buyer = {
-    name: $("#gkBuyName").value.trim(),
-    phone: $("#gkBuyPhone").value.trim(),
-    address: $("#gkBuyAddress").value.trim(),
-    pos: pos.provider,
-  };
-  const last4 = num.slice(-4);
-  const orders = store.get(GK_ORDERS, []);
-  let total = 0;
-  let products = "";
-  if (gkCheckoutCart) {
-    const lines = gkCartLines();
-    if (!lines.length) {
-      gkMsg("Sepet boş.");
-      return;
-    }
-    lines.forEach((line, index) => {
-      const order = gkOrderFromProduct(line.product, line.qty, buyer);
-      order.id = Date.now() + index;
-      order.payIban = POS_SETTLE.iban;
-      order.posKey = pos.key;
-      orders.unshift(order);
-      total += order.amount;
-      products += (products ? " · " : "") + line.product.name;
-    });
-    gkSetCart([]);
-  } else {
-    const product = store.get(GK_PRODUCTS, []).find((p) => p.id === gkBuyId);
-    if (!product) return;
-    const order = gkOrderFromProduct(product, 1, buyer);
-    order.payIban = POS_SETTLE.iban;
-    order.posKey = pos.key;
-    orders.unshift(order);
-    total = order.amount;
-    products = product.name;
-  }
-  store.set(GK_ORDERS, orders);
-  const shopFee = posFee(total);
-  store.set(
-    POS_PAYS,
-    posPays().concat({
-      id: "pay_" + Date.now(),
-      phone: gkDigits(buyer.phone),
-      name: buyer.name,
-      amount: shopFee.gross,
-      commission: shopFee.commission,
-      net: shopFee.net,
-      feeRate: POS_FEE_RATE,
-      note: products,
-      method: "card",
-      detail: "Ürün · " + brand + " · **** " + last4 + " · " + products + " · " + (pos.key || ""),
-      apiKey: pos.key,
-      settleName: POS_SETTLE.name,
-      settleBranch: POS_SETTLE.branch,
-      settleIban: POS_SETTLE.iban,
-      at: Date.now(),
-    })
-  );
-  gkBuyId = null;
-  gkCheckoutCart = false;
-  $("#gkBuyForm").reset();
-  gkMsg(
-    "Kart ödemesi alındı. %0,95 komisyon " +
-      formatTry(shopFee.commission) +
-      " · net " +
-      formatTry(shopFee.net) +
-      " Tolkan Uğur Özel IBAN’ına kabul edildi."
-  );
-  gkOpenTab("shop");
-});
-
-$("#gkSellerOrders").addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-gk-ship]");
-  if (!btn) return;
-  const id = Number(btn.dataset.gkShip);
-  const select = $(`[data-gk-ship-cargo="${id}"]`);
-  const cargo = select?.value || "yurtici";
-  const integ = gkIntegrations();
-  const connected = Boolean(integ.cargo[cargo]);
-  const tracking = (connected ? "API-" : "KRG-") + String(id).slice(-6);
-  const orders = store.get(GK_ORDERS, []).map((o) =>
-    o.id === id
-      ? { ...o, cargo, tracking, status: `Kargoda · ${GK_CARGO[cargo]}` }
-      : o
-  );
-  store.set(GK_ORDERS, orders);
-  renderGkSeller();
-});
-
-$("#gkAdminForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  if ($("#gkAdminUser").value.trim() !== GK_ADMIN_USER || $("#gkAdminPin").value !== GK_ADMIN_PIN) {
-    gkMsg("Yönetim bilgileri hatalı.");
-    return;
-  }
-  const remember = $("#gkAdminRemember").checked;
-  store.set(GK_ADMIN_ON, true);
-  store.set(GK_ADMIN_REMEMBER, remember
-    ? { remember: true, user: GK_ADMIN_USER, pin: GK_ADMIN_PIN }
-    : { remember: false });
-  gkMsg("");
-  store.set(GK_LAST_TAB, "adminLogin");
-  renderGkAdmin();
-  gkShow("gkAdminPanel");
-});
-
-$("#gkAdminShowPin").addEventListener("click", () => {
-  const pin = $("#gkAdminPin");
-  const show = pin.type === "password";
-  pin.type = show ? "text" : "password";
-  $("#gkAdminShowPin").textContent = show ? "Şifre gizle" : "Şifre göster";
-  $("#gkAdminShowPin").setAttribute("aria-pressed", String(show));
-});
-
-$("#gkAdminLogout").addEventListener("click", () => {
-  store.set(GK_ADMIN_ON, false);
-  gkFillAdminForm();
-  gkOpenTab("adminLogin");
-});
-
-$("#gkPosForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (!gkIsAdmin()) return;
-  const g = posGateway();
-  const integ = gkIntegrations();
-  integ.pos = {
-    provider: $("#gkPosProvider").value,
-    merchant: $("#gkPosMerchant").value.trim() || "HarbiGrup",
-    key: $("#gkPosKey").value.trim() || g.apiKey,
-    secret: $("#gkPosSecret").value.trim() || g.secretKey,
-    active: $("#gkPosOn").checked || Boolean(g.apiKey && g.secretKey),
-    settleIban: POS_SETTLE.iban,
-  };
-  store.set(GK_INTEG, integ);
-  posFillKeyInputs();
-  gkMsg("POS kaydedildi. Anahtarlar ödeme sisteminde.");
-});
-
-$("#gkCargoForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (!gkIsAdmin()) return;
-  const integ = gkIntegrations();
-  integ.cargo = {
-    yurtici: $("#gkCargoYurtici").value.trim(),
-    aras: $("#gkCargoAras").value.trim(),
-    mng: $("#gkCargoMng").value.trim(),
-    ptt: $("#gkCargoPtt").value.trim(),
-    surat: $("#gkCargoSurat").value.trim(),
-  };
-  store.set(GK_INTEG, integ);
-  gkMsg("Kargo kaydedildi.");
-});
-
-setInterval(() => {
-  if (gkProcessPayouts() && document.querySelector('.view.active')?.dataset.view === "women") {
-    const last = store.get(GK_LAST_TAB, "shop");
-    if (last === "seller") renderGkSeller();
-    if (last === "adminLogin") renderGkAdmin();
-  }
-}, 30000);
-
-
-
-
-
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
-  });
-}
-
 document.addEventListener("input", (event) => {
   if (!event.target.closest("#views")) return;
   clearTimeout(resumeFieldTimer);
@@ -7888,17 +6953,10 @@ window.addEventListener("pagehide", () => {
   resumeSaveScroll(resumeActiveView());
 });
 
-const POS_MEMBERS = "pos-members";
-const POS_PAYS = "pos-pays";
-const POS_REMEMBER = "pos-remember";
-const POS_ADMIN_ON = "pos-admin-on";
 const POS_ADMIN_REMEMBER = "pos-admin-remember";
 const POS_ADMIN_PIN_STORE = "pos-admin-pin";
-const POS_SETTINGS = "pos-settings";
-const POS_SESSION = "pos-session";
 const POS_ADMIN_USER = "superadmin";
 const POS_ADMIN_PIN = "HarbiAdmin2026";
-const POS_GATEWAY = "pos-gateway-keys";
 const POS_SETTLE = {
   name: "Tolkan Uğur Özel",
   branch: "",
@@ -7907,33 +6965,10 @@ const POS_SETTLE = {
   ibanRaw: "TR540006200011100006292069",
   ibanMasked: "TR54 0006 2000 1110 0006 ** **",
 };
-const POS_FEE_RATE = 0.0095;
 
-function posFee(amount) {
-  const gross = Math.round((Number(amount) || 0) * 100) / 100;
-  const commission = Math.round(gross * POS_FEE_RATE * 100) / 100;
-  const net = Math.round((gross - commission) * 100) / 100;
-  return { gross, commission, net };
-}
-
-function posMaskIban(value) {
-  const raw = String(value || "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
-  if (raw.length <= 6) return "******";
-  return (raw.slice(0, -6) + "******").replace(/(.{4})/g, "$1 ").trim();
-}
-
-function posMembers() {
-  return store.get(POS_MEMBERS, []);
-}
-
-function posSaveMembers(list) {
-  store.set(POS_MEMBERS, list);
-}
-
-function posPays() {
-  return store.get(POS_PAYS, []);
+function posAdminPinValue() {
+  const saved = store.get(POS_ADMIN_PIN_STORE, "");
+  return saved || POS_ADMIN_PIN;
 }
 
 function posIbanOk(value) {
@@ -7950,456 +6985,7 @@ function posFormatIban(value) {
   return raw.replace(/(.{4})/g, "$1 ").trim();
 }
 
-function posCardBrandFromNumber(num) {
-  if (num.startsWith("4")) return "Visa";
-  if (/^5[1-5]/.test(num) || /^2[2-7]/.test(num)) return "Mastercard";
-  if (num.startsWith("9792")) return "Troy";
-  if (/^3[47]/.test(num)) return "American Express";
-  if (num.startsWith("62")) return "UnionPay";
-  if (num.startsWith("6")) return "Discover";
-  return "";
-}
-
-function posCanCharge(method) {
-  const member = posMember();
-  if (!member || member.status !== "active") {
-    posMsg("Yalnızca onaylı üyeler POS kullanabilir.");
-    return false;
-  }
-  if (!posPayOn(method || "global")) {
-    posMsg(posSettings().on === false ? "Sanal POS sistemi kapalı." : "Bu ödeme sistemi süper admin tarafından kapatıldı.");
-    return false;
-  }
-  return member;
-}
-
-function posRecordPay(extra) {
-  const member = posCanCharge(extra.method);
-  if (!member) return false;
-  const amount = extra.amount;
-  if (!Number.isFinite(amount) || amount <= 0) {
-    posMsg("Geçerli tutar girin.");
-    return false;
-  }
-  const fee = posFee(amount);
-  const pay = {
-    id: "pay_" + Date.now(),
-    phone: member.phone,
-    name: member.name,
-    amount: fee.gross,
-    commission: fee.commission,
-    net: fee.net,
-    feeRate: POS_FEE_RATE,
-    note: extra.note || "",
-    method: extra.method,
-    detail: extra.detail || "",
-    apiKey: posGateway().apiKey || "",
-    settleName: POS_SETTLE.name,
-    settleBranch: POS_SETTLE.branch,
-    settleIban: POS_SETTLE.iban,
-    at: Date.now(),
-  };
-  store.set(POS_PAYS, posPays().concat(pay));
-  posMsg(
-    formatTry(fee.gross) +
-      " alındı. %0,95 komisyon " +
-      formatTry(fee.commission) +
-      " · net " +
-      formatTry(fee.net) +
-      " aktarıldı."
-  );
-  posRenderDesk();
-  return true;
-}
-
-function posPayLine(p, who) {
-  const method =
-    p.method === "iban"
-      ? "IBAN"
-      : p.method === "card"
-        ? "Kredi kartı"
-        : p.method === "operator"
-          ? "Operatör faturası"
-          : p.method === "withdraw"
-            ? "Para çek"
-          : p.method === "reklam"
-            ? "Reklam"
-            : "Tahsilat";
-  const whoLine = who ? `<p>${escapeHtml(who)}</p>` : "";
-  const detail = String(p.detail || p.note || "Tahsilat")
-    .replace(/2920\s*69/g, "** **")
-    .replace(/292069/g, "******");
-  const fee = p.commission != null && p.net != null ? { commission: p.commission, net: p.net } : posFee(p.amount);
-  return `<article class="note"><header><strong>${escapeHtml(formatTry(p.amount))}</strong><time>${escapeHtml(
-    new Date(p.at).toLocaleString("tr-TR")
-  )}</time></header>${whoLine}<p>${escapeHtml(method)} · ${escapeHtml(detail)}</p><p class="hint">%0,95 komisyon ${escapeHtml(
-    formatTry(fee.commission)
-  )} · net ${escapeHtml(formatTry(fee.net))}</p><p class="hint">Aktarım: ${escapeHtml(
-    [p.settleName || POS_SETTLE.name, posMaskIban(p.settleIban || POS_SETTLE.iban)]
-      .filter((part) => part && !/lüleburgaz/i.test(String(part)))
-      .join(" · ")
-  )}</p></article>`;
-}
-
-function posSettings() {
-  return {
-    on: true,
-    withdrawShow: false,
-    payIban: true,
-    payCard: true,
-    payOperator: true,
-    payShop: true,
-    payWithdraw: true,
-    payGkPos: true,
-    ...store.get(POS_SETTINGS, {}),
-  };
-}
-
-function posPayOn(kind) {
-  const s = posSettings();
-  if (kind !== "global" && s.on === false) return false;
-  if (kind === "iban") return s.payIban !== false;
-  if (kind === "card") return s.payCard !== false;
-  if (kind === "operator") return s.payOperator !== false;
-  if (kind === "shop") return s.payShop !== false && s.payGkPos !== false;
-  if (kind === "withdraw") return s.payWithdraw !== false;
-  if (kind === "gkpos") return s.payGkPos !== false;
-  return s.on !== false;
-}
-
-function posApplySysFromForm(all) {
-  if (!posIsAdmin()) return;
-  const on = all == null ? $("#posGlobalOn").checked : all;
-  posPatchSettings({
-    on,
-    payIban: all == null ? $("#posSysIban").checked : all,
-    payCard: all == null ? $("#posSysCard").checked : all,
-    payShop: all == null ? $("#posSysShop").checked : all,
-    payWithdraw: all == null ? $("#posSysWithdraw").checked : all,
-    payGkPos: all == null ? $("#posSysGkPos").checked : all,
-  });
-  posWriteKeysToPay();
-  posRenderAdmin();
-  posMsg(all === false ? "Tüm ödeme sistemleri kapatıldı." : all === true ? "Tüm ödeme sistemleri açıldı." : "Ödeme sistemi komutları kaydedildi.");
-}
-
-function posRenderPaySystems() {
-  const s = posSettings();
-  const setChk = (id, val) => {
-    if ($(id)) $(id).checked = val;
-  };
-  setChk("#posGlobalOn", s.on !== false);
-  setChk("#posSysIban", s.payIban !== false);
-  setChk("#posSysCard", s.payCard !== false);
-  setChk("#posSysShop", s.payShop !== false);
-  setChk("#posSysWithdraw", s.payWithdraw !== false);
-  setChk("#posSysGkPos", s.payGkPos !== false);
-  const pays = posPays();
-  const n = (fn) => pays.filter(fn).length;
-  const row = (name, on, extra) =>
-    `<article class="note"><header><strong>${escapeHtml(name)}</strong><time>${on ? "Açık" : "Kapalı"}</time></header><p>${escapeHtml(extra)}</p></article>`;
-  const g = posGateway();
-  const integ = gkIntegrations();
-  if ($("#posSysStatus")) {
-    $("#posSysStatus").innerHTML = [
-      row("Sanal POS genel", s.on !== false, pays.length + " toplam işlem · %0,95 komisyon"),
-      row("IBAN ile ödeme", posPayOn("iban"), n((p) => p.method === "iban") + " işlem"),
-      row("Reklam tahsilatı", true, n((p) => p.method === "reklam") + " işlem · Tolkan Uğur özel IBAN"),
-      row("Kredi kartı", posPayOn("card"), n((p) => p.method === "card") + " işlem"),
-      row("Siteden ürün ödemesi", posPayOn("shop"), n((p) => String(p.detail || "").startsWith("Ürün")) + " işlem"),
-      row("Para çek", posPayOn("withdraw") && s.withdrawShow, n((p) => p.method === "withdraw") + " işlem"),
-      row(
-        "Ürün POS entegrasyonu",
-        posPayOn("gkpos") && Boolean(integ.pos?.active),
-        (integ.pos?.provider || "demo") + " · " + (g.apiKey ? g.apiKey.slice(0, 11) + "…" : "anahtar yok")
-      ),
-    ].join("");
-  }
-}
-
-function posPatchSettings(patch) {
-  store.set(POS_SETTINGS, { on: true, withdrawShow: false, ...posSettings(), ...patch });
-}
-
-function posSyncWithdrawUi() {
-  const show = posIsAdmin() && posSettings().withdrawShow === true;
-  const card = $("#posWithdrawCard");
-  const btn = $("#posWithdrawToggle");
-  if (card) card.hidden = !show;
-  if (btn) {
-    btn.hidden = !posIsAdmin();
-    btn.textContent = show ? "Para çek alanını gizle" : "Para çek alanını göster";
-    btn.setAttribute("aria-pressed", String(show));
-  }
-  if ($("#posWithdrawTarget")) $("#posWithdrawTarget").value = POS_SETTLE.ibanMasked;
-  if ($("#posSettleIban")) $("#posSettleIban").value = POS_SETTLE.ibanMasked;
-}
-
-function posMsg(text) {
-  const el = $("#posMsg");
-  if (el) el.textContent = text || "";
-}
-
-function posPhone(value) {
-  return String(value || "").replace(/\D/g, "");
-}
-
-function posTogglePins(ids, btn) {
-  const show = $(ids[0]).type === "password";
-  ids.forEach((id) => {
-    $(id).type = show ? "text" : "password";
-  });
-  btn.textContent = show ? "Şifreleri gizle" : "Şifreleri göster";
-  btn.setAttribute("aria-pressed", String(show));
-}
-
-function posRememberGet() {
-  return store.get(POS_REMEMBER, null);
-}
-
-function posRememberSave(login, pin, on) {
-  if (on) store.set(POS_REMEMBER, { login, pin });
-  else store.set(POS_REMEMBER, null);
-}
-
-function posFillRemember() {
-  const saved = posRememberGet();
-  if (!saved) return;
-  if ($("#posLoginPhone") && saved.login) $("#posLoginPhone").value = saved.login;
-  if ($("#posLoginPin") && saved.pin) $("#posLoginPin").value = saved.pin;
-  if ($("#posLoginRemember")) $("#posLoginRemember").checked = true;
-  if ($("#posRegRemember")) $("#posRegRemember").checked = true;
-}
-
-function posAdminPinValue() {
-  const saved = store.get(POS_ADMIN_PIN_STORE, "");
-  return saved || POS_ADMIN_PIN;
-}
-
-function posFillAdminRemember() {
-  const saved = store.get(POS_ADMIN_REMEMBER, null);
-  const remember = Boolean(saved?.remember);
-  if ($("#posAdminRemember")) $("#posAdminRemember").checked = saved ? remember : true;
-  if (remember && saved?.user && $("#posAdminUser")) $("#posAdminUser").value = saved.user;
-  if (remember && saved?.pin && $("#posAdminPin")) $("#posAdminPin").value = saved.pin;
-}
-
-function posSession() {
-  return store.get(POS_SESSION, null);
-}
-
-function posMember() {
-  const session = posSession();
-  if (!session?.phone) return null;
-  return posMembers().find((m) => m.phone === session.phone) || null;
-}
-
-function posIsAdmin() {
-  return store.get(POS_ADMIN_ON, false) === true;
-}
-
-function posMakeKeys() {
-  const raw = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
-  return {
-    apiKey: "pk_live_" + raw.slice(0, 24),
-    secretKey: "sk_live_" + raw.slice(24, 56),
-  };
-}
-
-function posGateway() {
-  return store.get(POS_GATEWAY, { apiKey: "", secretKey: "" }) || { apiKey: "", secretKey: "" };
-}
-
-function posSaveGateway(next) {
-  store.set(POS_GATEWAY, next);
-  posWriteKeysToPay();
-  posFillKeyInputs();
-  return next;
-}
-
-function posWriteKeysToPay() {
-  const g = posGateway();
-  const integ = gkIntegrations();
-  integ.pos = {
-    provider: integ.pos?.provider || "demo",
-    merchant: integ.pos?.merchant || "HarbiGrup",
-    key: g.apiKey || integ.pos?.key || "",
-    secret: g.secretKey || integ.pos?.secret || "",
-    active: Boolean(g.apiKey && g.secretKey) && posPayOn("gkpos") && posPayOn("shop"),
-    settleIban: POS_SETTLE.iban,
-  };
-  store.set(GK_INTEG, integ);
-}
-
-function posFillKeyInputs() {
-  const g = posGateway();
-  [
-    ["#posGateApi", g.apiKey],
-    ["#posPayApiKey", g.apiKey],
-    ["#gkPosKey", g.apiKey],
-  ].forEach(([sel, val]) => {
-    if ($(sel) && val) $(sel).value = val;
-  });
-  [
-    ["#posGateSecret", g.secretKey],
-    ["#posPaySecret", g.secretKey],
-    ["#gkPosSecret", g.secretKey],
-  ].forEach(([sel, val]) => {
-    if ($(sel) && val) $(sel).value = val;
-  });
-  if ($("#gkPosOn") && g.apiKey && g.secretKey) $("#gkPosOn").checked = true;
-  if ($("#gkPosMerchant") && !($("#gkPosMerchant").value || "").trim()) $("#gkPosMerchant").value = "HarbiGrup";
-}
-
-function posCreateApiKey() {
-  const g = posGateway();
-  if (g.apiKey) {
-    posWriteKeysToPay();
-    posFillKeyInputs();
-    posMsg("API anahtarı aynı kaldı ve ödeme sistemine yazıldı.");
-    return g;
-  }
-  const made = posMakeKeys();
-  g.apiKey = made.apiKey;
-  posSaveGateway(g);
-  posMsg("API anahtarı oluşturuldu ve ödeme sistemine yazıldı.");
-  return g;
-}
-
-function posCreateSecretKey() {
-  const g = posGateway();
-  if (g.secretKey) {
-    posWriteKeysToPay();
-    posFillKeyInputs();
-    posMsg("Gizli anahtar aynı kaldı ve ödeme sistemine yazıldı.");
-    return g;
-  }
-  const made = posMakeKeys();
-  g.secretKey = made.secretKey;
-  posSaveGateway(g);
-  posMsg("Gizli anahtar oluşturuldu ve ödeme sistemine yazıldı.");
-  return g;
-}
-
-function posEnsureGateway() {
-  const g = posGateway();
-  if (!g.apiKey || !g.secretKey) {
-    const made = posMakeKeys();
-    if (!g.apiKey) g.apiKey = made.apiKey;
-    if (!g.secretKey) g.secretKey = made.secretKey;
-    posSaveGateway(g);
-  } else {
-    posWriteKeysToPay();
-    posFillKeyInputs();
-  }
-}
-
-function posReadDoc(input) {
-  const file = input.files?.[0];
-  if (!file) return Promise.reject(new Error("Belge seçin."));
-  if (file.size > 3 * 1024 * 1024) return Promise.reject(new Error("Her belge en fazla 3 MB olabilir."));
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve({ name: file.name, type: file.type, dataUrl: reader.result });
-    reader.onerror = () => reject(new Error("Belge okunamadı."));
-    reader.readAsDataURL(file);
-  });
-}
-
-function posShow(id) {
-  ["posApply", "posLogin", "posDesk", "posAdminLogin", "posAdminPanel"].forEach((key) => {
-    const el = $("#" + key);
-    if (el) el.hidden = key !== id;
-  });
-}
-
-function posStatusLabel(status) {
-  if (status === "active") return "Aktif";
-  if (status === "rejected") return "Reddedildi";
-  if (status === "held") return "Askıda";
-  return "Onay bekliyor";
-}
-
-function posRenderDesk() {
-  const member = posMember();
-  $("#posDeskTab").hidden = !member;
-  if (!member) {
-    $("#posHello").textContent = "";
-    ["posWaitCard", "posRejectCard", "posHoldCard", "posKeysCard", "posChargeWrap"].forEach((id) => {
-      $("#" + id).hidden = true;
-    });
-    return;
-  }
-  $("#posHello").textContent =
-    member.name + (member.email ? " · " + member.email : "") + " · " + posStatusLabel(member.status);
-  const pending = member.status === "pending";
-  const active = member.status === "active";
-  $("#posWaitCard").hidden = !pending;
-  $("#posRejectCard").hidden = member.status !== "rejected";
-  $("#posRejectReason").textContent = member.rejectReason || "Başvurunuz reddedildi.";
-  $("#posHoldCard").hidden = member.status !== "held";
-  $("#posKeysCard").hidden = !active || !member.apiKey;
-  $("#posChargeWrap").hidden = !active || !posSettings().on;
-  if ($("#posIbanCard")) $("#posIbanCard").hidden = !active || !posPayOn("iban");
-  if ($("#posCardCard")) $("#posCardCard").hidden = !active || !posPayOn("card");
-  posRefreshIyzicoHint();
-  if (active && member.apiKey) {
-    $("#posApiKey").value = member.apiKey;
-    $("#posSecretKey").value = member.secretKey;
-    $("#posSecretKey").type = "password";
-    $("#posSecretToggle").textContent = "Gizli anahtarı göster";
-  } else {
-    $("#posApiKey").value = "";
-    $("#posSecretKey").value = "";
-  }
-  posFillKeyInputs();
-  const mine = posPays().filter((p) => p.phone === member.phone);
-  $("#posPayList").innerHTML = mine.length
-    ? mine.slice().reverse().map(posPayLine).join("")
-    : "<p class='hint'>Henüz tahsilat yok.</p>";
-}
-
-function posRenderAdmin() {
-  posFillKeyInputs();
-  posRenderPaySystems();
-  posSyncWithdrawUi();
-  const list = posMembers().slice().reverse();
-  $("#posAdminMembers").innerHTML = list.length
-    ? list
-        .map((m) => {
-          const docs = ["ikamet", "imza", "findeks"]
-            .map((key) => {
-              const doc = m.docs?.[key];
-              if (!doc?.dataUrl) return "";
-              const label = key === "ikamet" ? "İkametgah" : key === "imza" ? "İmza sirküleri" : "Findeks";
-              return `<a class="ghost-btn" href="${doc.dataUrl}" download="${escapeHtml(doc.name || label)}" target="_blank" rel="noopener">${label}</a>`;
-            })
-            .join(" ");
-          const keys =
-            m.status === "active" && m.apiKey
-              ? `<p class="hint">API: ${escapeHtml(m.apiKey)}<br>Gizli: ${escapeHtml(m.secretKey)}</p>`
-              : `<p class="hint">API ve gizli anahtar üyelik onaylanmadan üretildi / gösterilmez.</p>`;
-          return `<article class="note" data-pos-id="${escapeHtml(m.id)}">
-            <header><strong>${escapeHtml(m.name)}</strong><time>${escapeHtml(posStatusLabel(m.status))}</time></header>
-            <p>${escapeHtml(m.email || "—")} · ${escapeHtml(m.phone)} · ${escapeHtml(m.address)}</p>
-            <div class="row">${docs}</div>
-            ${keys}
-            <div class="row">
-              <button class="gold" type="button" data-pos-cmd="approve">Onayla / Aktif et</button>
-              <button class="secondary" type="button" data-pos-cmd="hold">Askıya al</button>
-              <button class="danger" type="button" data-pos-cmd="reject">Reddet</button>
-              <button class="secondary" type="button" data-pos-cmd="keys">Anahtar yenile</button>
-              <button class="danger" type="button" data-pos-cmd="delete">Sil</button>
-            </div>
-          </article>`;
-        })
-        .join("")
-    : "<p class='hint'>Başvuru yok.</p>";
-  const pays = posPays().slice().reverse();
-  $("#posAdminPays").innerHTML = pays.length
-    ? pays.map((p) => posPayLine(p, `${p.name || "—"} · ${p.phone || "—"}`)).join("")
-    : "<p class='hint'>Tahsilat yok.</p>";
-}
+function posEnsureGateway() {}
 
 function eimzaProductLabel(value) {
   if (value === "eimza-1y") return "1 Yıllık E-İmza";
@@ -8723,519 +7309,6 @@ $("#eimzaIbanForm")?.addEventListener("submit", (event) => {
   eimzaFinishPay("iban", { from: posFormatIban($("#eimzaIbanFrom").value), iban: POS_SETTLE.ibanMasked });
 });
 
-function renderPos() {
-  const member = posMember();
-  const admin = posIsAdmin();
-  $("#posDeskTab").hidden = !member;
-  posFillRemember();
-  posFillAdminRemember();
-  if (admin) {
-    posRenderAdmin();
-    posShow("posAdminPanel");
-    return;
-  }
-  if (member) {
-    posRenderDesk();
-    posShow("posDesk");
-    return;
-  }
-  posShow("posApply");
-}
-
-$$("[data-pos-tab]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const tab = btn.dataset.posTab;
-    posMsg("");
-    if (tab === "apply") posShow("posApply");
-    if (tab === "login") posShow("posLogin");
-    if (tab === "desk") {
-      if (!posMember()) {
-        posMsg("Önce giriş yapın.");
-        posShow("posLogin");
-        return;
-      }
-      posRenderDesk();
-      posShow("posDesk");
-    }
-    if (tab === "admin") {
-      if (posIsAdmin()) {
-        posRenderAdmin();
-        posShow("posAdminPanel");
-      } else {
-        posFillAdminRemember();
-        posShow("posAdminLogin");
-      }
-    }
-  });
-});
-
-$("#posRegister").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    const phone = posPhone($("#posRegPhone").value);
-    const email = $("#posRegEmail").value.trim().toLowerCase();
-    const name = $("#posRegName").value.trim();
-    const address = $("#posRegAddress").value.trim();
-    const pin = $("#posRegPin").value;
-    if (!name || !address || !phone || !email || !pin || !$("#posRegPin2").value) {
-      posMsg("Tüm alanlar zorunludur.");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      posMsg("Geçerli e-posta girin.");
-      return;
-    }
-    if (phone.length < 10) {
-      posMsg("Geçerli telefon girin.");
-      return;
-    }
-    if (pin !== $("#posRegPin2").value) {
-      posMsg("Şifreler aynı olmalı.");
-      return;
-    }
-    if (posMembers().some((m) => m.phone === phone || (m.email && m.email.toLowerCase() === email))) {
-      posMsg("Bu telefon veya e-posta ile başvuru var. Giriş yapın.");
-      posShow("posLogin");
-      return;
-    }
-    const [ikamet, imza, findeks] = await Promise.all([
-      posReadDoc($("#posRegIkamet")),
-      posReadDoc($("#posRegImza")),
-      posReadDoc($("#posRegFindeks")),
-    ]);
-    const member = {
-      id: "pos_" + Date.now(),
-      name,
-      email,
-      phone,
-      address,
-      pin,
-      status: "pending",
-      docs: { ikamet, imza, findeks },
-      at: Date.now(),
-    };
-    posSaveMembers(posMembers().concat(member));
-    store.set(POS_SESSION, { phone });
-    posRememberSave(email, pin, $("#posRegRemember").checked);
-    $("#posRegister").reset();
-    if ($("#posRegRemember")) $("#posRegRemember").checked = !!posRememberGet();
-    posMsg("Başvuru alındı. Onay bekleniyor.");
-    posRenderDesk();
-    posShow("posDesk");
-  } catch (err) {
-    posMsg(err.message || "Başvuru gönderilemedi.");
-  }
-});
-
-$("#posLoginForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const login = $("#posLoginPhone").value.trim();
-  const pin = $("#posLoginPin").value;
-  const phone = posPhone(login);
-  const member = posMembers().find(
-    (m) => m.pin === pin && (m.phone === phone || (m.email && m.email.toLowerCase() === login.toLowerCase()))
-  );
-  if (!member) {
-    posMsg("Telefon, e-posta veya şifre hatalı.");
-    return;
-  }
-  store.set(POS_SESSION, { phone: member.phone });
-  posRememberSave(login, pin, $("#posLoginRemember").checked);
-  posMsg("");
-  posRenderDesk();
-  posShow("posDesk");
-});
-
-$("#posRegShowPin").addEventListener("click", () => {
-  posTogglePins(["#posRegPin", "#posRegPin2"], $("#posRegShowPin"));
-});
-$("#posLoginShowPin").addEventListener("click", () => {
-  posTogglePins(["#posLoginPin"], $("#posLoginShowPin"));
-});
-$("#posForgotShowPin").addEventListener("click", () => {
-  posTogglePins(["#posForgotPin", "#posForgotPin2"], $("#posForgotShowPin"));
-});
-$("#posForgotOpen").addEventListener("click", () => {
-  $("#posForgot").hidden = false;
-  $("#posForgotPhone").value = $("#posRegPhone").value || $("#posLoginPhone").value;
-  $("#posForgotEmail").value = $("#posRegEmail").value;
-  posShow("posApply");
-});
-$("#posForgotCancel").addEventListener("click", () => {
-  $("#posForgot").hidden = true;
-});
-$("#posForgot").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const phone = posPhone($("#posForgotPhone").value);
-  const email = $("#posForgotEmail").value.trim().toLowerCase();
-  const pin = $("#posForgotPin").value;
-  const pin2 = $("#posForgotPin2").value;
-  if (!phone || !email || !pin || !pin2) {
-    posMsg("Tüm alanlar zorunludur.");
-    return;
-  }
-  if (pin !== pin2) {
-    posMsg("Şifreler aynı olmalı.");
-    return;
-  }
-  const list = posMembers();
-  const member = list.find((m) => m.phone === phone && m.email && m.email.toLowerCase() === email);
-  if (!member) {
-    posMsg("Telefon ve e-posta eşleşmedi.");
-    return;
-  }
-  member.pin = pin;
-  posSaveMembers(list);
-  $("#posForgot").reset();
-  $("#posForgot").hidden = true;
-  posMsg("Şifre güncellendi. Giriş yapın.");
-  posShow("posLogin");
-});
-
-$("#posLogout").addEventListener("click", () => {
-  store.set(POS_SESSION, null);
-  posMsg("Çıkış yapıldı.");
-  posShow("posLogin");
-  $("#posDeskTab").hidden = true;
-});
-
-$("#posSecretToggle").addEventListener("click", () => {
-  const member = posMember();
-  if (!member || member.status !== "active") return;
-  const input = $("#posSecretKey");
-  const show = input.type === "password";
-  input.type = show ? "text" : "password";
-  $("#posSecretToggle").textContent = show ? "Gizli anahtarı gizle" : "Gizli anahtarı göster";
-});
-
-function posToggleSecret(inputSel, btnSel, adminOnly) {
-  if (adminOnly && !posIsAdmin()) return;
-  const input = $(inputSel);
-  const btn = $(btnSel);
-  if (!input || !btn) return;
-  const show = input.type === "password";
-  input.type = show ? "text" : "password";
-  btn.textContent = show ? "Gizli anahtarı gizle" : "Gizli anahtarı göster";
-  btn.setAttribute("aria-pressed", String(show));
-}
-
-$("#posGateSecretToggle").addEventListener("click", () => posToggleSecret("#posGateSecret", "#posGateSecretToggle", true));
-$("#posPaySecretToggle").addEventListener("click", () => posToggleSecret("#posPaySecret", "#posPaySecretToggle", false));
-$("#gkPosSecretToggle").addEventListener("click", () => {
-  if (!gkIsAdmin()) return;
-  posToggleSecret("#gkPosSecret", "#gkPosSecretToggle", false);
-});
-
-$("#posCopyIban").addEventListener("click", async () => {
-  try {
-    await navigator.clipboard.writeText(POS_SETTLE.ibanMasked);
-    posMsg("IBAN kopyalandı.");
-  } catch {
-    posMsg(POS_SETTLE.ibanMasked);
-  }
-});
-
-$("#posIbanForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const from = posFormatIban($("#posIbanFrom").value);
-  if (!posIbanOk(from)) {
-    posMsg("Geçerli bir TR IBAN girin.");
-    return;
-  }
-  const payer = $("#posIbanPayer").value.trim();
-  const ok = posRecordPay({
-    amount: parseMoney($("#posIbanAmount").value),
-    method: "iban",
-    note: $("#posIbanNote").value.trim(),
-    detail: payer + " · " + from + " → " + POS_SETTLE.ibanMasked,
-  });
-  if (ok) $("#posIbanForm").reset();
-});
-
-async function posRefreshIyzicoHint() {
-  const hint = $("#posIyzicoHint");
-  if (!hint) return;
-  try {
-    const res = await fetch("/pos-status", { cache: "no-store" });
-    const data = await res.json();
-    hint.textContent = data.hint || hint.textContent;
-    const btn = $("#posCardForm button[type=submit]");
-    if (btn) btn.disabled = data.ready === false;
-  } catch {
-    hint.textContent =
-      "iyzico durumu okunamadı. Canlı sitede Cloudflare anahtarları gerekir; yerel sunucuda kart tahsilatı açılmaz.";
-  }
-}
-
-async function posFinishIyzicoPay(token) {
-  if (!token) return;
-  posMsg("iyzico ödeme sonucu kontrol ediliyor…");
-  try {
-    const res = await fetch("/pos-result", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      posMsg(data.error || "Ödeme alınamadı.");
-      return;
-    }
-    const amount = parseMoney(data.paidPrice);
-    const brand = data.cardAssociation || "Kart";
-    const last4 = data.lastFourDigits || "";
-    const ok = posRecordPay({
-      amount,
-      method: "card",
-      note: "iyzico " + (data.paymentId || ""),
-      detail: brand + (last4 ? " · **** " + last4 : "") + " · iyzico",
-    });
-    if (ok) {
-      $("#posCardForm")?.reset();
-      posMsg("iyzico tahsilatı alındı. " + (data.paymentId || ""));
-    }
-  } catch {
-    posMsg("Ödeme sonucu alınamadı.");
-  }
-  const url = new URL(location.href);
-  if (url.searchParams.has("posToken")) {
-    url.searchParams.delete("posToken");
-    history.replaceState({}, "", url.pathname + url.search + url.hash);
-  }
-}
-
-$("#posCardForm")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const member = posCanCharge("card");
-  if (!member) return;
-  const amount = parseMoney($("#posCardAmount").value);
-  if (!Number.isFinite(amount) || amount < 0.5) {
-    posMsg("Geçerli tutar girin (en az 0,50 ₺).");
-    return;
-  }
-  posMsg("iyzico ödeme sayfası açılıyor…");
-  try {
-    const res = await fetch("/pos-pay", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount,
-        note: $("#posCardNote").value.trim() || "Sanal POS tahsilat",
-        name: member.name,
-        email: member.email,
-        phone: member.phone,
-        address: member.address,
-        identityNumber: $("#posCardTc")?.value.trim() || "",
-      }),
-    });
-    const data = await res.json();
-    if (!data.ok || !data.paymentPageUrl) {
-      posMsg(data.error || "iyzico formu açılamadı.");
-      return;
-    }
-    location.href = data.paymentPageUrl;
-  } catch {
-    posMsg("iyzico bağlantısı kurulamadı. Canlı sitede deneyin.");
-  }
-});
-
-$("#posAdminForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const user = $("#posAdminUser").value.trim();
-  const pin = $("#posAdminPin").value;
-  if (user !== POS_ADMIN_USER || pin !== posAdminPinValue()) {
-    posMsg("Süper admin bilgileri hatalı.");
-    return;
-  }
-  const remember = $("#posAdminRemember").checked;
-  store.set(POS_ADMIN_ON, true);
-  store.set(POS_ADMIN_REMEMBER, remember ? { remember: true, user, pin } : { remember: false });
-  posMsg("");
-  posRenderAdmin();
-  posShow("posAdminPanel");
-  syncOwnerApps();
-});
-
-$("#posAdminShowPin").addEventListener("click", () => {
-  posTogglePins(["#posAdminPin"], $("#posAdminShowPin"));
-  const shown = $("#posAdminPin").type === "text";
-  $("#posAdminShowPin").textContent = shown ? "Şifreyi gizle" : "Şifreyi göster";
-});
-
-$("#posAdminForgotOpen").addEventListener("click", () => {
-  $("#posAdminForgot").hidden = false;
-  $("#posAdminForgotUser").value = $("#posAdminUser").value;
-});
-
-$("#posAdminForgotCancel").addEventListener("click", () => {
-  $("#posAdminForgot").hidden = true;
-});
-
-$("#posAdminForgotShowPin").addEventListener("click", () => {
-  posTogglePins(["#posAdminForgotPin", "#posAdminForgotPin2"], $("#posAdminForgotShowPin"));
-});
-
-$("#posAdminForgot").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const user = $("#posAdminForgotUser").value.trim();
-  const pin = $("#posAdminForgotPin").value;
-  const pin2 = $("#posAdminForgotPin2").value;
-  if (!user || !pin || !pin2) {
-    posMsg("Tüm alanlar zorunludur.");
-    return;
-  }
-  if (user !== POS_ADMIN_USER) {
-    posMsg("Kullanıcı adı eşleşmedi.");
-    return;
-  }
-  if (pin !== pin2) {
-    posMsg("Şifreler aynı olmalı.");
-    return;
-  }
-  store.set(POS_ADMIN_PIN_STORE, pin);
-  const remember = $("#posAdminRemember")?.checked !== false;
-  store.set(POS_ADMIN_REMEMBER, remember ? { remember: true, user, pin } : { remember: false });
-  $("#posAdminForgot").reset();
-  $("#posAdminForgot").hidden = true;
-  $("#posAdminUser").value = user;
-  $("#posAdminPin").value = remember ? pin : "";
-  posMsg("Süper admin şifresi güncellendi. Giriş yapın.");
-});
-
-$("#posAdminLogout").addEventListener("click", () => {
-  store.set(POS_ADMIN_ON, false);
-  posFillAdminRemember();
-  posSyncWithdrawUi();
-  posShow("posAdminLogin");
-  syncOwnerApps();
-});
-
-$("#posCreateApi").addEventListener("click", () => posCreateApiKey());
-$("#posCreateSecret").addEventListener("click", () => posCreateSecretKey());
-$("#posCreateApiDesk").addEventListener("click", () => posCreateApiKey());
-$("#posCreateSecretDesk").addEventListener("click", () => posCreateSecretKey());
-
-$("#posSysForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  posApplySysFromForm();
-});
-$("#posGlobalSave").addEventListener("click", (event) => {
-  event.preventDefault();
-  posApplySysFromForm();
-});
-$("#posSysAllOn").addEventListener("click", () => posApplySysFromForm(true));
-$("#posSysAllOff").addEventListener("click", () => posApplySysFromForm(false));
-
-$("#posWithdrawToggle").addEventListener("click", () => {
-  if (!posIsAdmin()) {
-    posMsg("Bu komut yalnızca süper adminde.");
-    posSyncWithdrawUi();
-    return;
-  }
-  const next = posSettings().withdrawShow !== true;
-  posPatchSettings({ withdrawShow: next });
-  posSyncWithdrawUi();
-  posMsg(next ? "Para çek alanı gösterildi." : "Para çek alanı gizlendi.");
-});
-
-$("#posWithdrawForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (!posIsAdmin()) {
-    posMsg("Para çek yalnızca süper adminde.");
-    posSyncWithdrawUi();
-    return;
-  }
-  if (posSettings().withdrawShow !== true) {
-    posMsg("Para çek alanı gizli. Önce göster komutunu kullanın.");
-    return;
-  }
-  if (!posPayOn("withdraw")) {
-    posMsg("Para çek sistemi süper admin tarafından kapatıldı.");
-    return;
-  }
-  const owner = $("#posWithdrawName").value.trim();
-  const from = posFormatIban($("#posWithdrawIban").value);
-  const amount = parseMoney($("#posWithdrawAmount").value);
-  if (!owner) {
-    posMsg("Hesap sahibinin adını yazın.");
-    return;
-  }
-  if (!posIbanOk(from)) {
-    posMsg("Geçerli bir kaynak TR IBAN girin.");
-    return;
-  }
-  if (!Number.isFinite(amount) || amount <= 0) {
-    posMsg("Geçerli tutar girin.");
-    return;
-  }
-  const fee = posFee(amount);
-  const pay = {
-    id: "pay_" + Date.now(),
-    phone: "admin",
-    name: owner,
-    amount: fee.gross,
-    commission: fee.commission,
-    net: fee.net,
-    feeRate: POS_FEE_RATE,
-    note: $("#posWithdrawNote").value.trim(),
-    method: "withdraw",
-    detail: owner + " · " + from + " → " + POS_SETTLE.ibanMasked,
-    settleName: POS_SETTLE.name,
-    settleBranch: POS_SETTLE.branch,
-    settleIban: POS_SETTLE.iban,
-    at: Date.now(),
-  };
-  store.set(POS_PAYS, posPays().concat(pay));
-  $("#posWithdrawForm").reset();
-  $("#posWithdrawTarget").value = POS_SETTLE.ibanMasked;
-  posMsg(formatTry(amount) + " " + from + " hesabından Tolkan Uğur Özel IBAN’ına çekildi.");
-  posRenderAdmin();
-});
-
-$("#posAdminMembers").addEventListener("click", (event) => {
-  if (!posIsAdmin()) return;
-  const cmd = event.target.closest("[data-pos-cmd]")?.dataset.posCmd;
-  const id = event.target.closest("[data-pos-id]")?.dataset.posId;
-  if (!cmd || !id) return;
-  let list = posMembers();
-  const member = list.find((m) => m.id === id);
-  if (!member && cmd !== "delete") return;
-  if (cmd === "approve") {
-    const keys = member.apiKey ? { apiKey: member.apiKey, secretKey: member.secretKey } : posMakeKeys();
-    member.status = "active";
-    member.apiKey = keys.apiKey;
-    member.secretKey = keys.secretKey;
-    member.rejectReason = "";
-    posMsg(member.name + " üyeliği aktif edildi.");
-  }
-  if (cmd === "hold") {
-    member.status = "held";
-    posMsg(member.name + " askıya alındı.");
-  }
-  if (cmd === "reject") {
-    member.status = "rejected";
-    member.rejectReason = "Belgeler yetersiz veya inceleme olumsuz.";
-    member.apiKey = "";
-    member.secretKey = "";
-    posMsg(member.name + " reddedildi. Anahtarlar kapatıldı.");
-  }
-  if (cmd === "keys") {
-    if (member.status !== "active") {
-      posMsg("Anahtar yalnızca aktif üyede üretilir.");
-      return;
-    }
-    Object.assign(member, posMakeKeys());
-    posMsg("Anahtarlar yenilendi.");
-  }
-  if (cmd === "delete") {
-    list = list.filter((m) => m.id !== id);
-    posMsg("Üye silindi.");
-  }
-  posSaveMembers(list);
-  posRenderAdmin();
-  if (posMember()) posRenderDesk();
-});
-
 let ownerTaps = 0;
 let ownerTapTimer = 0;
 $(".brand")?.addEventListener("click", () => {
@@ -9282,6 +7355,18 @@ const YOL_SELLER = "yol-seller";
 const YOL_LAST = "yol-last";
 const YOL_SITE = "yol-site";
 const YOL_CART = "yol-cart";
+const YOL_PAY_PENDING = "yol-pay-pending";
+const YOL_ORDERS = "yol-orders";
+const YOL_COUPONS = "yol-coupons";
+const YOL_CAMPAIGNS = "yol-campaigns";
+const YOL_INVOICES = "yol-invoices";
+const YOL_ADDRESSES = "yol-ship-addresses";
+const YOL_TRACK_STATUS = {
+  hazirlaniyor: "Hazırlanıyor",
+  kargoda: "Kargoda",
+  teslim: "Teslim edildi",
+  iade: "İade",
+};
 const YOL_CARGO = {
   yurtici: "Yurtiçi Kargo",
   aras: "Aras Kargo",
@@ -9289,14 +7374,40 @@ const YOL_CARGO = {
   surat: "Sürat Kargo",
   ptt: "PTT Kargo",
 };
+const YOL_CARGO_FEE = {
+  yurtici: 59.9,
+  aras: 54.9,
+  mng: 49.9,
+  surat: 44.9,
+  ptt: 39.9,
+};
 
 function yolCargoKey(value) {
   const key = String(value || "").toLowerCase();
   return YOL_CARGO[key] ? key : "yurtici";
 }
 
+function yolCargoFee(value) {
+  return YOL_CARGO_FEE[yolCargoKey(value)] || YOL_CARGO_FEE.yurtici;
+}
+
 function yolCargoName(value) {
   return YOL_CARGO[yolCargoKey(value)];
+}
+
+function yolTrackStatusLabel(value) {
+  return YOL_TRACK_STATUS[value] || YOL_TRACK_STATUS.hazirlaniyor;
+}
+
+function yolCargoTrackUrl(cargo, code) {
+  const no = encodeURIComponent(String(code || "").trim());
+  if (!no) return "";
+  const key = yolCargoKey(cargo);
+  if (key === "yurtici") return `https://www.yurticikargo.com/tr/online-servisler/gonderi-sorgula?code=${no}`;
+  if (key === "aras") return `https://kargotakip.araskargo.com.tr/?code=${no}`;
+  if (key === "mng") return `https://kargotakip.mngkargo.com.tr/?takipNo=${no}`;
+  if (key === "surat") return `https://www.suratkargo.com.tr/KargoTakip/?kargotakipno=${no}`;
+  return `https://gonderitakip.ptt.gov.tr/`;
 }
 
 function yolProductCargo(item) {
@@ -9311,6 +7422,18 @@ function yolPhone(value) {
 
 function yolMail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+async function yolReadDoc(input) {
+  const file = input?.files?.[0];
+  if (!file) throw new Error("Belge yükleyin.");
+  if (file.size > 6 * 1024 * 1024) throw new Error("Dosya en fazla 6 MB olabilir.");
+  const dataUrl = await dataUrlFromBlob(file);
+  return { name: file.name, type: file.type, dataUrl };
+}
+
+function posReadDoc(input) {
+  return yolReadDoc(input);
 }
 
 function yolMembers() {
@@ -9538,6 +7661,139 @@ function yolEnsureDemos() {
     });
   }
   store.set(YOL_PRODUCTS, products.slice(0, 200));
+
+  const orders = store.get(YOL_ORDERS, []);
+  if (!orders.some((o) => o.demoId === "demo-ticari-order")) {
+    orders.unshift({
+      id: "demo-order-ticari-1",
+      demoId: "demo-ticari-order",
+      at: Date.now() - 86400000,
+      sellerMail: "demo.ticari@harbiyol.test",
+      sellerPhone: "5550000101",
+      sellerName: "Ahmet Ticari",
+      method: "cod",
+      buyer: {
+        name: "Ayşe Müşteri",
+        email: "demo.musteri@harbiyol.test",
+        phone: "5550000303",
+        address: "Kadıköy, İstanbul",
+      },
+      lines: [{ id: "demo-prod-ticari-series", name: "Harbi Kışlık Serisi", qty: 1, unit: 1299, sum: 1299 }],
+      goods: 1299,
+      ship: 59.9,
+      discount: 0,
+      total: 1358.9,
+    });
+    store.set(YOL_ORDERS, orders.slice(0, 400));
+  }
+  if (!orders.some((o) => o.demoId === "demo-bireysel-order")) {
+    orders.unshift({
+      id: "demo-order-bireysel-1",
+      demoId: "demo-bireysel-order",
+      at: Date.now() - 43200000,
+      sellerMail: "demo.bireysel@harbiyol.test",
+      sellerPhone: "5550000202",
+      sellerName: "Elif Bireysel",
+      method: "card",
+      buyer: {
+        name: "Ayşe Müşteri",
+        email: "demo.musteri@harbiyol.test",
+        phone: "5550000303",
+        address: "Kadıköy, İstanbul",
+      },
+      lines: [{ id: "demo-prod-bireysel-single", name: "El yapımı sabun", qty: 2, unit: 85, sum: 170 }],
+      goods: 170,
+      ship: 54.9,
+      discount: 0,
+      total: 224.9,
+    });
+    store.set(YOL_ORDERS, orders.slice(0, 400));
+  }
+  let orderTrackFix = false;
+  orders.forEach((o) => {
+    if (o.demoId === "demo-bireysel-order" && !o.trackNo) {
+      o.cargo = "aras";
+      o.trackNo = "ARB123456789TR";
+      o.trackStatus = "kargoda";
+      orderTrackFix = true;
+    }
+    if (o.demoId === "demo-ticari-order" && !o.trackNo) {
+      o.cargo = o.cargo || "yurtici";
+      o.trackNo = "YK123456789TR";
+      o.trackStatus = o.trackStatus || "kargoda";
+      orderTrackFix = true;
+    }
+  });
+  if (orderTrackFix) store.set(YOL_ORDERS, orders.slice(0, 400));
+  const addrs = store.get(YOL_ADDRESSES, []);
+  if (!addrs.some((a) => a.demoId === "demo-bireysel-addr")) {
+    addrs.unshift({
+      id: "demo-addr-bireysel",
+      demoId: "demo-bireysel-addr",
+      sellerMail: "demo.bireysel@harbiyol.test",
+      title: "Ev / Atölye",
+      city: "İzmir",
+      line: "Alsancak, İzmir",
+      phone: "5550000202",
+      primary: true,
+      kind: "ship",
+    });
+    store.set(YOL_ADDRESSES, addrs.slice(0, 80));
+  }
+  if (!addrs.some((a) => a.demoId === "demo-bireysel-return")) {
+    addrs.unshift({
+      id: "demo-addr-bireysel-return",
+      demoId: "demo-bireysel-return",
+      sellerMail: "demo.bireysel@harbiyol.test",
+      kind: "return",
+      title: "İade adresi",
+      city: "İzmir",
+      line: "Alsancak Kıbrıs Şehitleri Cd., İzmir",
+      phone: "5550000202",
+    });
+    store.set(YOL_ADDRESSES, addrs.slice(0, 80));
+  }
+  if (!addrs.some((a) => a.demoId === "demo-ticari-addr")) {
+    addrs.unshift({
+      id: "demo-addr-ticari",
+      demoId: "demo-ticari-addr",
+      sellerMail: "demo.ticari@harbiyol.test",
+      title: "Depo / İşyeri",
+      city: "Kayseri",
+      line: "Organize Sanayi, Kayseri",
+      phone: "5550000101",
+      primary: true,
+      kind: "ship",
+    });
+    store.set(YOL_ADDRESSES, addrs.slice(0, 80));
+  }
+  if (!addrs.some((a) => a.demoId === "demo-ticari-return")) {
+    addrs.unshift({
+      id: "demo-addr-ticari-return",
+      demoId: "demo-ticari-return",
+      sellerMail: "demo.ticari@harbiyol.test",
+      kind: "return",
+      title: "İade deposu",
+      city: "Kayseri",
+      line: "Organize Sanayi 2. Cadde No:14, Kayseri",
+      phone: "5550000101",
+    });
+    store.set(YOL_ADDRESSES, addrs.slice(0, 80));
+  }
+  const coupons = store.get(YOL_COUPONS, []);
+  if (!coupons.some((c) => c.demoId === "demo-ticari-coupon")) {
+    coupons.unshift({
+      id: "demo-coupon-ticari",
+      demoId: "demo-ticari-coupon",
+      sellerMail: "demo.ticari@harbiyol.test",
+      code: "HARBI10",
+      percent: 10,
+      uses: 0,
+      maxUses: 100,
+      createdAt: Date.now(),
+    });
+    store.set(YOL_COUPONS, coupons);
+  }
 }
 
 function yolEnterDemo(kind) {
@@ -9551,8 +7807,9 @@ function yolEnterDemo(kind) {
   store.set(YOL_SESSION, member.id);
   if (partner) store.set(YOL_SELLER, { id: partner.id, kind: partner.kind, phone: partner.phone, mail: partner.mail });
   renderYol();
-  showView("sell");
+  showView(yolHasDesk() ? "desk" : "sell");
   renderYolSeller();
+  if (yolHasDesk()) renderYolDesk();
 }
 
 function yolMe() {
@@ -9647,18 +7904,25 @@ function yolPhotoSrc(item) {
 
 function yolProductCardHtml(item, canDelete) {
   const src = yolPhotoSrc(item);
+  const camp = yolCampaignForProduct(item);
+  const unit = yolProductUnitPrice(item);
+  const base = yolProductBasePrice(item);
+  const priceHtml =
+    camp && unit < base
+      ? `<p class="price"><s class="yol-old-price">${formatTry(base)}</s> ${formatTry(unit)} · ${escapeHtml(camp.name)} %${escapeHtml(String(camp.percent))}</p>`
+      : `<p class="price">${formatTry(unit)}</p>`;
   const extra =
     item.type === "series" && Array.isArray(item.items)
-      ? item.items.map(yolVariantLine).join("")
-      : `<p class="price">${formatTry(parseMoney(item.price))}</p>`;
+      ? item.items.map(yolVariantLine).join("") + (camp ? priceHtml : "")
+      : priceHtml;
   return `<article class="holiday-hit">
     <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}</div>
     <div class="yol-product-body">
       <strong>${escapeHtml(item.name || "Ürün")}</strong>
-      <p class="hint">${escapeHtml(item.sellerName || "Satıcı")} · ${item.type === "series" ? "Ürün serisi" : "Tekli ürün"} · ${escapeHtml(yolCargoName(yolProductCargo(item)))}</p>
+      <p class="hint">${escapeHtml(item.sellerName || "Satıcı")} · ${item.type === "series" ? "Ürün serisi" : "Tekli ürün"} · ${escapeHtml(yolCargoName(yolProductCargo(item)))}${camp ? " · Kampanya" : ""}</p>
       ${extra}
       <button class="primary yol-cart-add" type="button" data-yol-cart="${item.id}">Sepete ekle</button>
-      ${canDelete ? `<button class="linkish" type="button" data-yol-del="${item.id}">Kaldır</button>` : ""}
+      ${canDelete ? `<button class="danger" type="button" data-yol-del="${item.id}">Ürünü sil</button>` : ""}
     </div>
   </article>`;
 }
@@ -9752,9 +8016,9 @@ function yolItemFieldTexts(item, fields) {
 function yolMatchCategory(item) {
   const key = yolCategoryKey();
   if (!key) return true;
-  if (key === "deal") return Boolean(item.deal);
-  if (key === "flash") return Boolean(item.flash);
-  if (key === "coupon") return Boolean(item.coupon);
+  if (key === "deal") return Boolean(item.deal) || Boolean(yolCampaignForProduct(item));
+  if (key === "flash") return Boolean(item.flash) || Boolean(yolCampaignForProduct(item)?.flash);
+  if (key === "coupon") return Boolean(item.coupon) || Boolean(yolCampaignForProduct(item));
   const val = String($("#yolProductCategoryValue")?.value || "").trim();
   if (!val) return true;
   const needle = val.toLocaleLowerCase("tr-TR");
@@ -9811,6 +8075,7 @@ function yolMatchColors(item) {
 }
 
 function yolPriceNum(value) {
+  if (!String(value || "").trim()) return null;
   const n = parseMoney(value);
   return Number.isFinite(n) && n !== Number.POSITIVE_INFINITY ? n : null;
 }
@@ -9877,7 +8142,7 @@ let yolDeptActive = "";
 
 function yolMatchDept(item) {
   if (!yolDeptActive) return true;
-  if (yolDeptActive === "flash") return Boolean(item.flash);
+  if (yolDeptActive === "flash") return Boolean(item.flash) || Boolean(yolCampaignForProduct(item)?.flash);
   if (yolDeptActive === "sold") return yolProductStat(item, "sold") > 0;
   return String(item.dept || "") === yolDeptActive;
 }
@@ -9905,11 +8170,19 @@ function yolRefreshProductLists() {
   }
 }
 
-function yolProductUnitPrice(item) {
+function yolProductBasePrice(item) {
   if (item?.type === "series" && Array.isArray(item.items) && item.items[0]) {
     return parseMoney(item.items[0].price);
   }
   return parseMoney(item?.price);
+}
+
+function yolProductUnitPrice(item) {
+  const base = yolProductBasePrice(item);
+  const camp = yolCampaignForProduct(item);
+  if (!camp) return base;
+  const pct = Math.min(90, Math.max(1, Number(camp.percent) || 0));
+  return Math.round(base * (1 - pct / 100) * 100) / 100;
 }
 
 function yolCartCount() {
@@ -9959,8 +8232,53 @@ function yolRenderCart() {
   yolSyncCartBtn();
   const box = $("#yolCartList");
   if (!box) return;
+  const lines = yolCartLines();
+  if (!lines.length) {
+    box.innerHTML = "<p class='hint'>Sepetiniz boş.</p>";
+    if ($("#yolCheckout")) $("#yolCheckout").hidden = true;
+    return;
+  }
+  const goods = lines.reduce((n, line) => n + line.sum, 0);
+  const ship = yolShippingFee();
+  box.innerHTML =
+    lines
+      .map(
+        (line) => {
+          const src = yolPhotoSrc(line.product);
+          const cargo = yolProductCargo(line.product);
+          return `<article class="holiday-hit yol-cart-line">
+      <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}</div>
+      <div class="yol-product-body">
+        <strong>${escapeHtml(line.product.name || "Ürün")}</strong>
+        <p class="price">${formatTry(line.unit)} × ${line.qty} = ${formatTry(line.sum)}</p>
+        <p class="hint">${escapeHtml(yolCargoName(cargo))} · kargo ${formatTry(yolCargoFee(cargo))}</p>
+        <button class="linkish" type="button" data-yol-cart-del="${line.product.id}">Kaldır</button>
+      </div>
+    </article>`;
+        }
+      )
+      .join("") +
+    `<p class="hint">Ürün tutarı (kapıda): ${formatTry(goods)}</p>` +
+    `<p class="price">Şimdi ödenecek kargo: ${formatTry(ship)}</p>`;
+  const form = $("#yolCheckout");
+  if (form) {
+    form.hidden = false;
+    const me = yolMe();
+    if (me) {
+      if ($("#yolPayName") && !$("#yolPayName").value) {
+        $("#yolPayName").value = `${me.first || ""} ${me.last || ""}`.trim();
+      }
+      if ($("#yolPayMail") && !$("#yolPayMail").value) $("#yolPayMail").value = me.mail || "";
+      if ($("#yolPayPhone") && !$("#yolPayPhone").value) $("#yolPayPhone").value = me.phone || "";
+      if ($("#yolPayAddress") && !$("#yolPayAddress").value) $("#yolPayAddress").value = me.address || "";
+    }
+    yolSyncPayButton();
+  }
+}
+
+function yolCartLines() {
   const products = store.get(YOL_PRODUCTS, []);
-  const lines = yolCartItems()
+  return yolCartItems()
     .map((line) => {
       const product = products.find((p) => String(p.id) === String(line.id));
       if (!product) return null;
@@ -9969,28 +8287,134 @@ function yolRenderCart() {
       return { product, qty, unit, sum: unit * qty };
     })
     .filter(Boolean);
-  if (!lines.length) {
-    box.innerHTML = "<p class='hint'>Sepetiniz boş.</p>";
-    return;
+}
+
+function yolShippingFee() {
+  const groups = new Map();
+  yolCartLines().forEach((line) => {
+    const key = `${yolMail(line.product.sellerMail)}|${yolProductCargo(line.product)}`;
+    if (!groups.has(key)) groups.set(key, yolCargoFee(yolProductCargo(line.product)));
+  });
+  return [...groups.values()].reduce((n, fee) => n + fee, 0);
+}
+
+function yolCartTotal() {
+  return yolCartLines().reduce((n, line) => n + line.sum, 0);
+}
+
+function yolCoupons() {
+  return store.get(YOL_COUPONS, []);
+}
+
+function yolCouponFind(code) {
+  const needle = String(code || "").trim().toLocaleUpperCase("tr-TR");
+  if (!needle) return null;
+  return yolCoupons().find((c) => String(c.code || "").toLocaleUpperCase("tr-TR") === needle) || null;
+}
+
+function yolCampaigns() {
+  return store.get(YOL_CAMPAIGNS, []);
+}
+
+function yolCampaignLive(c) {
+  if (!c || c.active === false) return false;
+  const now = Date.now();
+  const start = c.start ? new Date(`${c.start}T00:00:00`).getTime() : 0;
+  const end = c.end ? new Date(`${c.end}T23:59:59`).getTime() : Number.POSITIVE_INFINITY;
+  return now >= start && now <= end;
+}
+
+function yolCampaignForProduct(item) {
+  if (!item) return null;
+  const mail = yolMail(item.sellerMail);
+  const id = String(item.id);
+  return (
+    yolCampaigns().find((c) => {
+      if (yolMail(c.sellerMail) !== mail || !yolCampaignLive(c)) return false;
+      if (!Array.isArray(c.productIds) || !c.productIds.length) return true;
+      return c.productIds.map(String).includes(id);
+    }) || null
+  );
+}
+
+function yolSellerCampaigns() {
+  const seller = yolSeller();
+  if (!seller) return [];
+  const mail = yolMail(seller.mail);
+  return yolCampaigns().filter((c) => yolMail(c.sellerMail) === mail);
+}
+
+function yolCartDiscount(code) {
+  const coupon = yolCouponFind(code || $("#yolPayCoupon")?.value);
+  if (!coupon) return { amount: 0, coupon: null };
+  if (coupon.maxUses && Number(coupon.uses || 0) >= Number(coupon.maxUses)) return { amount: 0, coupon: null };
+  const pct = Math.min(90, Math.max(1, Number(coupon.percent) || 0));
+  const matching = yolCartLines().filter((line) => yolMail(line.product.sellerMail) === yolMail(coupon.sellerMail));
+  const base = matching.reduce((n, line) => n + line.sum, 0);
+  const amount = Math.round(base * (pct / 100) * 100) / 100;
+  return { amount, coupon, percent: pct };
+}
+
+function yolPayMethod() {
+  return document.querySelector('input[name="yolPayMethod"]:checked')?.value === "card" ? "card" : "cod";
+}
+
+function yolSyncPayButton() {
+  const btn = $("#yolPaySubmit");
+  if (!btn) return;
+  const ship = yolShippingFee();
+  const goods = yolCartTotal();
+  const off = yolCartDiscount().amount;
+  const payGoods = Math.max(0, goods - off);
+  if (yolPayMethod() === "card") {
+    btn.textContent = `Kredi kartı ile öde (${formatTry(payGoods + ship)})`;
+  } else {
+    btn.textContent = `Kargo ücretini öde (${formatTry(ship)})`;
   }
-  const total = lines.reduce((n, line) => n + line.sum, 0);
-  box.innerHTML =
-    lines
-      .map(
-        (line) => {
-          const src = yolPhotoSrc(line.product);
-          return `<article class="holiday-hit yol-cart-line">
-      <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}</div>
-      <div class="yol-product-body">
-        <strong>${escapeHtml(line.product.name || "Ürün")}</strong>
-        <p class="price">${formatTry(line.unit)} × ${line.qty} = ${formatTry(line.sum)}</p>
-        <p class="hint">${escapeHtml(yolCargoName(yolProductCargo(line.product)))}</p>
-        <button class="linkish" type="button" data-yol-cart-del="${line.product.id}">Kaldır</button>
-      </div>
-    </article>`;
-        }
-      )
-      .join("") + `<p class="price">Toplam ${formatTry(total)}</p>`;
+}
+
+function yolPayMsg(text) {
+  if ($("#yolPayMsg")) $("#yolPayMsg").textContent = text || "";
+}
+
+async function yolFinishCartPay(token) {
+  const pending = store.get(YOL_PAY_PENDING, null);
+  if (!pending || !token) return false;
+  yolPayMsg("Kart ödemesi kontrol ediliyor…");
+  try {
+    const res = await fetch("/pos-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      yolPayMsg(data.error || "Ödeme alınamadı. Kartınızı kontrol edip yeniden deneyin.");
+      store.set(YOL_PAY_PENDING, null);
+      return true;
+    }
+    const pending = store.get(YOL_PAY_PENDING, null);
+    if (pending?.lines?.length) yolRecordOrder(pending);
+    store.set(YOL_CART, []);
+    store.set(YOL_PAY_PENDING, null);
+    const panel = $("#yolCartPanel");
+    if (panel) panel.hidden = false;
+    yolRenderCart();
+    yolPayMsg(
+      pending?.method === "card"
+        ? "Ödeme alındı. Siparişiniz kargoya verilecek."
+        : "Kargo ücreti alındı. Ürün tutarını kapıda ödeyeceksiniz."
+    );
+    if ($("#yolCheckout")) $("#yolCheckout").hidden = true;
+  } catch {
+    yolPayMsg("Ödeme sonucu alınamadı. Canlı sitede tekrar deneyin.");
+  }
+  const url = new URL(location.href);
+  if (url.searchParams.has("posToken")) {
+    url.searchParams.delete("posToken");
+    history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }
+  return true;
 }
 
 function renderYolMarket() {
@@ -10029,6 +8453,7 @@ function renderYolSeller() {
           : "Bu sizin ürün yükleme sayfanız. Tekli ürün ve fotoğraf yükleyebilirsiniz.";
   }
   yolSyncSellerTypeUi();
+  if ($("#yolSellGoDesk")) $("#yolSellGoDesk").hidden = !yolHasDesk();
   if ($("#yolSellerCargo")) $("#yolSellerCargo").value = yolCargoKey(seller.cargo);
   const mine = yolListProducts(store.get(YOL_PRODUCTS, []).filter((p) => yolOwnProduct(seller, p)));
   const box = $("#yolMyProducts");
@@ -10057,8 +8482,775 @@ function yolIsTicari() {
   return yolSeller()?.kind === "ticari";
 }
 
+function yolHasDesk() {
+  return yolIsTicari() || yolIsBireysel();
+}
+
+function yolOrdersForProduct(productId) {
+  const id = String(productId || "");
+  return yolSellerOrders().filter((o) => (o.lines || []).some((l) => String(l.id) === id));
+}
+
+function yolInvoiceForOrder(orderId) {
+  return yolSellerInvoices().find((inv) => String(inv.orderId) === String(orderId)) || null;
+}
+
 function yolOnSellerDesk() {
-  return document.querySelector(".view.active")?.dataset.view === "sell" && Boolean(yolSeller());
+  const view = document.querySelector(".view.active")?.dataset.view;
+  return (view === "sell" || view === "desk") && Boolean(yolSeller());
+}
+
+function yolDeskMsg(text) {
+  if ($("#yolDeskMsg")) $("#yolDeskMsg").textContent = text || "";
+}
+
+function yolSellerOrders() {
+  const seller = yolSeller();
+  if (!seller) return [];
+  const mail = yolMail(seller.mail);
+  const gsm = yolGsm(seller.phone);
+  return store.get(YOL_ORDERS, []).filter(
+    (o) => yolMail(o.sellerMail) === mail || (gsm && yolGsm(o.sellerPhone) === gsm)
+  );
+}
+
+function yolSellerInvoices() {
+  const seller = yolSeller();
+  if (!seller) return [];
+  const mail = yolMail(seller.mail);
+  return store.get(YOL_INVOICES, []).filter((inv) => yolMail(inv.sellerMail) === mail);
+}
+
+function yolSellerCoupons() {
+  const seller = yolSeller();
+  if (!seller) return [];
+  const mail = yolMail(seller.mail);
+  return yolCoupons().filter((c) => yolMail(c.sellerMail) === mail);
+}
+
+function yolSellerProfile() {
+  const seller = yolSeller();
+  const me = yolMe();
+  const partner = seller ? yolPartnerKindFor(seller.phone, seller.mail) : null;
+  return {
+    title: `${seller?.first || ""} ${seller?.last || ""}`.trim() || "Satıcı",
+    mail: seller?.mail || "",
+    phone: seller?.phone || "",
+    vkn: partner?.vkn || "",
+    address: partner?.address || me?.address || "",
+  };
+}
+
+function yolSellerAddresses() {
+  const seller = yolSeller();
+  if (!seller) return [];
+  const mail = yolMail(seller.mail);
+  return store.get(YOL_ADDRESSES, []).filter((a) => yolMail(a.sellerMail) === mail && a.kind !== "return");
+}
+
+function yolSellerReturnAddress() {
+  const seller = yolSeller();
+  if (!seller) return null;
+  const mail = yolMail(seller.mail);
+  return store.get(YOL_ADDRESSES, []).find((a) => yolMail(a.sellerMail) === mail && a.kind === "return") || null;
+}
+
+function yolSaveAccount() {
+  const seller = yolSeller();
+  const me = yolMe();
+  if (!yolHasDesk() || !seller || !me) {
+    yolDeskMsg("Hesabı satıcı panelinden güncelleyin.");
+    return;
+  }
+  const first = $("#yolAccFirst")?.value.trim() || "";
+  const last = $("#yolAccLast")?.value.trim() || "";
+  const phone = yolPhone($("#yolAccPhone")?.value || "");
+  const address = $("#yolAccAddress")?.value.trim() || "";
+  const cargo = yolCargoKey($("#yolAccCargo")?.value);
+  const vkn = String($("#yolAccVkn")?.value || "").replace(/\D/g, "").slice(0, 10);
+  const pin = $("#yolAccPin")?.value || "";
+  if (!first || !last || yolGsm(phone).length < 10 || address.length < 6) {
+    yolDeskMsg("Ad, soyad, telefon ve adres zorunludur.");
+    return;
+  }
+  if (yolIsTicari() && vkn && vkn.length !== 10) {
+    yolDeskMsg("VKN 10 haneli olmalı.");
+    return;
+  }
+  if (pin && (pin.length < 4 || pin.length > 12)) {
+    yolDeskMsg("Şifre 4-12 karakter olmalı.");
+    return;
+  }
+  store.set(
+    YOL_MEMBERS,
+    yolMembers().map((m) => (m.id !== me.id ? m : { ...m, first, last, phone, address, pin: pin || m.pin }))
+  );
+  store.set(
+    YOL_PARTNERS,
+    store.get(YOL_PARTNERS, []).map((p) => {
+      if (yolMail(p.mail) !== yolMail(seller.mail) && yolGsm(p.phone) !== yolGsm(seller.phone)) return p;
+      return { ...p, first, last, phone, address, cargo, vkn: yolIsTicari() ? vkn || p.vkn : p.vkn };
+    })
+  );
+  const cur = store.get(YOL_SELLER, null);
+  if (cur) store.set(YOL_SELLER, { ...cur, phone, mail: seller.mail, kind: seller.kind });
+  if ($("#yolAccPin")) $("#yolAccPin").value = "";
+  yolDeskMsg("Hesap kaydedildi.");
+  renderYol();
+  renderYolDesk();
+}
+
+function yolSaveTrack(orderId, wrap) {
+  const id = String(orderId || "");
+  const orders = store.get(YOL_ORDERS, []);
+  const order = orders.find((o) => String(o.id) === id);
+  if (!order || !yolSellerOrders().some((o) => String(o.id) === id)) return;
+  const no = String(wrap?.querySelector("[data-yol-track-no]")?.value || "").trim().toUpperCase();
+  const status = wrap?.querySelector("[data-yol-track-status]")?.value || "hazirlaniyor";
+  order.trackNo = no.slice(0, 32);
+  order.trackStatus = YOL_TRACK_STATUS[status] ? status : "hazirlaniyor";
+  if (!order.cargo) order.cargo = yolCargoKey(yolSeller()?.cargo);
+  store.set(YOL_ORDERS, orders);
+  yolDeskMsg(order.trackNo ? "Kargo takibi kaydedildi." : "Durum kaydedildi.");
+  renderYolDesk();
+}
+
+function yolSaveAddress() {
+  const seller = yolSeller();
+  if (!yolHasDesk() || !seller) {
+    yolDeskMsg("Adres satıcı panelinden eklenir.");
+    return;
+  }
+  const title = $("#yolAddrTitle")?.value.trim() || "";
+  const city = $("#yolAddrCity")?.value.trim() || "";
+  const line = $("#yolAddrLine")?.value.trim() || "";
+  const phone = yolPhone($("#yolAddrPhone")?.value || "");
+  if (!title || !city || line.length < 6 || yolGsm(phone).length < 10) {
+    yolDeskMsg("Adres adı, il, açık adres ve telefon zorunludur.");
+    return;
+  }
+  const list = store.get(YOL_ADDRESSES, []);
+  const mine = list.filter((a) => yolMail(a.sellerMail) === yolMail(seller.mail));
+  list.unshift({
+    id: `addr-${Date.now()}`,
+    sellerMail: seller.mail,
+    title,
+    city,
+    line,
+    phone,
+    kind: "ship",
+    primary: mine.filter((a) => a.kind !== "return").length === 0,
+  });
+  store.set(YOL_ADDRESSES, list.slice(0, 80));
+  $("#yolAddrForm")?.reset();
+  yolDeskMsg("Kargo adresi kaydedildi.");
+  renderYolDesk();
+}
+
+function yolSaveReturnAddress() {
+  const seller = yolSeller();
+  if (!yolHasDesk() || !seller) {
+    yolDeskMsg("İade adresi satıcı panelinden kaydedilir.");
+    return;
+  }
+  const title = $("#yolReturnTitle")?.value.trim() || "";
+  const city = $("#yolReturnCity")?.value.trim() || "";
+  const line = $("#yolReturnLine")?.value.trim() || "";
+  const phone = yolPhone($("#yolReturnPhone")?.value || "");
+  if (!title || !city || line.length < 6 || yolGsm(phone).length < 10) {
+    yolDeskMsg("İade adresi adı, il, açık adres ve telefon zorunludur.");
+    return;
+  }
+  const list = store.get(YOL_ADDRESSES, []);
+  const mail = yolMail(seller.mail);
+  const existing = list.find((a) => yolMail(a.sellerMail) === mail && a.kind === "return");
+  if (existing) {
+    existing.title = title;
+    existing.city = city;
+    existing.line = line;
+    existing.phone = phone;
+    existing.kind = "return";
+  } else {
+    list.unshift({
+      id: `addr-return-${Date.now()}`,
+      sellerMail: seller.mail,
+      kind: "return",
+      title,
+      city,
+      line,
+      phone,
+    });
+  }
+  store.set(YOL_ADDRESSES, list.slice(0, 80));
+  yolDeskMsg("Kargo iade adresi kaydedildi.");
+  renderYolDesk();
+}
+
+function yolOwnProductsRaw() {
+  const seller = yolSeller();
+  return store.get(YOL_PRODUCTS, []).filter((p) => yolOwnProduct(seller, p));
+}
+
+function yolKdvSplit(gross) {
+  const g = Math.round((Number(gross) || 0) * 100) / 100;
+  const net = Math.round((g / 1.2) * 100) / 100;
+  const vat = Math.round((g - net) * 100) / 100;
+  return { gross: g, net, vat };
+}
+
+async function yolSha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(text || "")));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function yolInvoiceNumber(sellerMail) {
+  const year = new Date().getFullYear();
+  const n = store.get(YOL_INVOICES, []).filter((inv) => yolMail(inv.sellerMail) === yolMail(sellerMail)).length + 1;
+  return `HBT${year}${String(n).padStart(6, "0")}`;
+}
+
+let yolDeskTab = "products";
+
+function yolShowDeskTab(tab) {
+  yolDeskTab = tab || "products";
+  ["products", "reports", "stats", "invoices", "coupons", "campaigns", "account", "track", "addresses"].forEach((id) => {
+    const box = $(`#yolDesk${id[0].toUpperCase()}${id.slice(1)}`);
+    if (box) box.hidden = id !== yolDeskTab;
+  });
+  $$("#yolDeskNav [data-yol-desk]").forEach((btn) => {
+    const on = btn.dataset.yolDesk === yolDeskTab;
+    btn.classList.toggle("gold", on);
+    btn.classList.toggle("secondary", !on);
+  });
+}
+
+function renderYolDesk() {
+  const on = document.querySelector(".view.active")?.dataset.view === "desk";
+  if (!on) return;
+  if (!yolHasDesk()) {
+    showView(yolSeller() ? "sell" : "home");
+    return;
+  }
+  const profile = yolSellerProfile();
+  const kindLabel = yolIsTicari() ? "Ticari kontrol paneli" : "Bireysel kontrol paneli";
+  if ($("#yolDeskTitle")) $("#yolDeskTitle").textContent = kindLabel;
+  if ($("#yolDeskHello")) {
+    $("#yolDeskHello").textContent = `${profile.title} · ${profile.mail}${profile.vkn ? ` · VKN ${profile.vkn}` : ""}`;
+  }
+  $$("#yolDeskNav [data-yol-desk='stats']").forEach((btn) => {
+    btn.hidden = !yolIsTicari();
+  });
+  ["account", "track", "addresses"].forEach((id) => {
+    $$("#yolDeskNav [data-yol-desk='" + id + "']").forEach((btn) => {
+      btn.hidden = !yolHasDesk();
+    });
+  });
+  if (!yolIsTicari() && yolDeskTab === "stats") yolDeskTab = "reports";
+  if (!yolHasDesk() && ["account", "track", "addresses"].includes(yolDeskTab)) yolDeskTab = "products";
+  yolShowDeskTab(yolDeskTab);
+  const mine = yolOwnProductsRaw();
+  const invoices = yolSellerInvoices();
+  const box = $("#yolDeskProductList");
+  if (box) {
+    box.innerHTML = mine.length
+      ? mine
+          .map((item) => {
+            const src = yolPhotoSrc(item);
+            const soldN = yolOrdersForProduct(item.id).length || yolProductStat(item, "sold");
+            return `<article class="holiday-hit">
+              <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}</div>
+              <div class="yol-product-body">
+                <strong>${escapeHtml(item.name || "Ürün")}</strong>
+                <p class="hint">${item.deal ? "Avantajlı · " : ""}${item.type === "series" ? "Seri" : "Tekli"} · ${escapeHtml(yolCargoName(yolProductCargo(item)))} · Satış ${soldN}</p>
+                <p class="price">${formatTry(yolProductUnitPrice(item))}</p>
+                <div class="row">
+                  <button class="secondary" type="button" data-yol-deal="${item.id}">${item.deal ? "Avantajlıyı kaldır" : "Avantajlı ürün yap"}</button>
+                  <button class="gold" type="button" data-yol-inv-make="${item.id}">Fatura yükle</button>
+                  <button class="secondary" type="button" data-yol-inv-see="${item.id}">Faturalar</button>
+                  <button class="danger" type="button" data-yol-del="${item.id}">Ürünü sil</button>
+                </div>
+              </div>
+            </article>`;
+          })
+          .join("")
+      : "<p class='hint'>Henüz ürün yok. Yeni ürün yükleyin.</p>";
+  }
+  const orders = yolSellerOrders();
+  const revenue = orders.reduce((n, o) => n + (Number(o.goods) || 0) - (Number(o.discount) || 0), 0);
+  const units = orders.reduce((n, o) => n + (o.lines || []).reduce((s, l) => s + (Number(l.qty) || 1), 0), 0);
+  const shipSum = orders.reduce((n, o) => n + (Number(o.ship) || 0), 0);
+  const discSum = orders.reduce((n, o) => n + (Number(o.discount) || 0), 0);
+  const avg = orders.length ? revenue / orders.length : 0;
+  const card = orders.filter((o) => o.method === "card").length;
+  const cod = orders.filter((o) => o.method !== "card").length;
+  const weekStart = Date.now() - 7 * 86400000;
+  const weekOrders = orders.filter((o) => Number(o.at) >= weekStart);
+  const weekRev = weekOrders.reduce((n, o) => n + (Number(o.goods) || 0) - (Number(o.discount) || 0), 0);
+  if ($("#yolDeskStatCards")) {
+    $("#yolDeskStatCards").innerHTML = `
+      <article class="card"><h3>Ürün</h3><p class="price">${mine.length}</p></article>
+      <article class="card"><h3>Sipariş</h3><p class="price">${orders.length}</p></article>
+      <article class="card"><h3>Satılan adet</h3><p class="price">${units}</p></article>
+      <article class="card"><h3>Ciro</h3><p class="price">${formatTry(revenue)}</p></article>
+      <article class="card"><h3>Ort. sepet</h3><p class="price">${formatTry(avg)}</p></article>
+      <article class="card"><h3>Kargo</h3><p class="price">${formatTry(shipSum)}</p></article>
+      <article class="card"><h3>İndirim</h3><p class="price">${formatTry(discSum)}</p></article>
+      <article class="card"><h3>Fatura</h3><p class="price">${invoices.length}</p></article>`;
+  }
+  if ($("#yolDeskPayMix")) {
+    $("#yolDeskPayMix").innerHTML = orders.length
+      ? `<article class="note"><strong>Kapıda ödeme</strong><p class="price">${cod} sipariş</p></article>
+         <article class="note"><strong>Kredi kartı</strong><p class="price">${card} sipariş</p></article>`
+      : "<p class='hint'>Henüz ödeme verisi yok.</p>";
+  }
+  if ($("#yolDeskTopProducts")) {
+    const soldMap = new Map();
+    orders.forEach((o) => {
+      (o.lines || []).forEach((l) => {
+        const key = l.name || "Ürün";
+        const row = soldMap.get(key) || { name: key, qty: 0, sum: 0 };
+        row.qty += Number(l.qty) || 1;
+        row.sum += Number(l.sum) || 0;
+        soldMap.set(key, row);
+      });
+    });
+    mine.forEach((p) => {
+      const key = p.name || "Ürün";
+      if (soldMap.has(key)) return;
+      const qty = yolProductStat(p, "sold");
+      if (qty) soldMap.set(key, { name: key, qty, sum: qty * yolProductUnitPrice(p) });
+    });
+    const top = [...soldMap.values()].sort((a, b) => b.qty - a.qty || b.sum - a.sum).slice(0, 8);
+    $("#yolDeskTopProducts").innerHTML = top.length
+      ? top
+          .map(
+            (row) => `<article class="note">
+              <header><strong>${escapeHtml(row.name)}</strong><time>${row.qty} adet</time></header>
+              <p class="price">${formatTry(row.sum)}</p>
+            </article>`
+          )
+          .join("")
+      : "<p class='hint'>Henüz ürün satışı yok.</p>";
+  }
+  if ($("#yolDeskWeek")) {
+    const days = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const next = new Date(d);
+      next.setDate(next.getDate() + 1);
+      const dayOrders = orders.filter((o) => o.at >= d.getTime() && o.at < next.getTime());
+      const dayRev = dayOrders.reduce((n, o) => n + (Number(o.goods) || 0) - (Number(o.discount) || 0), 0);
+      days.push({
+        label: d.toLocaleDateString("tr-TR", { weekday: "short", day: "numeric", month: "numeric" }),
+        n: dayOrders.length,
+        rev: dayRev,
+      });
+    }
+    $("#yolDeskWeek").innerHTML = `${days
+      .map(
+        (day) => `<article class="note">
+          <header><strong>${escapeHtml(day.label)}</strong><time>${day.n} sipariş</time></header>
+          <p class="price">${formatTry(day.rev)}</p>
+        </article>`
+      )
+      .join("")}
+      <article class="note"><strong>7 gün toplam</strong><p class="price">${weekOrders.length} sipariş · ${formatTry(weekRev)}</p></article>`;
+  }
+  if ($("#yolDeskSales")) {
+    $("#yolDeskSales").innerHTML = orders.length
+      ? orders
+          .map(
+            (o) => `<article class="note">
+              <header><strong>${escapeHtml(o.buyer?.name || "Alıcı")}</strong><time>${new Date(o.at).toLocaleString("tr-TR")}</time></header>
+              <p>${escapeHtml((o.lines || []).map((l) => `${l.name} ×${l.qty}`).join(" · ") || "Sipariş")}</p>
+              <p class="price">${o.method === "cod" ? "Kapıda" : "Kart"} · ${formatTry((o.goods || 0) - (o.discount || 0))} + kargo ${formatTry(o.ship || 0)}</p>
+              <div class="row">
+                <button class="gold" type="button" data-yol-inv-order="${escapeHtml(String(o.id))}">Fatura yükle</button>
+                <button class="secondary" type="button" data-yol-inv-order-see="${escapeHtml(String(o.id))}">Faturalar</button>
+              </div>
+            </article>`
+          )
+          .join("")
+      : "<p class='hint'>Henüz satış yok.</p>";
+  }
+  const sel = $("#yolInvOrder");
+  if (sel) {
+    const invoiced = new Set(invoices.map((inv) => String(inv.orderId)));
+    const open = orders.filter((o) => !invoiced.has(String(o.id)));
+    sel.innerHTML =
+      `<option value="">Satış seçin</option>` +
+      open
+        .map(
+          (o) =>
+            `<option value="${escapeHtml(String(o.id))}">${escapeHtml(o.buyer?.name || "Alıcı")} · ${formatTry((o.goods || 0) - (o.discount || 0))} · ${new Date(o.at).toLocaleDateString("tr-TR")}</option>`
+        )
+        .join("");
+  }
+  if ($("#yolDeskInvoiceList")) {
+    $("#yolDeskInvoiceList").innerHTML = invoices.length
+      ? invoices
+          .map(
+            (inv) => `<article class="note">
+              <header><strong>${escapeHtml(inv.number)}</strong><time>${inv.mailed ? "Mail gitti" : inv.uploaded ? "Yüklendi" : inv.signed ? "E-imzalı" : "Kayıt"}</time></header>
+              <p>${escapeHtml(inv.buyerName || "")} · ${escapeHtml(inv.fileName || "Fatura")} · ${formatTry(inv.gross)}</p>
+              <button class="secondary" type="button" data-yol-inv-print="${escapeHtml(inv.id)}">Faturayı aç / yazdır</button>
+            </article>`
+          )
+          .join("")
+      : "<p class='hint'>Henüz fatura yok.</p>";
+  }
+  if ($("#yolDeskCouponList")) {
+    const list = yolSellerCoupons();
+    $("#yolDeskCouponList").innerHTML = list.length
+      ? list
+          .map(
+            (c) => `<article class="note">
+              <header><strong>${escapeHtml(c.code)}</strong><time>%${escapeHtml(String(c.percent))}</time></header>
+              <p>Kullanım ${Number(c.uses || 0)}${c.maxUses ? ` / ${c.maxUses}` : ""}</p>
+              <button class="danger" type="button" data-yol-coupon-del="${escapeHtml(String(c.id))}">Kodu sil</button>
+            </article>`
+          )
+          .join("")
+      : "<p class='hint'>Tanımlı indirim kodu yok.</p>";
+  }
+  const campBox = $("#yolCampProductBox");
+  if (campBox) {
+    campBox.innerHTML = mine.length
+      ? mine
+          .map(
+            (p) =>
+              `<label class="field"><input type="checkbox" name="yolCampProd" value="${escapeHtml(String(p.id))}" /> ${escapeHtml(p.name || "Ürün")}</label>`
+          )
+          .join("")
+      : "<p class='hint'>Önce ürün yükleyin.</p>";
+  }
+  if ($("#yolDeskCampaignList")) {
+    const camps = yolSellerCampaigns();
+    $("#yolDeskCampaignList").innerHTML = camps.length
+      ? camps
+          .map((c) => {
+            const live = yolCampaignLive(c);
+            const count = Array.isArray(c.productIds) && c.productIds.length ? c.productIds.length : mine.length;
+            return `<article class="note">
+              <header><strong>${escapeHtml(c.name)}</strong><time>${live ? "Yayında" : "Pasif"} · %${escapeHtml(String(c.percent))}</time></header>
+              <p>${escapeHtml(c.start || "")} – ${escapeHtml(c.end || "")} · ${count} ürün${c.flash ? " · Flaş" : ""}</p>
+              <div class="row">
+                <button class="secondary" type="button" data-yol-camp-toggle="${escapeHtml(String(c.id))}">${c.active === false ? "Yayınla" : "Durdur"}</button>
+                <button class="danger" type="button" data-yol-camp-del="${escapeHtml(String(c.id))}">Kampanyayı sil</button>
+              </div>
+            </article>`;
+          })
+          .join("")
+      : "<p class='hint'>Henüz kampanya yok.</p>";
+  }
+  const me = yolMe();
+  const seller = yolSeller();
+  const partner = seller ? yolPartnerKindFor(seller.phone, seller.mail) : null;
+  if ($("#yolAccFirst") && document.activeElement !== $("#yolAccFirst")) $("#yolAccFirst").value = me?.first || seller?.first || "";
+  if ($("#yolAccLast") && document.activeElement !== $("#yolAccLast")) $("#yolAccLast").value = me?.last || seller?.last || "";
+  if ($("#yolAccMail")) $("#yolAccMail").value = me?.mail || seller?.mail || "";
+  if ($("#yolAccPhone") && document.activeElement !== $("#yolAccPhone")) $("#yolAccPhone").value = me?.phone || seller?.phone || "";
+  if ($("#yolAccVkn")) {
+    $("#yolAccVkn").hidden = !yolIsTicari();
+    if (yolIsTicari()) $("#yolAccVkn").value = partner?.vkn || "";
+  }
+  if ($("#yolAccAddress") && document.activeElement !== $("#yolAccAddress")) $("#yolAccAddress").value = partner?.address || me?.address || "";
+  if ($("#yolAccCargo")) $("#yolAccCargo").value = yolCargoKey(partner?.cargo || seller?.cargo);
+  if ($("#yolDeskTrackList")) {
+    $("#yolDeskTrackList").innerHTML = orders.length
+      ? orders
+          .map((o) => {
+            const cargo = yolCargoKey(o.cargo || partner?.cargo);
+            const status = YOL_TRACK_STATUS[o.trackStatus] ? o.trackStatus : "hazirlaniyor";
+            const code = String(o.trackNo || "");
+            const url = yolCargoTrackUrl(cargo, code);
+            return `<article class="note">
+              <header><strong>${escapeHtml(o.buyer?.name || "Alıcı")}</strong><time>${yolTrackStatusLabel(status)}</time></header>
+              <p>${escapeHtml((o.lines || []).map((l) => `${l.name} ×${l.qty}`).join(" · ") || "Sipariş")} · ${escapeHtml(yolCargoName(cargo))}</p>
+              <p class="hint">${escapeHtml(o.buyer?.address || "")}</p>
+              <input data-yol-track-no="${escapeHtml(String(o.id))}" placeholder="Takip numarası" value="${escapeHtml(code)}" maxlength="32" />
+              <select data-yol-track-status="${escapeHtml(String(o.id))}">
+                ${Object.entries(YOL_TRACK_STATUS)
+                  .map(([k, lab]) => `<option value="${k}"${k === status ? " selected" : ""}>${lab}</option>`)
+                  .join("")}
+              </select>
+              <div class="row">
+                <button class="gold" type="button" data-yol-track-save="${escapeHtml(String(o.id))}">Takibi kaydet</button>
+                ${url ? `<a class="secondary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Kargoyu sorgula</a>` : ""}
+              </div>
+            </article>`;
+          })
+          .join("")
+      : "<p class='hint'>Henüz kargolanacak satış yok.</p>";
+  }
+  if ($("#yolDeskAddrList")) {
+    const list = yolSellerAddresses();
+    $("#yolDeskAddrList").innerHTML = list.length
+      ? list
+          .map(
+            (a) => `<article class="note">
+              <header><strong>${escapeHtml(a.title)}</strong><time>${a.primary ? "Varsayılan" : ""}</time></header>
+              <p>${escapeHtml(a.city)} · ${escapeHtml(a.line)}</p>
+              <p class="hint">${escapeHtml(a.phone || "")}</p>
+              <div class="row">
+                ${a.primary ? "" : `<button class="secondary" type="button" data-yol-addr-primary="${escapeHtml(String(a.id))}">Varsayılan yap</button>`}
+                <button class="danger" type="button" data-yol-addr-del="${escapeHtml(String(a.id))}">Adresi sil</button>
+              </div>
+            </article>`
+          )
+          .join("")
+      : "<p class='hint'>Kayıtlı kargo adresi yok.</p>";
+  }
+  if ($("#yolReturnAddrCard")) $("#yolReturnAddrCard").hidden = !yolHasDesk();
+  if (yolHasDesk()) {
+    const ret = yolSellerReturnAddress();
+    if ($("#yolReturnTitle") && document.activeElement !== $("#yolReturnTitle")) $("#yolReturnTitle").value = ret?.title || "";
+    if ($("#yolReturnCity") && document.activeElement !== $("#yolReturnCity")) $("#yolReturnCity").value = ret?.city || "";
+    if ($("#yolReturnLine") && document.activeElement !== $("#yolReturnLine")) $("#yolReturnLine").value = ret?.line || "";
+    if ($("#yolReturnPhone") && document.activeElement !== $("#yolReturnPhone")) $("#yolReturnPhone").value = ret?.phone || "";
+  }
+}
+
+function yolRecordOrder(pending) {
+  if (!pending?.lines?.length) return;
+  const groups = new Map();
+  pending.lines.forEach((line) => {
+    const key = yolMail(line.sellerMail);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        sellerMail: line.sellerMail,
+        sellerPhone: line.sellerPhone,
+        sellerName: line.sellerName,
+        lines: [],
+        goods: 0,
+      });
+    }
+    const g = groups.get(key);
+    g.lines.push(line);
+    g.goods += Number(line.sum) || 0;
+  });
+  const orders = store.get(YOL_ORDERS, []);
+  const discount = Number(pending.discount) || 0;
+  const couponMail = yolMail(pending.couponMail);
+  groups.forEach((g) => {
+    const share = couponMail && yolMail(g.sellerMail) === couponMail ? discount : 0;
+    orders.unshift({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      at: Date.now(),
+      sellerMail: g.sellerMail,
+      sellerPhone: g.sellerPhone,
+      sellerName: g.sellerName,
+      method: pending.method,
+      buyer: pending.buyer,
+      lines: g.lines,
+      goods: g.goods,
+      ship: groups.size === 1 ? Number(pending.ship) || 0 : 0,
+      discount: share,
+      coupon: share ? pending.couponCode : "",
+      cargo: yolProductCargo(store.get(YOL_PRODUCTS, []).find((p) => String(p.id) === String(g.lines[0]?.id))),
+      trackNo: "",
+      trackStatus: "hazirlaniyor",
+      total: g.goods - share + (groups.size === 1 ? Number(pending.ship) || 0 : 0),
+    });
+  });
+  store.set(YOL_ORDERS, orders.slice(0, 400));
+  if (pending.couponId) {
+    const coupons = yolCoupons().map((c) =>
+      String(c.id) === String(pending.couponId) ? { ...c, uses: Number(c.uses || 0) + 1 } : c
+    );
+    store.set(YOL_COUPONS, coupons);
+  }
+}
+
+function yolInvoiceHtml(inv) {
+  const rows = (inv.lines || [])
+    .map(
+      (l) =>
+        `<tr><td>${escapeHtml(l.name)}</td><td>${l.qty}</td><td>${formatTry(l.unit)}</td><td>${formatTry(l.sum)}</td></tr>`
+    )
+    .join("");
+  const split = yolKdvSplit(inv.gross);
+  return `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>${escapeHtml(inv.number)}</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#111;margin:24px;max-width:800px}
+      h1{font-size:20px;margin:0 0 8px}
+      table{width:100%;border-collapse:collapse;margin:16px 0}
+      th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:13px}
+      .meta{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+      .sign{margin-top:28px;font-size:12px;word-break:break-all}
+      @media print {.noprint{display:none}}
+    </style></head><body>
+    <p>T.C. · e-Arşiv Fatura</p>
+    <h1>FATURA ${escapeHtml(inv.number)}</h1>
+    <p>ETT No: ${escapeHtml(inv.ettn)} · Tarih: ${escapeHtml(inv.date)}</p>
+    <div class="meta">
+      <div><strong>Satıcı</strong><br>${escapeHtml(inv.sellerTitle)}<br>VKN: ${escapeHtml(inv.sellerVkn || "—")}<br>${escapeHtml(inv.sellerAddress || "")}<br>${escapeHtml(inv.sellerMail || "")}</div>
+      <div><strong>Alıcı</strong><br>${escapeHtml(inv.buyerName)}<br>VKN/TCKN: ${escapeHtml(inv.buyerTax || "—")}<br>${escapeHtml(inv.buyerAddress || "")}<br>${escapeHtml(inv.buyerMail || "")}</div>
+    </div>
+    <table><thead><tr><th>Ürün / Hizmet</th><th>Adet</th><th>Birim</th><th>Tutar</th></tr></thead><tbody>${rows}</tbody></table>
+    <p>Ara toplam (KDV hariç): ${formatTry(split.net)}<br>KDV %20: ${formatTry(split.vat)}<br><strong>Genel toplam: ${formatTry(split.gross)}</strong></p>
+    <p>Düzenleme: ${inv.signed ? "e-İmza ile otomatik resmi fatura" : "Manuel fatura"}</p>
+    <div class="sign">${inv.signed ? `e-İmza özeti (SHA-256): ${escapeHtml(inv.signHash)}` : "Manuel düzenleme — satıcı kaşesi / imzası"}</div>
+    <p class="noprint"><button onclick="window.print()">Yazdır</button></p>
+    </body></html>`;
+}
+
+function yolOpenInvoice(inv) {
+  if (inv?.fileDataUrl) {
+    window.open(inv.fileDataUrl, "_blank");
+    return;
+  }
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(yolInvoiceHtml(inv));
+  win.document.close();
+}
+
+let yolInvPickOrder = "";
+
+function yolAskInvoiceFile(orderId) {
+  yolInvPickOrder = orderId || $("#yolInvOrder")?.value || "";
+  if (!yolInvPickOrder) {
+    yolDeskMsg("Önce bir satış seçin, sonra faturayı yükleyin.");
+    return;
+  }
+  if ($("#yolInvOrder")) $("#yolInvOrder").value = yolInvPickOrder;
+  const input = $("#yolInvFile");
+  if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+async function yolUploadInvoice(orderId, file) {
+  const seller = yolSeller();
+  if (!yolHasDesk() || !seller) {
+    yolDeskMsg("Fatura yüklemek için satıcı paneline girin.");
+    return;
+  }
+  const pick = orderId || yolInvPickOrder || $("#yolInvOrder")?.value || "";
+  const order = yolSellerOrders().find((o) => String(o.id) === String(pick));
+  if (!order) {
+    yolDeskMsg("Fatura yüklemek için bir satış seçin.");
+    return;
+  }
+  const mail = String(order.buyer?.email || "").trim();
+  if (!mail || !mail.includes("@")) {
+    yolDeskMsg("Bu satışta müşteri e-postası yok. Fatura gönderilemez.");
+    return;
+  }
+  if (!file) {
+    yolDeskMsg("PDF veya görsel fatura seçin.");
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    yolDeskMsg("Fatura en fazla 5 MB olabilir.");
+    return;
+  }
+  yolDeskMsg("Fatura yükleniyor ve müşteriye gönderiliyor…");
+  let doc;
+  try {
+    const dataUrl = await dataUrlFromBlob(file);
+    doc = { name: file.name, type: file.type || "application/pdf", dataUrl };
+  } catch {
+    yolDeskMsg("Fatura okunamadı.");
+    return;
+  }
+  const profile = yolSellerProfile();
+  const gross = Math.max(0, (Number(order.goods) || 0) - (Number(order.discount) || 0));
+  const number = yolInvoiceNumber(seller.mail);
+  let mailed = false;
+  try {
+    const res = await fetch("/yol-invoice-mail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: mail,
+        buyer: order.buyer?.name || "Müşteri",
+        seller: profile.title,
+        number,
+        orderNo: number,
+        filename: doc.name,
+        content: doc.dataUrl,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    mailed = Boolean(data.ok);
+    if (data.skipped || res.status === 404 || res.status === 501) {
+      yolDeskMsg("Fatura kaydedildi. Canlı sitede müşteriye mail gider.");
+    } else if (!data.ok) {
+      yolDeskMsg(data.error || "Mail gönderilemedi. Fatura yine de kaydedildi.");
+    }
+  } catch {
+    yolDeskMsg("Fatura kaydedildi. Canlı sitede müşteriye mail gider.");
+  }
+  const inv = {
+    id: `inv-${Date.now()}`,
+    orderId: order.id,
+    number,
+    date: new Date().toLocaleString("tr-TR"),
+    sellerMail: seller.mail,
+    sellerTitle: profile.title,
+    buyerName: order.buyer?.name || "",
+    buyerMail: mail,
+    buyerAddress: order.buyer?.address || "",
+    buyerTax: $("#yolInvTax")?.value.trim() || "",
+    lines: order.lines || [],
+    gross,
+    uploaded: true,
+    mailed,
+    fileName: doc.name,
+    fileType: doc.type,
+    fileDataUrl: doc.dataUrl,
+  };
+  if ((doc.dataUrl || "").length > 1400000) delete inv.fileDataUrl;
+  const list = store.get(YOL_INVOICES, []);
+  list.unshift(inv);
+  try {
+    store.set(YOL_INVOICES, list.slice(0, 40));
+  } catch {
+    delete inv.fileDataUrl;
+    store.set(YOL_INVOICES, list.slice(0, 20));
+  }
+  yolInvPickOrder = "";
+  if ($("#yolInvFile")) $("#yolInvFile").value = "";
+  if (mailed) yolDeskMsg(`Fatura yüklendi ve ${mail} adresine gönderildi.`);
+  renderYolDesk();
+}
+
+function yolInvoiceFromProduct(productId) {
+  const sales = yolOrdersForProduct(productId);
+  if (!sales.length) {
+    yolDeskMsg("Bu ürün için henüz satış yok.");
+    return;
+  }
+  yolShowDeskTab("invoices");
+  const open = sales.find((o) => !yolInvoiceForOrder(o.id)) || sales[0];
+  if ($("#yolInvOrder")) $("#yolInvOrder").value = String(open.id);
+  yolAskInvoiceFile(open.id);
+}
+
+function yolShowInvoicesForProduct(productId) {
+  yolShowDeskTab("invoices");
+  const sales = yolOrdersForProduct(productId);
+  const ids = new Set(sales.map((o) => String(o.id)));
+  const mine = yolSellerInvoices().filter((inv) => ids.has(String(inv.orderId)));
+  yolDeskMsg(mine.length ? `${mine.length} fatura bulundu.` : "Bu ürün için fatura yok. Fatura yükle ile ekleyin.");
+  renderYolDesk();
+}
+
+function yolToggleDeal(id) {
+  const seller = yolSeller();
+  const catalog = store.get(YOL_PRODUCTS, []);
+  const item = catalog.find((p) => String(p.id) === String(id));
+  if (!item || !yolOwnProduct(seller, item)) return;
+  item.deal = !item.deal;
+  store.set(YOL_PRODUCTS, catalog);
+  renderYolDesk();
+  renderYolSeller();
+  renderYolMarket();
+  yolDeskMsg(item.deal ? "Ürün avantajlı olarak işaretlendi." : "Avantajlı işareti kaldırıldı.");
 }
 
 function yolSyncSearch() {
@@ -10170,8 +9362,17 @@ function yolSyncNav() {
   if ($("#yolNavRegister")) $("#yolNavRegister").hidden = logged;
   if ($("#yolNavPartner")) $("#yolNavPartner").hidden = seller;
   if ($("#yolNavSell")) $("#yolNavSell").hidden = role !== "satici";
+  if ($("#yolNavDesk")) $("#yolNavDesk").hidden = true;
   if (seller) yolShowPartner(false);
   document.body.classList.toggle("yol-seller-account", seller);
+  const view = document.querySelector(".view.active")?.dataset.view || "";
+  const deskPanel = yolHasDesk() && (view === "desk" || view === "sell");
+  document.body.classList.toggle("yol-bireysel-panel", deskPanel);
+  document.body.classList.toggle("yol-desk-panel", deskPanel);
+  if (deskPanel) {
+    const cart = $("#yolCartPanel");
+    if (cart) cart.hidden = true;
+  }
   $$(".home-back").forEach((btn) => {
     btn.hidden = seller;
   });
@@ -10206,6 +9407,79 @@ $("#yolNavCart")?.addEventListener("click", () => {
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 });
+$("#yolCheckout")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const method = yolPayMethod();
+  const goods = yolCartTotal();
+  const ship = yolShippingFee();
+  const disc = yolCartDiscount($("#yolPayCoupon")?.value);
+  const payGoods = Math.max(0, goods - disc.amount);
+  const amount = method === "card" ? payGoods + ship : ship;
+  if (!(amount >= 0.5)) {
+    yolPayMsg("Ödenecek kargo ücreti yok (en az 0,50 ₺).");
+    return;
+  }
+  const name = $("#yolPayName")?.value.trim() || "";
+  const email = $("#yolPayMail")?.value.trim() || "";
+  const phone = $("#yolPayPhone")?.value.trim() || "";
+  const address = $("#yolPayAddress")?.value.trim() || "";
+  if (!name || !email || !phone || !address) {
+    yolPayMsg("Ad soyad, e-posta, telefon ve adres zorunludur.");
+    return;
+  }
+  yolPayMsg(method === "cod" ? "Kargo ücreti için kart sayfası açılıyor…" : "Güvenli kart sayfası açılıyor…");
+  const btn = $("#yolPaySubmit");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch("/pos-pay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount,
+        note: method === "cod" ? "Harbi kargo ücreti" : "Harbi sepet",
+        name,
+        email,
+        phone,
+        address,
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok || !data.paymentPageUrl) {
+      yolPayMsg(data.error || "Kart ödeme sayfası açılamadı. Canlı sitede iyzico anahtarları gerekir.");
+      if (btn) btn.disabled = false;
+      return;
+    }
+    store.set(YOL_PAY_PENDING, {
+      amount,
+      method,
+      ship,
+      goods,
+      discount: disc.amount,
+      couponId: disc.coupon?.id || "",
+      couponCode: disc.coupon?.code || "",
+      couponMail: disc.coupon?.sellerMail || "",
+      buyer: { name, email, phone, address },
+      lines: yolCartLines().map((line) => ({
+        id: line.product.id,
+        name: line.product.name,
+        qty: line.qty,
+        unit: line.unit,
+        sum: line.sum,
+        sellerMail: line.product.sellerMail,
+        sellerPhone: line.product.sellerPhone,
+        sellerName: line.product.sellerName,
+      })),
+      at: Date.now(),
+    });
+    location.href = data.paymentPageUrl;
+  } catch {
+    yolPayMsg("Ödeme bağlantısı kurulamadı. Canlı sitede deneyin.");
+    if (btn) btn.disabled = false;
+  }
+});
+document.querySelectorAll('input[name="yolPayMethod"]').forEach((el) => {
+  el.addEventListener("change", yolSyncPayButton);
+});
 document.addEventListener("click", (event) => {
   const add = event.target.closest("[data-yol-cart]");
   if (add) {
@@ -10234,6 +9508,194 @@ function yolOpenSell() {
   showView("sell");
 }
 $("#yolNavSell")?.addEventListener("click", () => yolOpenSell());
+$("#yolSellGoDesk")?.addEventListener("click", () => {
+  if (yolHasDesk()) showView("desk");
+});
+$("#yolDeskGoSell")?.addEventListener("click", () => yolOpenSell());
+$("#yolDeskNav")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-yol-desk]");
+  if (!btn) return;
+  yolShowDeskTab(btn.dataset.yolDesk);
+});
+$("#yolAccForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  yolSaveAccount();
+});
+$("#yolAddrForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  yolSaveAddress();
+});
+$("#yolReturnForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  yolSaveReturnAddress();
+});
+$("#yolDeskTrackList")?.addEventListener("click", (event) => {
+  const save = event.target.closest("[data-yol-track-save]");
+  if (save) yolSaveTrack(save.dataset.yolTrackSave, save.closest("article"));
+});
+$("#yolDeskAddrList")?.addEventListener("click", (event) => {
+  const seller = yolSeller();
+  if (!seller) return;
+  const primary = event.target.closest("[data-yol-addr-primary]");
+  const del = event.target.closest("[data-yol-addr-del]");
+  if (!primary && !del) return;
+  let list = store.get(YOL_ADDRESSES, []);
+  if (primary) {
+    list = list.map((a) => {
+      if (yolMail(a.sellerMail) !== yolMail(seller.mail) || a.kind === "return") return a;
+      return { ...a, primary: String(a.id) === String(primary.dataset.yolAddrPrimary) };
+    });
+    yolDeskMsg("Varsayılan kargo adresi güncellendi.");
+  }
+  if (del) {
+    list = list.filter((a) => String(a.id) !== String(del.dataset.yolAddrDel));
+    yolDeskMsg("Adres silindi.");
+  }
+  store.set(YOL_ADDRESSES, list);
+  renderYolDesk();
+});
+$("#yolDeskProductList")?.addEventListener("click", (event) => {
+  const deal = event.target.closest("[data-yol-deal]");
+  if (deal) yolToggleDeal(deal.dataset.yolDeal);
+  const make = event.target.closest("[data-yol-inv-make]");
+  if (make) yolInvoiceFromProduct(make.dataset.yolInvMake);
+  const see = event.target.closest("[data-yol-inv-see]");
+  if (see) yolShowInvoicesForProduct(see.dataset.yolInvSee);
+});
+$("#yolDeskSales")?.addEventListener("click", (event) => {
+  const make = event.target.closest("[data-yol-inv-order]");
+  if (make) yolAskInvoiceFile(make.dataset.yolInvOrder);
+  const see = event.target.closest("[data-yol-inv-order-see]");
+  if (see) {
+    const inv = yolInvoiceForOrder(see.dataset.yolInvOrderSee);
+    if (inv) {
+      yolShowDeskTab("invoices");
+      renderYolDesk();
+      yolOpenInvoice(inv);
+    } else {
+      yolDeskMsg("Bu satış için henüz fatura yok. Fatura yükle ile ekleyin.");
+    }
+  }
+});
+$("#yolInvUpload")?.addEventListener("click", () => yolAskInvoiceFile($("#yolInvOrder")?.value));
+$("#yolInvFile")?.addEventListener("change", () => {
+  const file = $("#yolInvFile")?.files?.[0];
+  if (file) yolUploadInvoice(yolInvPickOrder || $("#yolInvOrder")?.value, file);
+});
+$("#yolDeskInvoiceList")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-yol-inv-print]");
+  if (!btn) return;
+  const inv = store.get(YOL_INVOICES, []).find((row) => String(row.id) === String(btn.dataset.yolInvPrint));
+  if (inv) yolOpenInvoice(inv);
+});
+$("#yolCouponForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const seller = yolSeller();
+  if (!yolHasDesk() || !seller) {
+    yolDeskMsg("İndirim kodu satıcı panelinde tanımlanır.");
+    return;
+  }
+  const code = String($("#yolCouponCode")?.value || "").trim().toLocaleUpperCase("tr-TR");
+  const percent = Math.min(90, Math.max(1, Number($("#yolCouponPercent")?.value) || 0));
+  const maxRaw = $("#yolCouponMax")?.value.trim() || "";
+  const maxUses = maxRaw ? Math.max(1, Number(maxRaw) || 0) : 0;
+  if (!/^[A-Z0-9]{3,16}$/.test(code) || !percent) {
+    yolDeskMsg("Kod 3-16 harf/rakam, indirim 1-90 olmalı.");
+    return;
+  }
+  if (yolCoupons().some((c) => String(c.code).toLocaleUpperCase("tr-TR") === code)) {
+    yolDeskMsg("Bu kod zaten var.");
+    return;
+  }
+  const list = yolCoupons();
+  list.unshift({
+    id: `c-${Date.now()}`,
+    sellerMail: seller.mail,
+    code,
+    percent,
+    uses: 0,
+    maxUses,
+    createdAt: Date.now(),
+  });
+  store.set(YOL_COUPONS, list.slice(0, 200));
+  $("#yolCouponForm")?.reset();
+  yolDeskMsg("İndirim kodu kaydedildi.");
+  renderYolDesk();
+});
+$("#yolCampaignForm")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const seller = yolSeller();
+  if (!yolHasDesk() || !seller) {
+    yolDeskMsg("Kampanya satıcı panelinde oluşturulur.");
+    return;
+  }
+  const name = $("#yolCampName")?.value.trim() || "";
+  const percent = Math.min(90, Math.max(1, Number($("#yolCampPercent")?.value) || 0));
+  const start = $("#yolCampStart")?.value || "";
+  const end = $("#yolCampEnd")?.value || "";
+  if (!name || !percent || !start || !end) {
+    yolDeskMsg("Kampanya adı, indirim ve tarih aralığı zorunludur.");
+    return;
+  }
+  if (new Date(end) < new Date(start)) {
+    yolDeskMsg("Bitiş tarihi başlangıçtan önce olamaz.");
+    return;
+  }
+  const productIds = $$('#yolCampProductBox input[name="yolCampProd"]:checked').map((el) => el.value);
+  const list = yolCampaigns();
+  list.unshift({
+    id: `camp-${Date.now()}`,
+    sellerMail: seller.mail,
+    name,
+    percent,
+    start,
+    end,
+    flash: Boolean($("#yolCampFlash")?.checked),
+    productIds,
+    active: true,
+    createdAt: Date.now(),
+  });
+  store.set(YOL_CAMPAIGNS, list.slice(0, 200));
+  $("#yolCampaignForm")?.reset();
+  yolDeskMsg("Kampanya yayınlandı. İndirim seçilen ürünlere uygulanır.");
+  renderYolDesk();
+  renderYolMarket();
+});
+$("#yolDeskCampaignList")?.addEventListener("click", (event) => {
+  const del = event.target.closest("[data-yol-camp-del]");
+  const tog = event.target.closest("[data-yol-camp-toggle]");
+  const seller = yolSeller();
+  const mail = yolMail(seller?.mail);
+  if (del) {
+    store.set(
+      YOL_CAMPAIGNS,
+      yolCampaigns().filter((c) => !(String(c.id) === String(del.dataset.yolCampDel) && yolMail(c.sellerMail) === mail))
+    );
+    yolDeskMsg("Kampanya silindi.");
+    renderYolDesk();
+    renderYolMarket();
+    return;
+  }
+  if (!tog) return;
+  const next = yolCampaigns().map((c) => {
+    if (String(c.id) !== String(tog.dataset.yolCampToggle) || yolMail(c.sellerMail) !== mail) return c;
+    return { ...c, active: c.active === false };
+  });
+  store.set(YOL_CAMPAIGNS, next);
+  renderYolDesk();
+  renderYolMarket();
+});
+$("#yolDeskCouponList")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-yol-coupon-del]");
+  if (!btn) return;
+  const seller = yolSeller();
+  store.set(
+    YOL_COUPONS,
+    yolCoupons().filter((c) => String(c.id) !== String(btn.dataset.yolCouponDel) || yolMail(c.sellerMail) !== yolMail(seller?.mail))
+  );
+  renderYolDesk();
+});
+$("#yolPayCoupon")?.addEventListener("input", yolSyncPayButton);
 $("#yolSellGoAuth")?.addEventListener("click", () => {
   yolAfterLogin = "sell";
   yolOpenAuth("login");
@@ -10460,7 +9922,8 @@ $("#yolLogin")?.addEventListener("submit", (event) => {
   const next = yolAfterLogin;
   yolAfterLogin = "";
   renderYol();
-  if (role === "satici" || next === "sell") showView("sell");
+  if (yolHasDesk()) showView("desk");
+  else if (role === "satici" || next === "sell") showView("sell");
   else showView("home");
 });
 
@@ -10702,6 +10165,7 @@ $("#yolSellerForm")?.addEventListener("submit", async (event) => {
     createdAt: Date.now(),
     dept,
     flash: flashOn,
+    deal: Boolean($("#yolProdDeal")?.checked),
     cargo,
     sellerBadges: yolSellerBadgesOf({ sellerPhone: seller.phone, sellerMail: seller.mail, sellerKind: seller.kind }),
     ...product,
@@ -10723,6 +10187,7 @@ function yolDeleteProduct(id) {
   );
   renderYolSeller();
   renderYolMarket();
+  renderYolDesk();
   const q = $("#yolProductQuery")?.value || "";
   if (String(q).trim()) renderYolProductSearch(q);
 }
@@ -10735,12 +10200,14 @@ function yolBindProductDeletes(root) {
     if (!seller) return;
     const mine = store.get(YOL_PRODUCTS, []).find((p) => String(p.id) === btn.dataset.yolDel);
     if (!mine || !yolOwnProduct(seller, mine)) return;
+    if (!confirm("Bu ürünü silmek istiyor musunuz?")) return;
     yolDeleteProduct(btn.dataset.yolDel);
   });
 }
 
 yolBindProductDeletes($("#yolMyProducts"));
 yolBindProductDeletes($("#yolSearchResults"));
+yolBindProductDeletes($("#yolDeskProductList"));
 
 function renderYolProductSearch(query) {
   const box = $("#yolSearchResults");
@@ -10755,7 +10222,7 @@ function renderYolProductSearch(query) {
   }
   const qn = q.toLocaleLowerCase("tr-TR");
   const seller = yolSeller();
-  const ownOnly = yolIsTicari() && yolOnSellerDesk();
+  const ownOnly = yolHasDesk() && yolOnSellerDesk();
   let list = store.get(YOL_PRODUCTS, []);
   if (ownOnly && seller) list = list.filter((item) => yolOwnProduct(seller, item));
   const yolHits = yolListProducts(list.filter((item) => {
@@ -10882,11 +10349,14 @@ renderHolidays();
 renderCars();
 renderHomes();
 renderBikes();
-renderGk();
-renderPos();
 renderEimza();
 renderMusic();
 renderAiClip();
 trackSiteApp("home");
 renderYol();
 if (ownerAppsOn()) renderSiteStats();
+(async () => {
+  const token = new URL(location.href).searchParams.get("posToken");
+  if (!token) return;
+  await yolFinishCartPay(token);
+})();

@@ -67,7 +67,7 @@
       }
       .tabbar { display: none; }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=303" />
+    <link rel="stylesheet" href="css/app.css?v=321" />
   </head>
   <body>
     <div class="app">
@@ -75,7 +75,7 @@
         <nav class="site-nav" aria-label="Site menüsü">
           <div class="brand">
             <svg class="brand-mark" viewBox="0 0 192 192" aria-hidden="true">
-              <rect width="192" height="192" rx="42" fill="#7c3aed" />
+              <rect width="192" height="192" rx="42" fill="#5b21b6" />
               <circle cx="96" cy="96" r="64" fill="none" stroke="#fff" stroke-width="8" />
               <path fill="#fff" d="M68 54h20v33h16V54h20v84h-20v-35H88v35H68V54z" />
             </svg>
@@ -282,6 +282,18 @@
       <section id="yolCartPanel" class="yol-cart-panel" hidden>
         <h2 class="subhead">Sepet</h2>
         <div id="yolCartList"></div>
+        <form id="yolCheckout" class="note-form yol-checkout" hidden>
+          <p class="hint">Kapıda ödemede ürün tutarı teslimatta alınır; kargo ücreti satın alırken tahsil edilir.</p>
+          <label class="field"><input type="radio" name="yolPayMethod" value="cod" checked /> Kapıda ödeme (şimdi yalnızca kargo)</label>
+          <label class="field"><input type="radio" name="yolPayMethod" value="card" /> Kredi kartı (ürün + kargo şimdi)</label>
+          <input id="yolPayName" placeholder="Ad soyad" required maxlength="80" autocomplete="name" />
+          <input id="yolPayMail" type="email" placeholder="E-posta" required maxlength="120" autocomplete="email" />
+          <input id="yolPayPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" autocomplete="tel" />
+          <textarea id="yolPayAddress" placeholder="Teslimat adresi" required maxlength="240" rows="2"></textarea>
+          <input id="yolPayCoupon" placeholder="İndirim kodu (isteğe bağlı)" maxlength="16" autocomplete="off" />
+          <p class="hint" id="yolPayMsg"></p>
+          <button class="primary" id="yolPaySubmit" type="submit">Kargo ücretini öde</button>
+        </form>
       </section>
 
       <main id="views">
@@ -423,6 +435,7 @@
             <article class="card" id="yolSellerCard" hidden>
               <h3>Ürün yükle</h3>
               <p class="hint" id="yolSellerHint"></p>
+              <button class="secondary" type="button" id="yolSellGoDesk" hidden>Kontrol paneline dön</button>
               <form id="yolSellerForm" class="note-form">
                 <div id="yolSellerTypeRow" class="row">
                   <label class="field yol-type-label"><input type="radio" name="yolListType" value="single" checked /> Tekli ürün</label>
@@ -467,6 +480,7 @@
                   </select>
                 </label>
                 <label class="field"><input type="checkbox" id="yolProdFlash" /> Flaş ürün</label>
+                <label class="field"><input type="checkbox" id="yolProdDeal" /> Avantajlı ürün</label>
                 <textarea id="yolProdDesc" placeholder="Açıklama (isteğe bağlı)" maxlength="240" rows="2"></textarea>
                 <p class="hint" id="yolSellerMsg"></p>
                 <button class="gold" type="submit">Ürünü satışa koy</button>
@@ -474,6 +488,166 @@
               <div class="holiday-results yol-product-grid" id="yolMyProducts"></div>
             </article>
           </section>
+        </section>
+
+        <section class="view" data-view="desk" hidden>
+          <h2 id="yolDeskTitle">Kontrol paneli</h2>
+          <p class="hint" id="yolDeskHello"></p>
+          <div class="row yol-desk-nav" id="yolDeskNav">
+            <button class="gold" type="button" data-yol-desk="products">Ürünlerim</button>
+            <button class="secondary" type="button" data-yol-desk="reports">Raporlar</button>
+            <button class="secondary" type="button" data-yol-desk="stats">İstatistikler</button>
+            <button class="secondary" type="button" data-yol-desk="invoices">Faturalar</button>
+            <button class="secondary" type="button" data-yol-desk="coupons">İndirim kodu</button>
+            <button class="secondary" type="button" data-yol-desk="campaigns">Kampanya oluştur</button>
+            <button class="secondary" type="button" data-yol-desk="account">Hesabım</button>
+            <button class="secondary" type="button" data-yol-desk="track">Kargo Takip</button>
+            <button class="secondary" type="button" data-yol-desk="addresses">Kargo Adreslerim</button>
+          </div>
+          <p class="hint" id="yolDeskMsg"></p>
+
+          <div id="yolDeskProducts">
+            <article class="card">
+              <h3>Tüm ürünlerim</h3>
+              <p class="hint">Satıştaki ürünleriniz. Avantajlı işaretleyebilir veya silebilirsiniz.</p>
+              <button class="gold" type="button" id="yolDeskGoSell">Yeni ürün yükle</button>
+              <div class="holiday-results yol-product-grid" id="yolDeskProductList"></div>
+            </article>
+          </div>
+
+          <div id="yolDeskReports" hidden>
+            <article class="card">
+              <h3>Satış raporu</h3>
+              <p class="hint">Tüm satışlarınız tarih sırasıyla listelenir.</p>
+              <div class="log-list" id="yolDeskSales"></div>
+            </article>
+          </div>
+
+          <div id="yolDeskStats" hidden>
+            <div class="yol-desk-stats" id="yolDeskStatCards"></div>
+            <article class="card">
+              <h3>Ödeme dağılımı</h3>
+              <div class="log-list" id="yolDeskPayMix"></div>
+            </article>
+            <article class="card">
+              <h3>En çok satan ürünler</h3>
+              <div class="log-list" id="yolDeskTopProducts"></div>
+            </article>
+            <article class="card">
+              <h3>Son 7 gün</h3>
+              <div class="log-list" id="yolDeskWeek"></div>
+            </article>
+          </div>
+
+          <div id="yolDeskInvoices" hidden>
+            <article class="card">
+              <h3>Fatura yükle</h3>
+              <p class="hint">Satış seçin, faturanızı PDF veya görsel olarak yükleyin. Sistem faturayı müşterinin mailine gönderir.</p>
+              <select id="yolInvOrder" aria-label="Satış seçin"></select>
+              <input id="yolInvTax" inputmode="numeric" placeholder="Alıcı TCKN veya VKN (isteğe bağlı)" maxlength="11" />
+              <input id="yolInvFile" type="file" accept="application/pdf,image/*" hidden />
+              <button class="gold" type="button" id="yolInvUpload">Fatura yükle ve mail gönder</button>
+            </article>
+            <article class="card">
+              <h3>Faturalarım</h3>
+              <div class="log-list" id="yolDeskInvoiceList"></div>
+            </article>
+          </div>
+
+          <div id="yolDeskCoupons" hidden>
+            <article class="card">
+              <h3>İndirim kodu tanımla</h3>
+              <form id="yolCouponForm" class="note-form">
+                <input id="yolCouponCode" placeholder="Kod (ör. HARBI10)" required maxlength="16" />
+                <input id="yolCouponPercent" inputmode="numeric" placeholder="İndirim %" required maxlength="2" />
+                <input id="yolCouponMax" inputmode="numeric" placeholder="Kullanım limiti (boş = sınırsız)" maxlength="6" />
+                <button class="gold" type="submit">Kodu kaydet</button>
+              </form>
+              <div class="log-list" id="yolDeskCouponList"></div>
+            </article>
+          </div>
+
+          <div id="yolDeskCampaigns" hidden>
+            <article class="card">
+              <h3>Kampanya oluştur</h3>
+              <p class="hint">Tarih aralığında seçilen ürünlere otomatik indirim uygulanır. Flaş kampanya ana sayfa flaş filtresinde görünür.</p>
+              <form id="yolCampaignForm" class="note-form">
+                <input id="yolCampName" placeholder="Kampanya adı" required maxlength="80" />
+                <input id="yolCampPercent" inputmode="numeric" placeholder="İndirim %" required maxlength="2" />
+                <label class="field">Başlangıç
+                  <input id="yolCampStart" type="date" required />
+                </label>
+                <label class="field">Bitiş
+                  <input id="yolCampEnd" type="date" required />
+                </label>
+                <label class="field"><input type="checkbox" id="yolCampFlash" /> Flaş kampanya</label>
+                <p class="hint">Ürün seçin. Hiç seçmezseniz tüm ürünleriniz kampanyaya girer.</p>
+                <div class="yol-camp-products" id="yolCampProductBox"></div>
+                <button class="gold" type="submit">Kampanyayı yayınla</button>
+              </form>
+              <div class="log-list" id="yolDeskCampaignList"></div>
+            </article>
+          </div>
+
+          <div id="yolDeskAccount" hidden>
+            <article class="card">
+              <h3>Hesabım</h3>
+              <p class="hint">Ad, telefon, adres ve kargo firmanızı güncelleyin. Mail adresi değişmez.</p>
+              <form id="yolAccForm" class="note-form">
+                <input id="yolAccFirst" placeholder="Ad" required maxlength="40" />
+                <input id="yolAccLast" placeholder="Soyad" required maxlength="40" />
+                <input id="yolAccMail" type="email" placeholder="Mail" readonly />
+                <input id="yolAccPhone" inputmode="tel" placeholder="Telefon" required maxlength="14" />
+                <input id="yolAccVkn" inputmode="numeric" placeholder="VKN" maxlength="10" hidden />
+                <textarea id="yolAccAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                <label class="field">Kargo firması
+                  <select id="yolAccCargo">
+                    <option value="yurtici">Yurtiçi Kargo</option>
+                    <option value="aras">Aras Kargo</option>
+                    <option value="mng">MNG Kargo</option>
+                    <option value="surat">Sürat Kargo</option>
+                    <option value="ptt">PTT Kargo</option>
+                  </select>
+                </label>
+                <input id="yolAccPin" type="password" placeholder="Yeni şifre (değiştirmek için)" maxlength="12" autocomplete="new-password" />
+                <button class="gold" type="submit">Hesabı kaydet</button>
+              </form>
+            </article>
+          </div>
+
+          <div id="yolDeskTrack" hidden>
+            <article class="card">
+              <h3>Kargo Takip</h3>
+              <p class="hint">Satışlarınıza takip numarası yazın. Müşteri kargo sitesinden sorgulayabilir.</p>
+              <div class="log-list" id="yolDeskTrackList"></div>
+            </article>
+          </div>
+
+          <div id="yolDeskAddresses" hidden>
+            <article class="card">
+              <h3>Kargo Adreslerim</h3>
+              <p class="hint">Gönderim için kullandığınız çıkış adreslerini kaydedin.</p>
+              <form id="yolAddrForm" class="note-form">
+                <input id="yolAddrTitle" placeholder="Adres adı (Ev, Atölye…)" required maxlength="40" />
+                <input id="yolAddrCity" placeholder="İl / ilçe" required maxlength="40" />
+                <textarea id="yolAddrLine" placeholder="Açık adres" required maxlength="240" rows="2"></textarea>
+                <input id="yolAddrPhone" inputmode="tel" placeholder="İletişim telefonu" required maxlength="14" />
+                <button class="gold" type="submit">Adresi kaydet</button>
+              </form>
+              <div class="log-list" id="yolDeskAddrList"></div>
+            </article>
+            <article class="card" id="yolReturnAddrCard" hidden>
+              <h3>Kargo İade Adresim</h3>
+              <p class="hint">Müşteri iadesi bu adrese gönderilir. Satıcı hesabında tek iade adresi tutulur.</p>
+              <form id="yolReturnForm" class="note-form">
+                <input id="yolReturnTitle" placeholder="İade adresi adı (Depo, Merkez…)" required maxlength="40" />
+                <input id="yolReturnCity" placeholder="İl / ilçe" required maxlength="40" />
+                <textarea id="yolReturnLine" placeholder="İade açık adresi" required maxlength="240" rows="2"></textarea>
+                <input id="yolReturnPhone" inputmode="tel" placeholder="İade iletişim telefonu" required maxlength="14" />
+                <button class="gold" type="submit">İade adresini kaydet</button>
+              </form>
+            </article>
+          </div>
         </section>
 
         <section class="view" data-view="camera" hidden>
@@ -884,429 +1058,6 @@
           </select>
           <button class="primary" id="hygieneAdd" type="button">Yeni ürün</button>
           <div class="hygiene-list" id="hygieneList"></div>
-        </section>
-
-        <section class="view" data-view="women" hidden>
-          <h2>Ürünler</h2>
-          <p class="hint">Üye olun, ürün ekleyin, satış yapın. Alıcılar yalnızca vitrini ve ödemeyi görür.</p>
-          <div class="row" id="gkNav">
-            <button class="secondary" type="button" data-gk-tab="shop">Vitrin</button>
-            <button class="secondary" type="button" data-gk-tab="cart" id="gkCartTabBtn">Alışveriş Sepeti</button>
-            <button class="secondary" type="button" data-gk-tab="auth" id="gkAuthTabBtn">Üye ol / Giriş</button>
-            <button class="secondary" type="button" data-gk-tab="seller" id="gkSellerTab" hidden>Satışlarım</button>
-            <button class="secondary" type="button" data-gk-tab="adminLogin" id="gkAdminTabBtn">Yönetim</button>
-          </div>
-          <p class="hint" id="gkMsg"></p>
-
-          <div id="gkShop">
-            <select id="gkShopSort">
-              <option value="asc">Ucuzdan pahalıya</option>
-              <option value="desc">Pahalıdan ucuza</option>
-            </select>
-            <div class="holiday-results" id="gkShopList"></div>
-          </div>
-
-          <div id="gkCart" hidden>
-            <article class="card">
-              <h3>Alışveriş sepeti</h3>
-              <p class="hint">Ürünleri sepete ekleyin, sonra birlikte ödeyin.</p>
-              <div class="log-list" id="gkCartList"></div>
-              <p class="price" id="gkCartTotal"></p>
-              <div class="row">
-                <button class="gold" id="gkCartCheckout" type="button">Ödemeye geç</button>
-                <button class="secondary" id="gkCartClear" type="button">Sepeti boşalt</button>
-              </div>
-            </article>
-          </div>
-
-          <div id="gkAuth" hidden>
-            <article class="card" id="gkRegisterCard">
-              <h3>Üye ol</h3>
-              <form id="gkRegister" class="note-form">
-                <input id="gkRegName" placeholder="Ad soyad" required maxlength="60" />
-                <input id="gkRegPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
-                <input id="gkRegTc" inputmode="numeric" placeholder="TC kimlik no" required maxlength="11" />
-                <textarea id="gkRegAddress" placeholder="Adres" required maxlength="200" rows="2"></textarea>
-                <input id="gkRegIban" placeholder="IBAN" required maxlength="32" />
-                <input id="gkRegPin" type="password" placeholder="Şifre" required minlength="4" />
-                <select id="gkRegCargo">
-                  <option value="yurtici">Yurtiçi Kargo</option>
-                  <option value="aras">Aras Kargo</option>
-                  <option value="mng">MNG Kargo</option>
-                  <option value="ptt">PTT Kargo</option>
-                  <option value="surat">Sürat Kargo</option>
-                </select>
-                <button class="gold" type="submit">Üye ol ve satmaya başla</button>
-              </form>
-            </article>
-            <article class="card">
-              <h3>Üye girişi</h3>
-              <form id="gkLogin" class="note-form">
-                <input id="gkLoginPhone" inputmode="tel" placeholder="Telefon" required />
-                <input id="gkLoginPin" type="password" placeholder="Şifre" required />
-                <button class="primary" type="submit">Giriş</button>
-                <button class="pw-toggle" id="gkForgotOpen" type="button">Şifremi unuttum</button>
-              </form>
-              <form id="gkForgot" class="note-form" hidden>
-                <p class="hint">Şifre sıfırlamak için telefon ve TC kimlik no gerekli.</p>
-                <input id="gkForgotPhone" inputmode="tel" placeholder="Telefon" required />
-                <input id="gkForgotTc" inputmode="numeric" placeholder="TC kimlik no" required maxlength="11" />
-                <input id="gkForgotPin" type="password" placeholder="Yeni şifre" required minlength="4" />
-                <input id="gkForgotPin2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
-                <button class="gold" type="submit">Şifreyi sıfırla</button>
-                <button class="secondary" id="gkForgotCancel" type="button">Vazgeç</button>
-              </form>
-            </article>
-          </div>
-
-          <div id="gkSeller" hidden>
-            <div class="pbx-head">
-              <p class="hint" id="gkSellerHello"></p>
-              <button class="secondary" id="gkLogout" type="button">Çıkış</button>
-            </div>
-            <form id="gkProfileForm" class="note-form">
-              <h3 class="subhead">Üye bilgileri</h3>
-              <p class="hint">TC, adres ve IBAN zorunludur. Ürün eklemek için bunları kaydedin.</p>
-              <input id="gkProfTc" inputmode="numeric" placeholder="TC kimlik no" required maxlength="11" />
-              <textarea id="gkProfAddress" placeholder="Adres" required maxlength="200" rows="2"></textarea>
-              <input id="gkProfIban" placeholder="IBAN" required maxlength="32" />
-              <button class="primary" type="submit">Bilgileri kaydet</button>
-            </form>
-            <form id="gkPassForm" class="note-form">
-              <h3 class="subhead">Şifre değiştir</h3>
-              <input id="gkPassOld" type="password" placeholder="Mevcut şifre" required />
-              <input id="gkPassNew" type="password" placeholder="Yeni şifre" required minlength="4" />
-              <input id="gkPassNew2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
-              <button class="secondary" type="submit">Şifreyi değiştir</button>
-            </form>
-            <form id="gkProductForm" class="note-form">
-              <p class="hint" id="gkCommissionHint">Ürününüz satılmadan önce: her satıştan %5 komisyon otomatik kesilir. Kalan %95 ertesi gün IBAN’ınıza yatırılır.</p>
-              <input id="gkProdName" placeholder="Ürün adı" required maxlength="80" />
-              <input id="gkProdPrice" inputmode="decimal" placeholder="Fiyat ₺" required />
-              <input id="gkProdPhoto" placeholder="Fotoğraf linki (isteğe bağlı)" maxlength="300" />
-              <textarea id="gkProdDesc" placeholder="Ürün açıklaması" rows="3"></textarea>
-              <select id="gkProdCargo">
-                <option value="yurtici">Gönderim: Yurtiçi Kargo</option>
-                <option value="aras">Gönderim: Aras Kargo</option>
-                <option value="mng">Gönderim: MNG Kargo</option>
-                <option value="ptt">Gönderim: PTT Kargo</option>
-                <option value="surat">Gönderim: Sürat Kargo</option>
-              </select>
-              <label class="field"><input type="checkbox" id="gkCommissionOk" required /> Satışa koymadan önce %5 komisyonu kabul ediyorum</label>
-              <button class="gold" type="submit">Ürünü satışa koy</button>
-            </form>
-            <div class="holiday-results" id="gkMyProducts"></div>
-            <h3 class="subhead">Siparişler / kargo</h3>
-            <p class="hint">Satış tutarının %95’i ertesi gün IBAN’ınıza yatırılır. %5 komisyon otomatik kesilir.</p>
-            <div class="log-list" id="gkSellerOrders"></div>
-          </div>
-
-          <div id="gkBuy" hidden>
-            <article class="card">
-              <h3>Satın al</h3>
-              <p id="gkBuySummary"></p>
-              <form id="gkBuyForm" class="note-form">
-                <input id="gkBuyName" placeholder="Ad soyad" required maxlength="60" />
-                <input id="gkBuyPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
-                <input id="gkBuyAddress" placeholder="Teslimat adresi" required maxlength="160" />
-                <p class="hint">Tüm kredi kartları ile öde. Tahsilat Tolkan Uğur Özel IBAN’ına (TR54 0006 2000 1110 0006 ** **) kabul edilir.</p>
-                <select id="gkBuyBrand" required>
-                  <option value="">Kart tipi</option>
-                  <option value="Visa">Visa</option>
-                  <option value="Mastercard">Mastercard</option>
-                  <option value="Troy">Troy</option>
-                  <option value="American Express">American Express</option>
-                  <option value="Discover">Discover</option>
-                  <option value="UnionPay">UnionPay</option>
-                  <option value="Diğer">Diğer kredi kartı</option>
-                </select>
-                <input id="gkBuyCardName" placeholder="Kart üzerindeki isim" required maxlength="80" />
-                <input id="gkBuyCardNumber" inputmode="numeric" placeholder="Kart numarası" required maxlength="23" autocomplete="off" />
-                <div class="row">
-                  <input id="gkBuyExp" placeholder="SKT AA/YY" required maxlength="5" />
-                  <input id="gkBuyCvc" inputmode="numeric" placeholder="CVC" required maxlength="4" autocomplete="off" />
-                </div>
-                <button class="gold" type="submit">Kredi kartı ile öde</button>
-                <button class="secondary" id="gkBuyCancel" type="button">Vazgeç</button>
-              </form>
-            </article>
-          </div>
-
-          <div id="gkAdminLogin" hidden>
-            <article class="card">
-              <h3>Süper admin girişi</h3>
-              <form id="gkAdminForm" class="note-form">
-                <input id="gkAdminUser" name="username" autocomplete="username" placeholder="Kullanıcı adı" required />
-                <div class="pw-wrap">
-                  <input id="gkAdminPin" name="password" autocomplete="current-password" type="password" placeholder="Şifre" required />
-                  <button class="pw-toggle" id="gkAdminShowPin" type="button" aria-pressed="false">Şifre göster</button>
-                </div>
-                <label class="field"><input type="checkbox" id="gkAdminRemember" checked /> Beni hatırla</label>
-                <button class="primary" type="submit">Giriş</button>
-              </form>
-            </article>
-          </div>
-
-          <div id="gkAdminPanel" hidden>
-            <div class="pbx-head">
-              <p class="hint">Entegrasyonlar yalnızca süper adminde görünür.</p>
-              <button class="secondary" id="gkAdminLogout" type="button">Admin çıkış</button>
-            </div>
-            <article class="card">
-              <h3>Sanal POS</h3>
-              <form id="gkPosForm" class="note-form">
-                <select id="gkPosProvider">
-                  <option value="demo">Demo POS</option>
-                  <option value="iyzico">iyzico</option>
-                  <option value="paytr">PayTR</option>
-                </select>
-                <input id="gkPosMerchant" placeholder="Üye işyeri no" maxlength="80" />
-                <input id="gkPosKey" placeholder="API anahtarı" maxlength="120" />
-                <input id="gkPosSecret" type="password" placeholder="Gizli anahtar" maxlength="120" />
-                <button class="pw-toggle" id="gkPosSecretToggle" type="button" aria-pressed="false">Gizli anahtarı göster</button>
-                <label class="field"><input type="checkbox" id="gkPosOn" /> POS aktif</label>
-                <button class="gold" type="submit">POS kaydet</button>
-              </form>
-            </article>
-            <article class="card">
-              <h3>Kargo entegrasyonu</h3>
-              <form id="gkCargoForm" class="note-form">
-                <input id="gkCargoYurtici" placeholder="Yurtiçi API anahtarı" maxlength="120" />
-                <input id="gkCargoAras" placeholder="Aras API anahtarı" maxlength="120" />
-                <input id="gkCargoMng" placeholder="MNG API anahtarı" maxlength="120" />
-                <input id="gkCargoPtt" placeholder="PTT API anahtarı" maxlength="120" />
-                <input id="gkCargoSurat" placeholder="Sürat API anahtarı" maxlength="120" />
-                <button class="gold" type="submit">Kargo kaydet</button>
-              </form>
-            </article>
-            <article class="card">
-              <h3>IBAN ödemeleri</h3>
-              <p class="hint">Satıcı ödemeleri satışın ertesi günü otomatik yatırılır.</p>
-              <div class="log-list" id="gkAdminPayouts"></div>
-            </article>
-          </div>
-        </section>
-
-        <section class="view" data-view="pos" hidden>
-          <h2>Sanal POS</h2>
-          <p class="lede" id="posFeeBanner">%0,95 Komisyon Oranıyla Çalışıyoruz</p>
-          <p class="hint">Üye olun. İkametgah, imza sirküleri ve Findeks raporu incelenir. Onaylanmadan POS kullanılamaz; API ve gizli anahtar gösterilmez. Her tahsilattan %0,95 komisyon kesilir.</p>
-          <div class="row" id="posNav">
-            <button class="secondary" type="button" data-pos-tab="apply">Üye ol</button>
-            <button class="secondary" type="button" data-pos-tab="login">Giriş</button>
-            <button class="secondary" type="button" data-pos-tab="desk" id="posDeskTab" hidden>POS panelim</button>
-            <button class="secondary" type="button" data-pos-tab="admin">Süper Admin</button>
-          </div>
-          <p class="hint" id="posMsg"></p>
-
-          <div id="posApply">
-            <article class="card">
-              <h3>Üye ol</h3>
-              <form id="posRegister" class="note-form">
-                <input id="posRegName" placeholder="Ad soyad" required maxlength="80" />
-                <input id="posRegEmail" type="email" placeholder="E-posta" required maxlength="120" />
-                <input id="posRegPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
-                <textarea id="posRegAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
-                <label class="field">İkametgah
-                  <input id="posRegIkamet" type="file" accept="image/*,.pdf" required />
-                </label>
-                <label class="field">İmza sirküleri
-                  <input id="posRegImza" type="file" accept="image/*,.pdf" required />
-                </label>
-                <label class="field">Findeks raporu
-                  <input id="posRegFindeks" type="file" accept="image/*,.pdf" required />
-                </label>
-                <input id="posRegPin" type="password" placeholder="Şifre" required minlength="4" />
-                <input id="posRegPin2" type="password" placeholder="Şifre tekrar" required minlength="4" />
-                <button class="pw-toggle" id="posRegShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
-                <label class="field"><input type="checkbox" id="posRegRemember" checked /> Beni hatırla</label>
-                <button class="gold" type="submit">Başvuruyu gönder</button>
-                <button class="pw-toggle" id="posForgotOpen" type="button">Şifremi unuttum</button>
-              </form>
-              <form id="posForgot" class="note-form" hidden>
-                <p class="hint">Şifre sıfırlamak için kayıtlı telefon ve e-posta gerekir. Tüm alanlar zorunludur.</p>
-                <input id="posForgotPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
-                <input id="posForgotEmail" type="email" placeholder="E-posta" required maxlength="120" />
-                <input id="posForgotPin" type="password" placeholder="Yeni şifre" required minlength="4" />
-                <input id="posForgotPin2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
-                <button class="pw-toggle" id="posForgotShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
-                <button class="gold" type="submit">Şifreyi sıfırla</button>
-                <button class="secondary" id="posForgotCancel" type="button">Vazgeç</button>
-              </form>
-            </article>
-          </div>
-
-          <div id="posLogin" hidden>
-            <article class="card">
-              <h3>Üye girişi</h3>
-              <form id="posLoginForm" class="note-form">
-                <input id="posLoginPhone" placeholder="Telefon veya e-posta" required />
-                <input id="posLoginPin" type="password" placeholder="Şifre" required />
-                <button class="pw-toggle" id="posLoginShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
-                <label class="field"><input type="checkbox" id="posLoginRemember" checked /> Beni hatırla</label>
-                <button class="primary" type="submit">Giriş</button>
-              </form>
-            </article>
-          </div>
-
-          <div id="posDesk" hidden>
-            <div class="pbx-head">
-              <p class="hint" id="posHello"></p>
-              <button class="secondary" id="posLogout" type="button">Çıkış</button>
-            </div>
-            <article class="card" id="posWaitCard" hidden>
-              <h3>Onay bekleniyor</h3>
-              <p class="hint">Başvurunuz süper admin incelemesinde. Üyelik aktif edilmeden Sanal POS kullanılamaz. API anahtarı ve gizli anahtar bu aşamada gösterilmez.</p>
-            </article>
-            <article class="card" id="posRejectCard" hidden>
-              <h3>Başvuru reddedildi</h3>
-              <p class="hint" id="posRejectReason"></p>
-            </article>
-            <article class="card" id="posHoldCard" hidden>
-              <h3>Üyelik durduruldu</h3>
-              <p class="hint">Süper admin üyeliğinizi askıya aldı. POS kullanılamaz.</p>
-            </article>
-            <article class="card" id="posKeysCard" hidden>
-              <h3>API bilgileri</h3>
-              <p class="hint">Yalnızca onaylı üyeye gösterilir. Gizli anahtarı kimseyle paylaşmayın. Ödeme sistemi anahtarları otomatik yazılır, kodlar aynı kalır.</p>
-              <p><strong>API anahtarı</strong></p>
-              <input id="posApiKey" readonly />
-              <p><strong>Gizli anahtar</strong></p>
-              <input id="posSecretKey" type="password" readonly />
-              <button class="pw-toggle" id="posSecretToggle" type="button">Gizli anahtarı göster</button>
-              <p><strong>Ödeme sistemi API</strong></p>
-              <input id="posPayApiKey" readonly />
-              <p><strong>Ödeme sistemi gizli anahtar</strong></p>
-              <input id="posPaySecret" type="password" readonly />
-              <button class="pw-toggle" id="posPaySecretToggle" type="button">Gizli anahtarı göster</button>
-              <button class="gold" id="posCreateApiDesk" type="button">API Anahtarı oluştur</button>
-              <button class="gold" id="posCreateSecretDesk" type="button">Gizli Anahtar oluştur</button>
-            </article>
-            <div id="posChargeWrap" hidden>
-              <article class="card pos-settle">
-                <h3>Aktarım hesabı</h3>
-                <p class="hint">Yapılan tüm tahsilatlar Tolkan Uğur Özel adına kayıtlı özel IBAN’a aktarılır.</p>
-                <p><strong>Alıcı</strong> Tolkan Uğur Özel</p>
-                <p><strong>IBAN</strong></p>
-                <input id="posSettleIban" class="iban-text" readonly value="TR54 0006 2000 1110 0006 ** **" />
-                <button class="secondary" id="posCopyIban" type="button">IBAN kopyala</button>
-              </article>
-              <article class="card" id="posIbanCard">
-                <h3>IBAN ile ödeme al</h3>
-                <p class="hint">Müşteri IBAN havalesi kaydı. Otomatik çekim iyzico kart formunda değildir; havale ayrıca yapılır.</p>
-                <form id="posIbanForm" class="note-form">
-                  <input id="posIbanAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
-                  <input id="posIbanPayer" placeholder="Ödeyen ad soyad" required maxlength="80" />
-                  <input id="posIbanFrom" placeholder="Ödeyen IBAN (TR…)" required maxlength="32" />
-                  <input id="posIbanNote" placeholder="Açıklama" maxlength="80" />
-                  <button class="gold" type="submit">IBAN ile tahsil et</button>
-                </form>
-              </article>
-              <article class="card" id="posCardCard">
-                <h3>Tüm kredi kartları ile ödeme</h3>
-                <p class="hint" id="posIyzicoHint">Kart numarası bu uygulamada yazılmaz. Tahsilat iyzico 3D Secure sayfasında alınır.</p>
-                <form id="posCardForm" class="note-form">
-                  <input id="posCardAmount" inputmode="decimal" placeholder="Tutar (₺)" required />
-                  <input id="posCardNote" placeholder="Açıklama" maxlength="80" />
-                  <input id="posCardTc" inputmode="numeric" placeholder="Müşteri TC (canlı iyzico)" maxlength="11" />
-                  <button class="gold" type="submit">iyzico ile tahsil et</button>
-                </form>
-              </article>
-              <article class="card">
-                <h3>Yapılan tüm ödemeler</h3>
-                <p class="hint">Kayıtlı her tahsilattan %0,95 komisyon kesilir. Net tutar TR54 0006 2000 1110 0006 ** ** hesabına yönlendirilir.</p>
-                <div class="log-list" id="posPayList"></div>
-              </article>
-            </div>
-          </div>
-
-          <div id="posAdminLogin" hidden>
-            <article class="card">
-              <h3>Süper admin girişi</h3>
-              <p class="hint">Süper admin üyeleri onaylar, askıya alır ve tüm POS komutlarını verir.</p>
-              <form id="posAdminForm" class="note-form">
-                <input id="posAdminUser" autocomplete="username" placeholder="Kullanıcı adı" required />
-                <input id="posAdminPin" autocomplete="current-password" type="password" placeholder="Şifre" required />
-                <button class="pw-toggle" id="posAdminShowPin" type="button" aria-pressed="false">Şifreyi göster</button>
-                <label class="field"><input type="checkbox" id="posAdminRemember" checked /> Beni hatırla</label>
-                <button class="gold" type="submit">Giriş</button>
-                <button class="pw-toggle" id="posAdminForgotOpen" type="button">Şifremi unuttum</button>
-              </form>
-              <form id="posAdminForgot" class="note-form" hidden>
-                <p class="hint">Kullanıcı adı ile yeni süper admin şifresi belirleyin. Tüm alanlar zorunludur.</p>
-                <input id="posAdminForgotUser" autocomplete="username" placeholder="Kullanıcı adı" required />
-                <input id="posAdminForgotPin" type="password" placeholder="Yeni şifre" required minlength="4" />
-                <input id="posAdminForgotPin2" type="password" placeholder="Yeni şifre tekrar" required minlength="4" />
-                <button class="pw-toggle" id="posAdminForgotShowPin" type="button" aria-pressed="false">Şifreleri göster</button>
-                <button class="gold" type="submit">Şifreyi sıfırla</button>
-                <button class="secondary" id="posAdminForgotCancel" type="button">Vazgeç</button>
-              </form>
-            </article>
-          </div>
-
-          <div id="posAdminPanel" hidden>
-            <div class="pbx-head">
-              <p class="hint">Süper admin — tüm Sanal POS komutları · %0,95 Komisyon Oranıyla Çalışıyoruz</p>
-              <button class="secondary" id="posAdminLogout" type="button">Admin çıkış</button>
-            </div>
-            <article class="card">
-              <h3>Ödeme sistemi anahtarları</h3>
-              <p class="hint">Kart tahsilatı iyzico üzerinden yapılır. API anahtarını buraya yazmayın; Cloudflare Pages ortam değişkenlerine IYZICO_API_KEY ve IYZICO_SECRET_KEY ekleyin. Deneme için IYZICO_SANDBOX=1 kullanın.</p>
-              <p><strong>API anahtarı</strong></p>
-              <input id="posGateApi" readonly />
-              <button class="gold" id="posCreateApi" type="button">API Anahtarı oluştur</button>
-              <p><strong>Gizli anahtar</strong></p>
-              <input id="posGateSecret" type="text" readonly />
-              <button class="pw-toggle" id="posGateSecretToggle" type="button" aria-pressed="true">Gizli anahtarı gizle</button>
-              <button class="gold" id="posCreateSecret" type="button">Gizli Anahtar oluştur</button>
-            </article>
-            <article class="card" id="posSysPanel">
-              <h3>Tüm ödeme sistemleri</h3>
-              <p class="hint">Süper admin tüm kanalları görür, açar, kapatır ve komut verir.</p>
-              <div class="log-list" id="posSysStatus"></div>
-              <form id="posSysForm" class="note-form">
-                <label class="field"><input type="checkbox" id="posGlobalOn" /> Sanal POS genel sistem</label>
-                <label class="field"><input type="checkbox" id="posSysIban" /> IBAN ile ödeme</label>
-                <label class="field"><input type="checkbox" id="posSysCard" /> Tüm kredi kartları</label>
-                <label class="field"><input type="checkbox" id="posSysShop" /> Siteden ürün ödemesi</label>
-                <label class="field"><input type="checkbox" id="posSysWithdraw" /> Para çek komutu</label>
-                <label class="field"><input type="checkbox" id="posSysGkPos" /> Ürün POS entegrasyonu</label>
-                <div class="row">
-                  <button class="gold" id="posGlobalSave" type="submit">Komutları kaydet</button>
-                  <button class="secondary" id="posSysAllOn" type="button">Tümünü aç</button>
-                  <button class="danger" id="posSysAllOff" type="button">Tümünü kapat</button>
-                </div>
-                <button class="secondary" id="posWithdrawToggle" type="button" aria-pressed="false">Para çek alanını göster</button>
-              </form>
-            </article>
-            <article class="card" id="posWithdrawCard" hidden>
-              <h3>Para çek</h3>
-              <p class="hint">Yalnızca süper admin. Yazılan IBAN’dan Tolkan Uğur Özel IBAN’ına çekilir. Bu alan varsayılan gizli; yukarıdaki komutla gösterilir veya gizlenir.</p>
-              <form id="posWithdrawForm" class="note-form">
-                <input id="posWithdrawName" placeholder="Hesap sahibinin adı soyadı" required maxlength="80" />
-                <input id="posWithdrawIban" placeholder="Kaynak IBAN (TR…)" required maxlength="32" />
-                <input id="posWithdrawAmount" inputmode="decimal" placeholder="Çekilecek tutar (₺)" required />
-                <input id="posWithdrawNote" placeholder="Açıklama" maxlength="80" />
-                <p><strong>Hedef IBAN</strong></p>
-                <input id="posWithdrawTarget" class="iban-text" readonly value="TR54 0006 2000 1110 0006 ** **" />
-                <p class="hint">Alıcı: Tolkan Uğur Özel</p>
-                <button class="gold" type="submit">Bu IBAN’dan para çek</button>
-              </form>
-            </article>
-            <article class="card">
-              <h3>Üyelik başvuruları</h3>
-              <div class="log-list" id="posAdminMembers"></div>
-            </article>
-            <article class="card pos-settle">
-              <h3>Aktarım hesabı</h3>
-              <p class="iban-text"><strong>TR54 0006 2000 1110 0006 ** **</strong></p>
-            </article>
-            <article class="card">
-              <h3>Yapılan tüm ödemeler</h3>
-              <p class="hint">%0,95 Komisyon Oranıyla Çalışıyoruz. Her işlemde komisyon kesilir.</p>
-              <div class="log-list" id="posAdminPays"></div>
-            </article>
-          </div>
         </section>
 
         <section class="view" data-view="music" hidden>
@@ -1891,6 +1642,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=303"></script>
+    <script src="js/app.js?v=321"></script>
   </body>
 </html>

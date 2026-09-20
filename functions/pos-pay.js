@@ -54,7 +54,7 @@ export async function onRequestPost(context) {
   const { name, surname } = splitName(body.name);
   const address = String(body.address || "Türkiye").slice(0, 200);
   const city = String(body.city || "Istanbul").slice(0, 40);
-  const note = String(body.note || "Sanal POS tahsilat").slice(0, 80);
+  const note = String(body.note || "Harbi tahsilat").slice(0, 80);
   const conversationId = "pos_" + Date.now();
   const origin = originOf(request);
   const payload = {
@@ -66,7 +66,7 @@ export async function onRequestPost(context) {
     basketId: conversationId,
     paymentGroup: "PRODUCT",
     callbackUrl: origin + "/pos-callback",
-    enabledInstallments: [1],
+    enabledInstallments: [1, 2, 3, 6, 9, 12],
     buyer: {
       id: String(body.phone || conversationId).replace(/\D/g, "").slice(-11) || conversationId,
       name,
@@ -95,9 +95,9 @@ export async function onRequestPost(context) {
       {
         id: conversationId,
         price,
-        name: note || "Harbi Grup Sanal POS",
-        category1: "Sanal POS",
-        itemType: "VIRTUAL",
+        name: note || "Harbi alışveriş",
+        category1: "Pazar yeri",
+        itemType: "PHYSICAL",
       },
     ],
   };

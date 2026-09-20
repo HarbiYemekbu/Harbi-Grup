@@ -124,8 +124,7 @@ body:not(.owner-on) .owner-app-row {
   align-items: center;
   font-size: 14px;
   line-height: 1;
-  color: #7c3aed;
-  font-weight: 700;
+  color: #5b21b6;
 }
 
 .brand-title {
@@ -604,6 +603,12 @@ button.text-link {
   align-items: center;
   min-width: 0;
   padding: 8px;
+}
+
+.yol-checkout {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 #yolCartList .yol-photo-box .gk-photo {
@@ -2820,8 +2825,8 @@ body.yol-seller-account select {
 }
 
 body.yol-seller-account .brand-title h1 {
-  color: #7c3aed !important;
-  -webkit-text-fill-color: #7c3aed;
+  color: #5b21b6 !important;
+  -webkit-text-fill-color: #5b21b6;
 }
   color: #000 !important;
   -webkit-text-fill-color: #000;
@@ -2842,6 +2847,16 @@ body.yol-seller-account .brand-title h1 {
   padding: 0 12px;
   flex-shrink: 0;
   align-self: center;
+}
+
+body.yol-bireysel-panel .site-nav > button:not(#yolNavSell):not(#yolLogoutTop),
+body.yol-desk-panel .site-nav > button:not(#yolNavSell):not(#yolLogoutTop) {
+  display: none !important;
+}
+
+body.yol-bireysel-panel .yol-search,
+body.yol-desk-panel .yol-search {
+  display: none !important;
 }
 
 .site-header #yolLogoutTop {
@@ -2905,4 +2920,54 @@ body.yol-seller-account .brand-title h1 {
   width: 100%;
   background: #fff;
   color: var(--text-page);
+}
+
+.yol-desk-nav {
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+
+.yol-desk-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.yol-desk-stats .price {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+
+#yolDeskInvoices select,
+#yolDeskInvoices input,
+#yolDeskAccount input,
+#yolDeskAccount select,
+#yolDeskAccount textarea,
+#yolDeskAddresses input,
+#yolDeskAddresses textarea,
+#yolDeskTrack input,
+#yolDeskTrack select {
+  width: 100%;
+  margin: 0 0 10px;
+}
+
+@media (min-width: 720px) {
+  .yol-desk-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.yol-camp-products {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.yol-old-price {
+  color: var(--muted);
+  font-weight: 500;
+  margin-right: 6px;
 }

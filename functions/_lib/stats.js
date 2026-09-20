@@ -2,7 +2,6 @@ export const APP_LABELS = {
   home: "Ana sayfa",
   sell: "Ürün yükle",
   camera: "Kamera",
-  women: "Ürünler",
   nfc: "NFC Kontrol",
   music: "Müzik Veya Şarkı Yap",
   aiclip: "Yapay Zeka İle Klip Yap",
@@ -16,7 +15,6 @@ export const APP_LABELS = {
   homes: "Satılık ve Kiralık Ev",
   bikes: "Motorsiklet Kiralama",
   pbx: "Sanal Santral",
-  pos: "Sanal POS",
 };
 
 export function monthKey(date = new Date()) {

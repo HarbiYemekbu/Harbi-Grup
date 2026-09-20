@@ -1,4 +1,4 @@
-const CACHE = "harbi-grup-v303";
+const CACHE = "harbi-grup-v321";
 const ASSETS = [
   "./",
   "./index.html",
@@ -28,7 +28,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const path = new URL(event.request.url).pathname;
-  if (path === "/site-stats" || path === "/phone-otp" || path === "/pbx-rtc" || path === "/pos-pay" || path === "/pos-callback" || path === "/pos-result" || path === "/pos-status" || path === "/music-invoice" || path === "/music-invoice-check") {
+  if (path === "/site-stats" || path === "/phone-otp" || path === "/pbx-rtc" || path === "/pos-pay" || path === "/pos-callback" || path === "/pos-result" || path === "/pos-status" || path === "/music-invoice" || path === "/music-invoice-check" || path === "/yol-invoice-mail") {
     event.respondWith(fetch(event.request));
     return;
   }

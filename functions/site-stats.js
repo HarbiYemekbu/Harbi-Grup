@@ -17,7 +17,6 @@ const ALLOWED = new Set([
   "homes",
   "bikes",
   "pbx",
-  "pos",
 ]);
 
 function json(data, status = 200) {
