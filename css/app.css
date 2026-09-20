@@ -709,6 +709,79 @@ button.text-link {
   font-weight: 700;
 }
 
+.yol-country-flag {
+  font-size: 22px;
+  line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.yol-country-picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.yol-country-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f4efe8;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.yol-country-chip.is-on {
+  background: #5b21b6;
+  color: #fff;
+}
+
+#yolCountryQuery,
+#yolSellerCountryQuery {
+  width: 100%;
+  margin: 0 0 10px;
+}
+
+.yol-country-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  padding: 4px 0 12px;
+  text-align: left;
+}
+
+.yol-country-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.yol-country-list label:hover,
+.yol-country-list label.is-on {
+  background: rgba(91, 33, 182, 0.08);
+}
+
+.yol-country-list input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+@media (min-width: 720px) {
+  .yol-country-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .site-tr-flag {
   width: 28px;
   height: 18px;

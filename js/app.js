@@ -184,8 +184,10 @@ function showView(name) {
   if (name === "sell") renderYolSeller();
   if (name === "desk") renderYolDesk();
   if (name === "home") renderYolMarket();
+  if (name === "countrySelect") renderYolCountries();
   yolSyncSearch();
   yolSyncNav();
+  yolSyncCountryUi();
   trackSiteApp(name);
   resumeSaveView(name);
   resumeRestoreScroll(name);
@@ -7361,6 +7363,10 @@ const YOL_COUPONS = "yol-coupons";
 const YOL_CAMPAIGNS = "yol-campaigns";
 const YOL_INVOICES = "yol-invoices";
 const YOL_ADDRESSES = "yol-ship-addresses";
+const YOL_SHOP_COUNTRY = "yol-shop-country";
+const YOL_SHOP_COUNTRIES = "yol-shop-countries";
+const YOL_COUNTRY_PACK =
+  "AFAfganistan|ALArnavutluk|DZCezayir|ADAndorra|AOAngola|AGAntigua ve Barbuda|ARArjantin|AMErmenistan|AUAvustralya|ATAvusturya|AZAzerbaycan|BSBahamalar|BHBahreyn|BDBangladeş|BBBarbados|BYBelarus|BEBelçika|BZBelize|BJBenin|BTBhutan|BOBolivya|BABosna-Hersek|BWBotsvana|BRBrezilya|BNBrunei|BGBulgaristan|BFBurkina Faso|BIBurundi|CVCape Verde|KHKamboçya|CMKamerun|CAKanada|CFOrta Afrika Cumhuriyeti|TDÇad|CLŞili|CNÇin|COKolombiya|KMKomorlar|CGKongo|CDKongo Demokratik Cumhuriyeti|CRKosta Rika|CIFildişi Sahili|HRHırvatistan|CUKüba|CYKıbrıs|CZÇekya|DKDanimarka|DJCibuti|DMDominika|DODominik Cumhuriyeti|ECEkvador|EGMısır|SVEl Salvador|GQEkvator Ginesi|EREritre|EEEstonya|SZEsvatini|ETEtiyopya|FJFiji|FIFinlandiya|FRFransa|GAGabon|GMGambiya|GEGürcistan|DEAlmanya|GHGana|GRYunanistan|GDGrenada|GTGuatemala|GNGine|GWGine-Bissau|GYGuyana|HTHaiti|HNHonduras|HUMacaristan|ISİzlanda|INHindistan|IDEndonezya|IRİran|IQIrak|IEİrlanda|ILİsrail|ITİtalya|JMJamaika|JPJaponya|JOÜrdün|KZKazakistan|KEKenya|KIKiribati|KWKuveyt|KGKırgızistan|LALaos|LVLetonya|LBLübnan|LSLesotho|LRLiberya|LYLibya|LILihtenştayn|LTLitvanya|LULüksemburg|MGMadagaskar|MWMalavi|MYMalezya|MVMaldivler|MLMali|MTMalta|MHMarshall Adaları|MRMoritanya|MUMauritius|MXMeksika|FMMikronezya|MDMoldova|MCMonako|MNMoğolistan|MEKaradağ|MAFas|MZMozambik|MMMyanmar|NANamibya|NRNauru|NPNepal|NLHollanda|NZYeni Zelanda|NINikaragua|NENijer|NGNijerya|KPKuzey Kore|MKKuzey Makedonya|NONorveç|OMUmman|PKPakistan|PWPalau|PSFilistin|PAPanama|PGPapua Yeni Gine|PYParaguay|PEPeru|PHFilipinler|PLPolonya|PTPortekiz|PRPorto Riko|QAKatar|RORomanya|RURusya|RWRuanda|KNSaint Kitts ve Nevis|LCSaint Lucia|VCSaint Vincent ve Grenadinler|WSSamoa|SMSan Marino|STSao Tome ve Principe|SASuudi Arabistan|SNSenegal|RSSırbistan|SCSeyşeller|SLSierra Leone|SGSingapur|SKSlovakya|SISlovenya|SBSolomon Adaları|SOSomali|ZAGüney Afrika|KRGüney Kore|SSGüney Sudan|ESİspanya|LKSri Lanka|SDSudan|SRSurinam|SEİsveç|CHİsviçre|SYSuriye|TWTayvan|TJTacikistan|TZTanzanya|THTayland|TLDoğu Timor|TGTogo|TOTonga|TTTrinidad ve Tobago|TNTunus|TRTürkiye|TMTürkmenistan|TVTuvalu|UGUganda|UAUkrayna|AEBirleşik Arap Emirlikleri|GBBirleşik Krallık|USAmerika Birleşik Devletleri|UYUruguay|UZÖzbekistan|VUVanuatu|VAVatikan|VEVenezuela|VNVietnam|YEYemen|ZMZambiya|ZWZimbabve|XKKosova|HKHong Kong|MOMakao";
 const YOL_TRACK_STATUS = {
   hazirlaniyor: "Hazırlanıyor",
   kargoda: "Kargoda",
@@ -7408,6 +7414,152 @@ function yolCargoTrackUrl(cargo, code) {
   if (key === "mng") return `https://kargotakip.mngkargo.com.tr/?takipNo=${no}`;
   if (key === "surat") return `https://www.suratkargo.com.tr/KargoTakip/?kargotakipno=${no}`;
   return `https://gonderitakip.ptt.gov.tr/`;
+}
+
+function yolCountries() {
+  return YOL_COUNTRY_PACK.split("|").map((row) => ({ c: row.slice(0, 2), n: row.slice(2) }));
+}
+
+function yolFlag(code) {
+  const cc = String(code || "").toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return "";
+  return String.fromCodePoint(...[...cc].map((ch) => 127397 + ch.charCodeAt(0)));
+}
+
+function yolCountryByCode(code) {
+  const cc = String(code || "TR").toUpperCase();
+  return yolCountries().find((row) => row.c === cc) || { c: "TR", n: "Türkiye" };
+}
+
+function yolShopCountryCode() {
+  const cur = String(store.get(YOL_SHOP_COUNTRY, "TR") || "TR").toUpperCase();
+  return yolCountryByCode(cur).c;
+}
+
+function yolShopCountryCodes() {
+  const raw = store.get(YOL_SHOP_COUNTRIES, null);
+  const list = Array.isArray(raw) ? raw.map((c) => String(c || "").toUpperCase()) : [];
+  const cur = yolShopCountryCode();
+  const uniq = [...new Set(list.filter((c) => yolCountries().some((row) => row.c === c)))];
+  if (!uniq.includes(cur)) uniq.unshift(cur);
+  return uniq;
+}
+
+function yolSetShopCountries(codes, current) {
+  const all = yolCountries();
+  let uniq = [...new Set((codes || []).map((c) => String(c || "").toUpperCase()))].filter((c) =>
+    all.some((row) => row.c === c)
+  );
+  let active = String(current || uniq[0] || "TR").toUpperCase();
+  if (!uniq.includes(active)) uniq.unshift(active);
+  if (!uniq.length) {
+    uniq = ["TR"];
+    active = "TR";
+  }
+  store.set(YOL_SHOP_COUNTRIES, uniq);
+  store.set(YOL_SHOP_COUNTRY, active);
+}
+
+function yolSellerShipCodes() {
+  const seller = yolSeller();
+  if (!seller) return [];
+  const partner = yolPartnerKindFor(seller.phone, seller.mail);
+  const raw = partner?.shipCountries;
+  return Array.isArray(raw) ? raw.map((c) => String(c || "").toUpperCase()).filter(Boolean) : [];
+}
+
+function yolSetSellerShipCodes(codes) {
+  const seller = yolSeller();
+  if (!seller) return;
+  const uniq = [...new Set((codes || []).map((c) => String(c || "").toUpperCase()))].filter((c) =>
+    yolCountries().some((row) => row.c === c)
+  );
+  store.set(
+    YOL_PARTNERS,
+    store.get(YOL_PARTNERS, []).map((p) => {
+      if (yolMail(p.mail) !== yolMail(seller.mail) && yolGsm(p.phone) !== yolGsm(seller.phone)) return p;
+      return { ...p, shipCountries: uniq };
+    })
+  );
+}
+
+function yolCountryLabel(code) {
+  const row = yolCountryByCode(code);
+  return `${yolFlag(row.c)} ${row.n}`;
+}
+
+function yolCountryRowHtml(row, name, checked, current) {
+  const on = current && row.c === current;
+  return `<label class="${on ? "is-on" : ""}">
+    <input type="checkbox" name="${name}" value="${row.c}"${checked ? " checked" : ""} />
+    <span class="yol-country-flag" aria-hidden="true">${yolFlag(row.c)}</span>
+    <span>${escapeHtml(row.n)}</span>
+  </label>`;
+}
+
+function yolSyncCountryUi() {
+  const cur = yolCountryByCode(yolShopCountryCode());
+  const label = yolCountryLabel(cur.c);
+  if ($("#yolCountryNow")) $("#yolCountryNow").innerHTML = label;
+  if ($("#yolFooterCountry")) $("#yolFooterCountry").innerHTML = label;
+  if ($("#yolPayCountryHint")) {
+    $("#yolPayCountryHint").textContent = `${cur.n} ülkesine sipariş verilecek. Satıcıdan kargoyu bu ülkeye göndermesi talep edilir.`;
+  }
+}
+
+function renderYolCountries() {
+  yolSyncCountryUi();
+  const q = String($("#yolCountryQuery")?.value || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR");
+  const picked = yolShopCountryCodes();
+  const current = yolShopCountryCode();
+  const rows = yolCountries()
+    .slice()
+    .sort((a, b) => {
+      if (a.c === "TR") return -1;
+      if (b.c === "TR") return 1;
+      return a.n.localeCompare(b.n, "tr");
+    })
+    .filter((row) => !q || row.n.toLocaleLowerCase("tr-TR").includes(q) || row.c.toLowerCase().includes(q));
+  if ($("#yolCountryPicked")) {
+    $("#yolCountryPicked").innerHTML = picked
+      .map((code) => {
+        const row = yolCountryByCode(code);
+        return `<span class="yol-country-chip${code === current ? " is-on" : ""}">${yolFlag(row.c)} ${escapeHtml(row.n)}</span>`;
+      })
+      .join("");
+  }
+  if ($("#yolCountryBox")) {
+    $("#yolCountryBox").innerHTML = rows
+      .map((row) => yolCountryRowHtml(row, "yolShopCountry", picked.includes(row.c), current))
+      .join("");
+  }
+  const sellerOn = yolHasDesk();
+  if ($("#yolSellerCountryCard")) $("#yolSellerCountryCard").hidden = !sellerOn;
+  if (!sellerOn) return;
+  const sq = String($("#yolSellerCountryQuery")?.value || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR");
+  const ship = yolSellerShipCodes();
+  const srows = yolCountries()
+    .slice()
+    .sort((a, b) => {
+      if (a.c === "TR") return -1;
+      if (b.c === "TR") return 1;
+      return a.n.localeCompare(b.n, "tr");
+    })
+    .filter((row) => !sq || row.n.toLocaleLowerCase("tr-TR").includes(sq) || row.c.toLowerCase().includes(sq));
+  if ($("#yolSellerCountryPicked")) {
+    $("#yolSellerCountryPicked").innerHTML = ship.length
+      ? ship.map((code) => `<span class="yol-country-chip">${yolCountryLabel(code)}</span>`).join("")
+      : "<p class='hint'>Henüz ülke işaretlenmedi. Tüm dünya talebi alınır.</p>";
+  }
+  if ($("#yolSellerCountryBox")) {
+    $("#yolSellerCountryBox").innerHTML = srows
+      .map((row) => yolCountryRowHtml(row, "yolShipCountry", ship.includes(row.c), ""))
+      .join("");
+  }
 }
 
 function yolProductCargo(item) {
@@ -7955,9 +8107,74 @@ function yolSortProducts(list) {
 
 const YOL_CAT_BOOL = { deal: true, flash: true, coupon: true };
 
+const YOL_BRANDS = [
+  "Penti",
+  "Mango",
+  "Vivense",
+  "Watsons",
+  "English Home",
+  "Bershka",
+  "Stradivarius",
+  "The North Face",
+  "Beymen",
+  "Columbia",
+  "Samsung",
+  "Lumberjack",
+  "Puma",
+  "Mudo",
+  "Derimod",
+  "Apple",
+  "New Balance",
+  "Huawei",
+  "Xiaomi",
+  "Oppo",
+  "Monster Notebook",
+  "Birkenstock",
+  "Arçelik",
+  "DYSON",
+  "Adidas",
+  "Nike",
+  "Skechers",
+  "Lacoste",
+  "Avva",
+  "Under Armour",
+  "Madame Coco",
+  "Pull & Bear",
+  "Koton",
+  "Defacto",
+  "Mavi",
+  "Pierre Cardin",
+  "Tchibo",
+  "Farmasi",
+  "Helly Hansen",
+  "Network",
+  "Bosch",
+  "Karaca",
+  "Kiğılı",
+  "CAT",
+  "Orijinallik Takip Sistemi",
+];
+
+function yolFillBrandUi() {
+  const box = $("#yolBrandBox");
+  if (box && !box.children.length) {
+    box.innerHTML = YOL_BRANDS.map(
+      (name) =>
+        `<label><input type="checkbox" name="yolBrand" value="${escapeHtml(name)}" /> ${escapeHtml(name)}</label>`
+    ).join("");
+  }
+  const sel = $("#yolProdBrand");
+  if (sel && sel.options.length <= 1) {
+    const names = ["Harbi", ...YOL_BRANDS.filter((name) => name !== "Harbi")];
+    sel.innerHTML =
+      `<option value="">Marka seçin</option>` +
+      names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+  }
+}
+
 const YOL_CAT_VALUES = {
   gender: ["Kadın", "Erkek", "Unisex", "Çocuk"],
-  brand: ["Harbi"],
+  brand: ["Harbi", ...YOL_BRANDS],
   color: ["Siyah", "Beyaz", "Lacivert", "Mavi", "Kırmızı", "Yeşil", "Bej", "Gri", "Kahverengi"],
   size: ["XS", "S", "M", "L", "XL", "XXL"],
   price: [
@@ -8058,6 +8275,7 @@ function yolFilterProducts(list) {
     .filter(yolMatchPrice)
     .filter(yolMatchLength)
     .filter(yolMatchMaterial)
+    .filter(yolMatchBrand)
     .filter(yolMatchSellerBadge);
 }
 
@@ -8112,6 +8330,15 @@ function yolMatchMaterial(item) {
   if (!selected.length) return true;
   const texts = yolItemFieldTexts(item, ["material", "materyal", "fabric", "kumas"]);
   return selected.some((mat) => texts.some((text) => text === mat || text.includes(mat) || mat.includes(text)));
+}
+
+function yolMatchBrand(item) {
+  const selected = $$('#yolBrandBox input[name="yolBrand"]:checked').map((el) =>
+    String(el.value || "").toLocaleLowerCase("tr-TR")
+  );
+  if (!selected.length) return true;
+  const texts = yolItemFieldTexts(item, ["brand", "marka"]);
+  return selected.some((brand) => texts.some((text) => text === brand || text.includes(brand)));
 }
 
 function yolDefaultSellerBadges(kind) {
@@ -8272,6 +8499,7 @@ function yolRenderCart() {
       if ($("#yolPayPhone") && !$("#yolPayPhone").value) $("#yolPayPhone").value = me.phone || "";
       if ($("#yolPayAddress") && !$("#yolPayAddress").value) $("#yolPayAddress").value = me.address || "";
     }
+    yolSyncCountryUi();
     yolSyncPayButton();
   }
 }
@@ -8865,6 +9093,7 @@ function renderYolDesk() {
             (o) => `<article class="note">
               <header><strong>${escapeHtml(o.buyer?.name || "Alıcı")}</strong><time>${new Date(o.at).toLocaleString("tr-TR")}</time></header>
               <p>${escapeHtml((o.lines || []).map((l) => `${l.name} ×${l.qty}`).join(" · ") || "Sipariş")}</p>
+              <p class="hint">${o.buyer?.countryName ? `Kargo talebi: ${yolCountryLabel(o.buyer.country || "TR")}` : ""}</p>
               <p class="price">${o.method === "cod" ? "Kapıda" : "Kart"} · ${formatTry((o.goods || 0) - (o.discount || 0))} + kargo ${formatTry(o.ship || 0)}</p>
               <div class="row">
                 <button class="gold" type="button" data-yol-inv-order="${escapeHtml(String(o.id))}">Fatura yükle</button>
@@ -9380,9 +9609,11 @@ function yolSyncNav() {
 
 function renderYol() {
   yolEnsureDemos();
+  yolFillBrandUi();
   const me = yolMe();
   if (me) yolRememberLast(me);
   yolSyncNav();
+  yolSyncCountryUi();
   yolRenderCart();
   if (me) {
     yolShowAuth();
@@ -9427,6 +9658,7 @@ $("#yolCheckout")?.addEventListener("submit", async (event) => {
     yolPayMsg("Ad soyad, e-posta, telefon ve adres zorunludur.");
     return;
   }
+  const dest = yolCountryByCode(yolShopCountryCode());
   yolPayMsg(method === "cod" ? "Kargo ücreti için kart sayfası açılıyor…" : "Güvenli kart sayfası açılıyor…");
   const btn = $("#yolPaySubmit");
   if (btn) btn.disabled = true;
@@ -9458,7 +9690,7 @@ $("#yolCheckout")?.addEventListener("submit", async (event) => {
       couponId: disc.coupon?.id || "",
       couponCode: disc.coupon?.code || "",
       couponMail: disc.coupon?.sellerMail || "",
-      buyer: { name, email, phone, address },
+      buyer: { name, email, phone, address, country: dest.c, countryName: dest.n },
       lines: yolCartLines().map((line) => ({
         id: line.product.id,
         name: line.product.name,
@@ -10167,6 +10399,7 @@ $("#yolSellerForm")?.addEventListener("submit", async (event) => {
     flash: flashOn,
     deal: Boolean($("#yolProdDeal")?.checked),
     cargo,
+    brand: $("#yolProdBrand")?.value || "",
     sellerBadges: yolSellerBadgesOf({ sellerPhone: seller.phone, sellerMail: seller.mail, sellerKind: seller.kind }),
     ...product,
   });
@@ -10302,6 +10535,27 @@ $("#yolPriceMin")?.addEventListener("input", () => yolRefreshProductLists());
 $("#yolPriceMax")?.addEventListener("input", () => yolRefreshProductLists());
 $("#yolLengthBox")?.addEventListener("change", () => yolRefreshProductLists());
 $("#yolMaterialBox")?.addEventListener("change", () => yolRefreshProductLists());
+$("#yolBrandBox")?.addEventListener("change", () => yolRefreshProductLists());
+$("#yolCountryBox")?.addEventListener("change", (event) => {
+  const box = event.target;
+  if (box?.name !== "yolShopCountry") return;
+  const codes = $$('#yolCountryBox input[name="yolShopCountry"]:checked').map((el) => el.value);
+  yolSetShopCountries(codes, box.checked ? box.value : codes[0]);
+  renderYolCountries();
+  yolSyncCountryUi();
+  if ($("#yolCountryMsg")) {
+    const cur = yolCountryByCode(yolShopCountryCode());
+    $("#yolCountryMsg").textContent = `${cur.n} seçildi. Siparişte satıcıdan kargoyu bu ülkeye göndermesi istenir.`;
+  }
+});
+$("#yolCountryQuery")?.addEventListener("input", () => renderYolCountries());
+$("#yolSellerCountryBox")?.addEventListener("change", (event) => {
+  if (event.target?.name !== "yolShipCountry") return;
+  const codes = $$('#yolSellerCountryBox input[name="yolShipCountry"]:checked').map((el) => el.value);
+  yolSetSellerShipCodes(codes);
+  renderYolCountries();
+});
+$("#yolSellerCountryQuery")?.addEventListener("input", () => renderYolCountries());
 $("#yolSortList")?.addEventListener("change", () => {
   const pick = $('input[name="yolSortPick"]:checked')?.value || "recommended";
   if ($("#yolProductSort")) $("#yolProductSort").value = pick;

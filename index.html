@@ -67,7 +67,7 @@
       }
       .tabbar { display: none; }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=321" />
+    <link rel="stylesheet" href="css/app.css?v=323" />
   </head>
   <body>
     <div class="app">
@@ -255,6 +255,10 @@
               <label><input type="checkbox" name="yolMaterial" value="Yünlü" /> Yünlü</label>
             </div>
           </details>
+          <details class="yol-color-panel" aria-label="Markalar bölümü">
+            <summary class="yol-sort-label">Markalar</summary>
+            <div class="yol-color-grid" id="yolBrandBox"></div>
+          </details>
         </div>
         <form id="yolProductSearch" class="yol-search-form">
           <div class="yol-search-row">
@@ -290,6 +294,7 @@
           <input id="yolPayMail" type="email" placeholder="E-posta" required maxlength="120" autocomplete="email" />
           <input id="yolPayPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" autocomplete="tel" />
           <textarea id="yolPayAddress" placeholder="Teslimat adresi" required maxlength="240" rows="2"></textarea>
+          <p class="hint" id="yolPayCountryHint"></p>
           <input id="yolPayCoupon" placeholder="İndirim kodu (isteğe bağlı)" maxlength="16" autocomplete="off" />
           <p class="hint" id="yolPayMsg"></p>
           <button class="primary" id="yolPaySubmit" type="submit">Kargo ücretini öde</button>
@@ -467,6 +472,11 @@
                     <option value="elektronik">Elektronik</option>
                     <option value="saat">Saat &amp; Aksesuar</option>
                     <option value="spor">Spor &amp; Outdoor</option>
+                  </select>
+                </label>
+                <label class="field">Marka
+                  <select id="yolProdBrand">
+                    <option value="">Marka seçin</option>
                   </select>
                 </label>
                 <label class="field">Kargo
@@ -1522,10 +1532,21 @@
         <section class="view" data-view="countrySelect" hidden>
           <article class="card site-info-card">
             <h2>Ülke Seç</h2>
-            <p>Harbi tüm dünyadan ziyaretçilere açıktır. Alışveriş ülkesi şu anda Türkiye’dir; diğer ülkeler eklendikçe bu listeden seçilebilir.</p>
-            <p class="site-country-now"><span class="site-tr-flag" aria-hidden="true"></span> Türkiye</p>
-            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+            <p>Kendi ülkenizi işaretleyin. Siparişte satıcıdan kargoyu bu ülkeye göndermesi talep edilir. Seçtiğiniz ülkeler üstte görünür.</p>
+            <p class="site-country-now" id="yolCountryNow"></p>
+            <div class="yol-country-picked" id="yolCountryPicked"></div>
+            <input id="yolCountryQuery" type="search" placeholder="Ülke ara" maxlength="40" autocomplete="off" aria-label="Ülke ara" />
+            <div class="yol-country-list" id="yolCountryBox"></div>
           </article>
+          <article class="card site-info-card" id="yolSellerCountryCard" hidden>
+            <h3>Kargo gönderdiğim ülkeler</h3>
+            <p class="hint">Satıcı olarak kargo çıkışı yaptığınız ülkeleri işaretleyin. Boş bırakırsanız tüm dünyaya gönderim talebi alınır.</p>
+            <div class="yol-country-picked" id="yolSellerCountryPicked"></div>
+            <input id="yolSellerCountryQuery" type="search" placeholder="Ülke ara" maxlength="40" autocomplete="off" aria-label="Satıcı ülke ara" />
+            <div class="yol-country-list" id="yolSellerCountryBox"></div>
+          </article>
+          <p class="hint" id="yolCountryMsg"></p>
+          <button class="secondary" data-go="home" type="button">Ana sayfa</button>
         </section>
         <section class="view" data-view="safeShop" hidden>
           <article class="card site-info-card">
@@ -1566,7 +1587,7 @@
           </nav>
           <nav class="site-footer-col" aria-label="Ülke ve güvenlik">
             <h2>Ülke Değiştir</h2>
-            <p class="site-footer-country"><span class="site-tr-flag" aria-hidden="true"></span> Türkiye</p>
+            <p class="site-footer-country" id="yolFooterCountry"></p>
             <button type="button" data-go="countrySelect">Ülke Seç</button>
             <button type="button" data-go="safeShop">Güvenli Alışveriş</button>
             <button type="button" data-go="securityCert">Güvenlik Sertifikası</button>
@@ -1642,6 +1663,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=321"></script>
+    <script src="js/app.js?v=323"></script>
   </body>
 </html>
