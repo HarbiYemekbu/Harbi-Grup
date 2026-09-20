@@ -28,18 +28,20 @@ body {
   font-family: "Instrument Sans", system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  overflow-x: hidden;
   max-width: 100%;
 }
 
 html {
   background: #fff;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body {
   display: flex;
   justify-content: center;
-  overscroll-behavior: none;
+  overflow: visible;
+  overscroll-behavior-x: none;
   background: #fff;
 }
 
@@ -59,7 +61,7 @@ textarea,
   min-height: 100dvh;
   min-height: -webkit-fill-available;
   min-width: 0;
-  overflow-x: hidden;
+  overflow: visible;
   padding: calc(16px + var(--safe-t)) max(16px, env(safe-area-inset-right)) calc(40px + var(--safe-b))
     max(16px, env(safe-area-inset-left));
 }
