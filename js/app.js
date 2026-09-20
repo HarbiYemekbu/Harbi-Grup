@@ -399,19 +399,43 @@ const installSteps = $("#installSteps");
 const ua = navigator.userAgent || "";
 const isIOSSafari =
   isIOS && /safari/i.test(ua) && !/crios|fxios|edgios|opios|opt\//i.test(ua);
+const INSTALL_DONE_KEY = "yol-home-shortcut";
+const isPhoneVisit =
+  /iphone|ipod/i.test(ua) ||
+  (/android/i.test(ua) && /mobile/i.test(ua)) ||
+  (window.matchMedia("(max-width: 820px)").matches &&
+    window.matchMedia("(pointer: coarse)").matches);
 
-if (isStandalone) {
+function shortcutAlreadyAdded() {
+  return isStandalone || store.get(INSTALL_DONE_KEY, false) === true;
+}
+
+function markShortcutAdded() {
+  store.set(INSTALL_DONE_KEY, true);
   if (installBtn) installBtn.hidden = true;
   if ($("#installCard")) $("#installCard").hidden = true;
-} else if (installHint) {
-  if (isIOS) {
-    installHint.textContent = isIOSSafari
-      ? "Safari’de Paylaş > Ana Ekrana Ekle ile telefona kısayol iner."
-      : "iPhone ve iPad’de kısayol için bu sayfayı Safari ile açın.";
-  } else if (isAndroid) {
-    installHint.textContent = "Düğmeye basın. Telefon izin verirse ana ekrana ekleme penceresi açılır.";
-  } else {
-    installHint.textContent = "Düğmeye basın. Destekleyen tarayıcıda uygulama olarak eklenir.";
+  if (modal) modal.hidden = true;
+}
+
+function syncInstallBtn() {
+  if (!installBtn) return;
+  installBtn.hidden = !isPhoneVisit || shortcutAlreadyAdded();
+}
+
+if (isStandalone) {
+  markShortcutAdded();
+} else {
+  syncInstallBtn();
+  if (installHint) {
+    if (isIOS) {
+      installHint.textContent = isIOSSafari
+        ? "Safari’de Paylaş > Ana Ekrana Ekle ile telefona kısayol iner."
+        : "iPhone ve iPad’de kısayol için bu sayfayı Safari ile açın.";
+    } else if (isAndroid) {
+      installHint.textContent = "Düğmeye basın. Telefon izin verirse ana ekrana ekleme penceresi açılır.";
+    } else {
+      installHint.textContent = "Düğmeye basın. Destekleyen tarayıcıda uygulama olarak eklenir.";
+    }
   }
 }
 
@@ -530,7 +554,8 @@ async function promptInstall() {
     const choice = await deferredPrompt.userChoice;
     deferredPrompt = null;
     modal.hidden = true;
-  if (installBtn) installBtn.hidden = true;
+    if (choice?.outcome === "accepted") markShortcutAdded();
+    else syncInstallBtn();
     return true;
   } catch {
     deferredPrompt = null;
@@ -545,14 +570,12 @@ window.addEventListener("beforeinstallprompt", (event) => {
 
 window.addEventListener("appinstalled", () => {
   deferredPrompt = null;
-  if (installBtn) installBtn.hidden = true;
-  if (modal) modal.hidden = true;
-  if ($("#installCard")) $("#installCard").hidden = true;
+  markShortcutAdded();
 });
 
 async function openInstall() {
-  if (isStandalone) {
-    if (installBtn) installBtn.hidden = true;
+  if (shortcutAlreadyAdded()) {
+    markShortcutAdded();
     return;
   }
   if (await promptInstall()) return;
@@ -9249,6 +9272,7 @@ const YOL_PRODUCTS = "yol-products";
 const YOL_SELLER = "yol-seller";
 const YOL_LAST = "yol-last";
 const YOL_SITE = "yol-site";
+const YOL_CART = "yol-cart";
 
 function yolPhone(value) {
   return String(value || "").replace(/\s+/g, "");
@@ -9380,6 +9404,10 @@ function yolEnsureDemos() {
       p.status = "approved";
       partnersChanged = true;
     }
+    if (!Array.isArray(p.badges) || !p.badges.length) {
+      p.badges = p.kind === "ticari" ? ["verified", "authorized"] : ["success"];
+      partnersChanged = true;
+    }
   });
   if (partnersChanged) store.set(YOL_PARTNERS, partners);
   let rolesFixed = false;
@@ -9401,8 +9429,18 @@ function yolEnsureDemos() {
     { name: "Mont L", size: "L", color: "Lacivert", gender: "Unisex", price: "1399" },
   ];
   const demoSeries = products.find((p) => p.demoId === "demo-ticari-series");
-  if (demoSeries) demoSeries.items = demoSeriesItems;
-  else {
+  if (demoSeries) {
+    demoSeries.items = demoSeriesItems;
+    if (demoSeries.sold == null) demoSeries.sold = 18;
+    if (demoSeries.favs == null) demoSeries.favs = 11;
+    if (demoSeries.reviews == null) demoSeries.reviews = 7;
+    if (demoSeries.createdAt == null) demoSeries.createdAt = 1;
+    if (!demoSeries.brand) demoSeries.brand = "Harbi";
+    if (!demoSeries.season) demoSeries.season = "Kış";
+    if (demoSeries.flash == null) demoSeries.flash = true;
+    if (!demoSeries.dept) demoSeries.dept = "kadin";
+    if (!demoSeries.sellerBadges) demoSeries.sellerBadges = ["verified", "authorized"];
+  } else {
     products.unshift({
       id: "demo-prod-ticari-series",
       demoId: "demo-ticari-series",
@@ -9414,9 +9452,29 @@ function yolEnsureDemos() {
       sellerMail: "demo.ticari@harbiyol.test",
       sellerName: "Ahmet Ticari",
       items: demoSeriesItems,
+      sold: 18,
+      favs: 11,
+      reviews: 7,
+      createdAt: 1,
+      brand: "Harbi",
+      season: "Kış",
+      flash: true,
+      dept: "kadin",
+      sellerBadges: ["verified", "authorized"],
     });
   }
-  if (!products.some((p) => p.demoId === "demo-bireysel-single")) {
+  const demoSoap = products.find((p) => p.demoId === "demo-bireysel-single");
+  if (demoSoap) {
+    if (demoSoap.sold == null) demoSoap.sold = 42;
+    if (demoSoap.favs == null) demoSoap.favs = 25;
+    if (demoSoap.reviews == null) demoSoap.reviews = 19;
+    if (demoSoap.createdAt == null) demoSoap.createdAt = 2;
+    if (!demoSoap.brand) demoSoap.brand = "Harbi";
+    if (demoSoap.deal == null) demoSoap.deal = true;
+    if (demoSoap.coupon == null) demoSoap.coupon = true;
+    if (!demoSoap.dept) demoSoap.dept = "kozmetik";
+    if (!demoSoap.sellerBadges) demoSoap.sellerBadges = ["success"];
+  } else if (!products.some((p) => p.demoId === "demo-bireysel-single")) {
     products.unshift({
       id: "demo-prod-bireysel-single",
       demoId: "demo-bireysel-single",
@@ -9428,6 +9486,15 @@ function yolEnsureDemos() {
       sellerPhone: "5550000202",
       sellerMail: "demo.bireysel@harbiyol.test",
       sellerName: "Elif Bireysel",
+      sold: 42,
+      favs: 25,
+      reviews: 19,
+      createdAt: 2,
+      brand: "Harbi",
+      deal: true,
+      coupon: true,
+      dept: "kozmetik",
+      sellerBadges: ["success"],
     });
   }
   store.set(YOL_PRODUCTS, products.slice(0, 200));
@@ -9544,13 +9611,344 @@ function yolProductCardHtml(item, canDelete) {
       ? item.items.map(yolVariantLine).join("")
       : `<p class="price">${formatTry(parseMoney(item.price))}</p>`;
   return `<article class="holiday-hit">
-    ${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}
-    <strong>${escapeHtml(item.name || "Ürün")}</strong>
-    <p class="hint">${escapeHtml(item.sellerName || "Satıcı")} · ${item.type === "series" ? "Ürün serisi" : "Tekli ürün"}</p>
-    <p>${escapeHtml(item.desc || "")}</p>
-    ${extra}
-    ${canDelete ? `<button class="linkish" type="button" data-yol-del="${item.id}">Kaldır</button>` : ""}
+    <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}</div>
+    <div class="yol-product-body">
+      <strong>${escapeHtml(item.name || "Ürün")}</strong>
+      <p class="hint">${escapeHtml(item.sellerName || "Satıcı")} · ${item.type === "series" ? "Ürün serisi" : "Tekli ürün"}</p>
+      ${extra}
+      <button class="primary yol-cart-add" type="button" data-yol-cart="${item.id}">Sepete ekle</button>
+      ${canDelete ? `<button class="linkish" type="button" data-yol-del="${item.id}">Kaldır</button>` : ""}
+    </div>
   </article>`;
+}
+
+function yolCartItems() {
+  return store.get(YOL_CART, []);
+}
+
+function yolProductCreated(item) {
+  const n = Number(item?.createdAt || item?.id);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function yolProductStat(item, key) {
+  const n = Number(item?.[key]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function yolSortProducts(list) {
+  const mode = $('input[name="yolSortPick"]:checked')?.value || $("#yolProductSort")?.value || "recommended";
+  const items = [...(list || [])];
+  if (mode === "price-asc") items.sort((a, b) => yolProductUnitPrice(a) - yolProductUnitPrice(b));
+  else if (mode === "price-desc") items.sort((a, b) => yolProductUnitPrice(b) - yolProductUnitPrice(a));
+  else if (mode === "sold") items.sort((a, b) => yolProductStat(b, "sold") - yolProductStat(a, "sold") || yolProductCreated(b) - yolProductCreated(a));
+  else if (mode === "fav") items.sort((a, b) => yolProductStat(b, "favs") - yolProductStat(a, "favs") || yolProductCreated(b) - yolProductCreated(a));
+  else if (mode === "new") items.sort((a, b) => yolProductCreated(b) - yolProductCreated(a));
+  else if (mode === "rated") items.sort((a, b) => yolProductStat(b, "reviews") - yolProductStat(a, "reviews") || yolProductCreated(b) - yolProductCreated(a));
+  return items;
+}
+
+const YOL_CAT_BOOL = { deal: true, flash: true, coupon: true };
+
+const YOL_CAT_VALUES = {
+  gender: ["Kadın", "Erkek", "Unisex", "Çocuk"],
+  brand: ["Harbi"],
+  color: ["Siyah", "Beyaz", "Lacivert", "Mavi", "Kırmızı", "Yeşil", "Bej", "Gri", "Kahverengi"],
+  size: ["XS", "S", "M", "L", "XL", "XXL"],
+  price: [
+    { v: "0-100", t: "0 - 100 TL" },
+    { v: "100-250", t: "100 - 250 TL" },
+    { v: "250-500", t: "250 - 500 TL" },
+    { v: "500-1000", t: "500 - 1000 TL" },
+    { v: "1000+", t: "1000 TL ve üzeri" },
+  ],
+  height: ["Kısa", "Normal", "Uzun"],
+  material: ["Pamuk", "Polyester", "Deri", "Yün", "Keten", "Viskon"],
+  season: ["İlkbahar", "Yaz", "Sonbahar", "Kış"],
+  fit: ["Slim", "Regular", "Oversize", "Relaxed"],
+  collar: ["Bisiklet yaka", "V yaka", "Polo yaka", "Gömlek yaka", "Dik yaka"],
+  seller: ["Ticari", "Bireysel"],
+  fill: ["Elyaf", "Kuş tüyü", "Yün"],
+  pattern: ["Düz", "Çizgili", "Ekose", "Baskılı", "Desenli"],
+  lining: ["Astarlı", "Astarsız"],
+  fabric: ["Dokuma", "Örme", "Denim", "Kadife"],
+};
+
+function yolCategoryKey() {
+  return $('input[name="yolCatPick"]:checked')?.value || $("#yolProductCategory")?.value || "";
+}
+
+function yolSyncCategoryValue() {
+  const key = yolCategoryKey();
+  const sel = $("#yolProductCategoryValue");
+  if (!sel) return;
+  if (!key || YOL_CAT_BOOL[key]) {
+    sel.hidden = true;
+    sel.innerHTML = "";
+    return;
+  }
+  const prev = sel.value;
+  const raw = YOL_CAT_VALUES[key] || [];
+  const opts = raw.map((row) => (typeof row === "string" ? { v: row, t: row } : row));
+  sel.hidden = false;
+  sel.innerHTML =
+    `<option value="">Tümü</option>` +
+    opts.map((row) => `<option value="${escapeHtml(row.v)}">${escapeHtml(row.t)}</option>`).join("");
+  if ([...sel.options].some((opt) => opt.value === prev)) sel.value = prev;
+}
+
+function yolItemFieldTexts(item, fields) {
+  const out = [];
+  const push = (value) => {
+    const s = String(value || "").trim();
+    if (s) out.push(s.toLocaleLowerCase("tr-TR"));
+  };
+  fields.forEach((field) => push(item?.[field]));
+  (item?.items || []).forEach((row) => fields.forEach((field) => push(row?.[field])));
+  return out;
+}
+
+function yolMatchCategory(item) {
+  const key = yolCategoryKey();
+  if (!key) return true;
+  if (key === "deal") return Boolean(item.deal);
+  if (key === "flash") return Boolean(item.flash);
+  if (key === "coupon") return Boolean(item.coupon);
+  const val = String($("#yolProductCategoryValue")?.value || "").trim();
+  if (!val) return true;
+  const needle = val.toLocaleLowerCase("tr-TR");
+  if (key === "price") {
+    const price = yolProductUnitPrice(item);
+    if (!Number.isFinite(price) || price === Number.POSITIVE_INFINITY) return false;
+    if (val.endsWith("+")) return price >= Number(val.slice(0, -1));
+    const [min, max] = val.split("-").map(Number);
+    return price >= min && price <= max;
+  }
+  if (key === "seller") {
+    return val === "Ticari" ? item.sellerKind === "ticari" : item.sellerKind === "bireysel";
+  }
+  const fields = {
+    gender: ["gender"],
+    brand: ["brand", "sellerName"],
+    color: ["color"],
+    size: ["size"],
+    height: ["height", "boy"],
+    material: ["material", "materyal"],
+    season: ["season", "sezon"],
+    fit: ["fit", "kalip"],
+    collar: ["collar", "yaka"],
+    fill: ["fill", "dolgu"],
+    pattern: ["pattern", "desen"],
+    lining: ["lining", "astar"],
+    fabric: ["fabric", "kumas"],
+  }[key] || [key];
+  return yolItemFieldTexts(item, fields).some((text) => text === needle || text.includes(needle));
+}
+
+function yolFilterProducts(list) {
+  return (list || [])
+    .filter(yolMatchCategory)
+    .filter(yolMatchDept)
+    .filter(yolMatchColors)
+    .filter(yolMatchPrice)
+    .filter(yolMatchLength)
+    .filter(yolMatchMaterial)
+    .filter(yolMatchSellerBadge);
+}
+
+function yolSelectedColors() {
+  return $$('#yolColorGrid input[name="yolColor"]:checked').map((el) =>
+    String(el.value || "").toLocaleLowerCase("tr-TR")
+  );
+}
+
+function yolMatchColors(item) {
+  const selected = yolSelectedColors();
+  if (!selected.length) return true;
+  const texts = yolItemFieldTexts(item, ["color", "renk"]);
+  return selected.some((color) => texts.some((text) => text === color || text.includes(color)));
+}
+
+function yolPriceNum(value) {
+  const n = parseMoney(value);
+  return Number.isFinite(n) && n !== Number.POSITIVE_INFINITY ? n : null;
+}
+
+function yolMatchPrice(item) {
+  const price = yolProductUnitPrice(item);
+  if (!Number.isFinite(price) || price === Number.POSITIVE_INFINITY) return false;
+  const min = yolPriceNum($("#yolPriceMin")?.value);
+  const max = yolPriceNum($("#yolPriceMax")?.value);
+  const ranges = $$('#yolPriceBox input[name="yolPriceRange"]:checked').map((el) => [
+    Number(el.dataset.min),
+    Number(el.dataset.max),
+  ]);
+  if (min == null && max == null && !ranges.length) return true;
+  if (min != null && price < min) return false;
+  if (max != null && price > max) return false;
+  if (ranges.length && !ranges.some(([lo, hi]) => price >= lo && price <= hi)) return false;
+  return true;
+}
+
+function yolMatchLength(item) {
+  const selected = $$('#yolLengthBox input[name="yolLength"]:checked').map((el) =>
+    String(el.value || "").toLocaleLowerCase("tr-TR")
+  );
+  if (!selected.length) return true;
+  const texts = yolItemFieldTexts(item, ["height", "boy", "length"]);
+  return selected.some((len) => texts.some((text) => text === len || text.includes(len)));
+}
+
+function yolMatchMaterial(item) {
+  const selected = $$('#yolMaterialBox input[name="yolMaterial"]:checked').map((el) =>
+    String(el.value || "").toLocaleLowerCase("tr-TR")
+  );
+  if (!selected.length) return true;
+  const texts = yolItemFieldTexts(item, ["material", "materyal", "fabric", "kumas"]);
+  return selected.some((mat) => texts.some((text) => text === mat || text.includes(mat) || mat.includes(text)));
+}
+
+function yolDefaultSellerBadges(kind) {
+  if (kind === "ticari") return ["verified", "authorized"];
+  if (kind === "bireysel") return ["success"];
+  return [];
+}
+
+function yolSellerBadgesOf(item) {
+  if (Array.isArray(item?.sellerBadges) && item.sellerBadges.length) return item.sellerBadges;
+  const gsm = yolGsm(item?.sellerPhone);
+  const mail = yolMail(item?.sellerMail);
+  const partner = store.get(YOL_PARTNERS, []).find(
+    (p) => (gsm && yolGsm(p.phone) === gsm) || (mail && yolMail(p.mail) === mail)
+  );
+  if (Array.isArray(partner?.badges) && partner.badges.length) return partner.badges;
+  return yolDefaultSellerBadges(item?.sellerKind || partner?.kind);
+}
+
+function yolMatchSellerBadge(item) {
+  const picked = $$('#yolSellerBadgeBox input[name="yolSellerBadge"]:checked').map((el) => el.value);
+  if (!picked.length) return true;
+  const badges = yolSellerBadgesOf(item);
+  return picked.some((badge) => badges.includes(badge));
+}
+
+let yolDeptActive = "";
+
+function yolMatchDept(item) {
+  if (!yolDeptActive) return true;
+  if (yolDeptActive === "flash") return Boolean(item.flash);
+  if (yolDeptActive === "sold") return yolProductStat(item, "sold") > 0;
+  return String(item.dept || "") === yolDeptActive;
+}
+
+function yolSyncDeptChips() {
+  $$("#yolDeptScroller [data-yol-dept]").forEach((btn) => {
+    btn.classList.toggle("is-on", (btn.dataset.yolDept || "") === yolDeptActive);
+  });
+}
+
+function yolListProducts(list) {
+  let items = yolSortProducts(yolFilterProducts(list));
+  if (yolDeptActive === "sold") {
+    items.sort((a, b) => yolProductStat(b, "sold") - yolProductStat(a, "sold") || yolProductCreated(b) - yolProductCreated(a));
+  }
+  return items;
+}
+
+function yolRefreshProductLists() {
+  const q = $("#yolProductQuery")?.value || "";
+  if (String(q).trim()) renderYolProductSearch(q);
+  else {
+    renderYolMarket();
+    renderYolSeller();
+  }
+}
+
+function yolProductUnitPrice(item) {
+  if (item?.type === "series" && Array.isArray(item.items) && item.items[0]) {
+    return parseMoney(item.items[0].price);
+  }
+  return parseMoney(item?.price);
+}
+
+function yolCartCount() {
+  return yolCartItems().reduce((n, line) => n + Math.max(1, Number(line.qty) || 1), 0);
+}
+
+function yolSyncCartBtn() {
+  const btn = $("#yolNavCart");
+  const badge = $("#yolNavCartCount");
+  if (!btn) return;
+  const n = yolCartCount();
+  btn.setAttribute("aria-label", n ? `Sepet (${n})` : "Sepet");
+  if (badge) {
+    badge.hidden = n < 1;
+    badge.textContent = n > 99 ? "99+" : String(n);
+  }
+}
+
+function yolCartAdd(id) {
+  const product = store.get(YOL_PRODUCTS, []).find((p) => String(p.id) === String(id));
+  if (!product) return;
+  const items = yolCartItems();
+  const found = items.find((line) => String(line.id) === String(id));
+  if (found) found.qty = Math.max(1, Number(found.qty) || 1) + 1;
+  else items.push({ id: product.id, qty: 1 });
+  store.set(YOL_CART, items);
+  const catalog = store.get(YOL_PRODUCTS, []);
+  const listed = catalog.find((p) => String(p.id) === String(id));
+  if (listed) {
+    listed.sold = yolProductStat(listed, "sold") + 1;
+    store.set(YOL_PRODUCTS, catalog);
+  }
+  const panel = $("#yolCartPanel");
+  if (panel) panel.hidden = false;
+  yolRenderCart();
+}
+
+function yolCartRemove(id) {
+  store.set(
+    YOL_CART,
+    yolCartItems().filter((line) => String(line.id) !== String(id))
+  );
+  yolRenderCart();
+}
+
+function yolRenderCart() {
+  yolSyncCartBtn();
+  const box = $("#yolCartList");
+  if (!box) return;
+  const products = store.get(YOL_PRODUCTS, []);
+  const lines = yolCartItems()
+    .map((line) => {
+      const product = products.find((p) => String(p.id) === String(line.id));
+      if (!product) return null;
+      const qty = Math.max(1, Number(line.qty) || 1);
+      const unit = yolProductUnitPrice(product);
+      return { product, qty, unit, sum: unit * qty };
+    })
+    .filter(Boolean);
+  if (!lines.length) {
+    box.innerHTML = "<p class='hint'>Sepetiniz boş.</p>";
+    return;
+  }
+  const total = lines.reduce((n, line) => n + line.sum, 0);
+  box.innerHTML =
+    lines
+      .map(
+        (line) => {
+          const src = yolPhotoSrc(line.product);
+          return `<article class="holiday-hit yol-cart-line">
+      <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}</div>
+      <div class="yol-product-body">
+        <strong>${escapeHtml(line.product.name || "Ürün")}</strong>
+        <p class="price">${formatTry(line.unit)} × ${line.qty} = ${formatTry(line.sum)}</p>
+        <button class="linkish" type="button" data-yol-cart-del="${line.product.id}">Kaldır</button>
+      </div>
+    </article>`;
+        }
+      )
+      .join("") + `<p class="price">Toplam ${formatTry(total)}</p>`;
 }
 
 function renderYolMarket() {
@@ -9566,7 +9964,7 @@ function renderYolMarket() {
   const site = yolSite();
   if ($("#yolMarketTitle")) $("#yolMarketTitle").textContent = site.marketTitle;
   if ($("#yolMarketHint")) $("#yolMarketHint").textContent = site.marketHint;
-  const products = store.get(YOL_PRODUCTS, []);
+  const products = yolListProducts(store.get(YOL_PRODUCTS, []));
   box.innerHTML = products.length
     ? products.map((item) => yolProductCardHtml(item, false)).join("")
     : "<p class='hint'>Henüz ürün yok.</p>";
@@ -9589,7 +9987,7 @@ function renderYolSeller() {
           : "Bu sizin ürün yükleme sayfanız. Tekli ürün ve fotoğraf yükleyebilirsiniz.";
   }
   yolSyncSellerTypeUi();
-  const mine = store.get(YOL_PRODUCTS, []).filter((p) => yolOwnProduct(seller, p));
+  const mine = yolListProducts(store.get(YOL_PRODUCTS, []).filter((p) => yolOwnProduct(seller, p)));
   const box = $("#yolMyProducts");
   if (!box) return;
   box.innerHTML = mine.length
@@ -9641,10 +10039,17 @@ function yolSyncSearch() {
 
 function yolShowPartner(open) {
   if ($("#yolPartnerPanel")) $("#yolPartnerPanel").hidden = !open;
+  if (open && $("#yolAuthPanel")) $("#yolAuthPanel").hidden = true;
+  const tiles = document.querySelector(".owner-app-row");
+  if (tiles) tiles.hidden = Boolean(open);
+  yolSyncSearch();
+  renderYolMarket();
 }
 
 function yolOpenPartner() {
-  yolOpenAuth("register");
+  showView("home");
+  yolShowPartner(true);
+  $("#yolPartnerPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function yolGsm(value) {
@@ -9734,6 +10139,7 @@ function renderYol() {
   const me = yolMe();
   if (me) yolRememberLast(me);
   yolSyncNav();
+  yolRenderCart();
   if (me) {
     yolShowAuth();
     renderYolSeller();
@@ -9748,6 +10154,28 @@ function renderYol() {
 }
 $("#yolNavRegister")?.addEventListener("click", () => yolOpenAuth());
 $("#yolNavPartner")?.addEventListener("click", () => yolOpenPartner());
+$("#yolNavCart")?.addEventListener("click", () => {
+  const panel = $("#yolCartPanel");
+  if (!panel) return;
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) {
+    yolRenderCart();
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+document.addEventListener("click", (event) => {
+  const add = event.target.closest("[data-yol-cart]");
+  if (add) {
+    event.preventDefault();
+    yolCartAdd(add.dataset.yolCart);
+    return;
+  }
+  const del = event.target.closest("[data-yol-cart-del]");
+  if (del) {
+    event.preventDefault();
+    yolCartRemove(del.dataset.yolCartDel);
+  }
+});
 let yolAfterLogin = "";
 function yolOpenSell() {
   yolShowPartner(false);
@@ -10170,6 +10598,12 @@ $("#yolSellerForm")?.addEventListener("submit", async (event) => {
     }
     product = { type: "single", name, price, desc };
   }
+  const dept = $("#yolProdDept")?.value || "";
+  if (!dept) {
+    if (msg) msg.textContent = "Kategori seçin.";
+    return;
+  }
+  const flashOn = Boolean($("#yolProdFlash")?.checked);
   const products = store.get(YOL_PRODUCTS, []);
   products.unshift({
     id: Date.now(),
@@ -10179,6 +10613,13 @@ $("#yolSellerForm")?.addEventListener("submit", async (event) => {
     sellerMail: seller.mail,
     sellerName: `${seller.first || ""} ${seller.last || ""}`.trim(),
     photo: photo ? { name: photo.name, type: photo.type, dataUrl: photo.dataUrl } : null,
+    sold: 0,
+    favs: 0,
+    reviews: 0,
+    createdAt: Date.now(),
+    dept,
+    flash: flashOn,
+    sellerBadges: yolSellerBadgesOf({ sellerPhone: seller.phone, sellerMail: seller.mail, sellerKind: seller.kind }),
     ...product,
   });
   store.set(YOL_PRODUCTS, products.slice(0, 200));
@@ -10233,7 +10674,7 @@ function renderYolProductSearch(query) {
   const ownOnly = yolIsTicari() && yolOnSellerDesk();
   let list = store.get(YOL_PRODUCTS, []);
   if (ownOnly && seller) list = list.filter((item) => yolOwnProduct(seller, item));
-  const yolHits = list.filter((item) => {
+  const yolHits = yolListProducts(list.filter((item) => {
     const title = String(item.name || "").toLocaleLowerCase("tr-TR");
     const variants = (item.items || [])
       .map((v) => [v.name, v.size, v.color, v.gender].filter(Boolean).join(" "))
@@ -10241,7 +10682,7 @@ function renderYolProductSearch(query) {
       .toLocaleLowerCase("tr-TR");
     const who = String(item.sellerName || "").toLocaleLowerCase("tr-TR");
     return title.includes(qn) || variants.includes(qn) || who.includes(qn);
-  });
+  }));
   box.hidden = false;
   box.innerHTML = yolHits.length
     ? yolHits.map((item) => yolProductCardHtml(item, ownOnly)).join("")
@@ -10249,6 +10690,40 @@ function renderYolProductSearch(query) {
   renderYolMarket();
 }
 
+$("#yolDeptScroller")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-yol-dept]");
+  if (!btn) return;
+  yolDeptActive = btn.dataset.yolDept || "";
+  yolSyncDeptChips();
+  yolRefreshProductLists();
+});
+$("#yolColorGrid")?.addEventListener("change", () => yolRefreshProductLists());
+$("#yolPriceBox")?.addEventListener("change", () => yolRefreshProductLists());
+$("#yolPriceMin")?.addEventListener("input", () => yolRefreshProductLists());
+$("#yolPriceMax")?.addEventListener("input", () => yolRefreshProductLists());
+$("#yolLengthBox")?.addEventListener("change", () => yolRefreshProductLists());
+$("#yolMaterialBox")?.addEventListener("change", () => yolRefreshProductLists());
+$("#yolSortList")?.addEventListener("change", () => {
+  const pick = $('input[name="yolSortPick"]:checked')?.value || "recommended";
+  if ($("#yolProductSort")) $("#yolProductSort").value = pick;
+  yolRefreshProductLists();
+});
+$("#yolProductSort")?.addEventListener("change", () => yolRefreshProductLists());
+$("#yolCatList")?.addEventListener("change", (event) => {
+  if (event.target?.name === "yolSellerBadge") {
+    yolRefreshProductLists();
+    return;
+  }
+  const pick = $('input[name="yolCatPick"]:checked')?.value || "";
+  if ($("#yolProductCategory")) $("#yolProductCategory").value = pick;
+  yolSyncCategoryValue();
+  yolRefreshProductLists();
+});
+$("#yolProductCategory")?.addEventListener("change", () => {
+  yolSyncCategoryValue();
+  yolRefreshProductLists();
+});
+$("#yolProductCategoryValue")?.addEventListener("change", () => yolRefreshProductLists());
 $("#yolProductSearch")?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!yolOnSellerDesk() || !(yolIsBireysel() || yolIsTicari())) {

@@ -65,35 +65,221 @@
       }
       .tabbar { display: none; }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=251" />
+    <link rel="stylesheet" href="css/app.css?v=290" />
   </head>
   <body>
     <div class="app">
       <header class="site-header">
-        <div class="brand">
-          <img src="icons/icon-192.png?v=248" alt="Harbi" class="brand-mark" />
-          <div class="brand-title">
-            <h1>Harbi</h1>
-          </div>
-        </div>
         <nav class="site-nav" aria-label="Site menüsü">
+          <div class="brand">
+            <svg class="brand-mark" viewBox="0 0 192 192" aria-hidden="true">
+              <rect width="192" height="192" rx="42" fill="#7c3aed" />
+              <circle cx="96" cy="96" r="64" fill="none" stroke="#fff" stroke-width="8" />
+              <path fill="#fff" d="M68 54h20v33h16V54h20v84h-20v-35H88v35H68V54z" />
+            </svg>
+            <div class="brand-title">
+              <h1>Harbi</h1>
+            </div>
+          </div>
           <button type="button" data-go="home">Ana sayfa</button>
           <button type="button" data-go="nfc">NFC Kontrol</button>
           <button type="button" id="yolNavPartner">İş Ortaklığı</button>
+          <button type="button" class="gold" id="yolNavRegister">Üye ol / Giriş yap</button>
+          <button type="button" class="secondary yol-cart-btn" id="yolNavCart" aria-label="Sepet" title="Sepet">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM3.2 4h1.6l.4 2h14.3a1 1 0 0 1 1 1.2l-1.4 7a2 2 0 0 1-2 1.6H8.2a2 2 0 0 1-2-1.6L4.3 5.2H3.2a1 1 0 1 1 0-2Zm4.1 11h9.3l1.1-5.8H6.4L7.3 15Z"/>
+            </svg>
+            <span class="yol-cart-count" id="yolNavCartCount" hidden></span>
+          </button>
+          <button class="install-home-btn" id="installBtn" type="button" hidden>Telefonuna Kısayol Ekle/İndir</button>
           <button type="button" id="yolNavSell" hidden>Ürün yükle</button>
+          <button type="button" class="secondary" id="yolLogoutTop" hidden>Çıkış yap</button>
         </nav>
-        <button type="button" class="gold" id="yolNavRegister">Üye ol / Giriş yap</button>
-        <button type="button" class="secondary" id="yolLogoutTop" hidden>Çıkış yap</button>
       </header>
-      <section class="yol-search" aria-label="Ürün Arama">
+      <div class="yol-shop">
+        <div class="yol-shop-main">
+      <section class="yol-search">
+        <div class="yol-filter-bar">
+          <details class="yol-color-panel" aria-label="Sıralama bölümü">
+            <summary class="yol-sort-label">Sıralama</summary>
+            <div class="yol-cat-list" id="yolSortList">
+              <label><input type="radio" name="yolSortPick" value="recommended" checked /> Önerilen</label>
+              <label><input type="radio" name="yolSortPick" value="price-asc" /> Ucuzdan - Pahalıya</label>
+              <label><input type="radio" name="yolSortPick" value="price-desc" /> Pahalıdan - Ucuza</label>
+              <label><input type="radio" name="yolSortPick" value="sold" /> Çok Satanlar</label>
+              <label><input type="radio" name="yolSortPick" value="fav" /> En Favoriler</label>
+              <label><input type="radio" name="yolSortPick" value="new" /> En Yeniler</label>
+              <label><input type="radio" name="yolSortPick" value="rated" /> En Çok Değerlendirilenler</label>
+            </div>
+            <select id="yolProductSort" hidden>
+              <option value="recommended" selected>Önerilen</option>
+            </select>
+          </details>
+          <details class="yol-color-panel" aria-label="Kategori bölümü">
+            <summary class="yol-sort-label">Kategori</summary>
+            <div class="yol-cat-list" id="yolCatList">
+              <label><input type="radio" name="yolCatPick" value="" checked /> Tümü</label>
+              <label><input type="radio" name="yolCatPick" value="gender" /> Cinsiyet</label>
+              <label><input type="radio" name="yolCatPick" value="brand" /> Marka</label>
+              <label><input type="radio" name="yolCatPick" value="size" /> Beden</label>
+              <label><input type="radio" name="yolCatPick" value="deal" /> Avantajlı Ürünler</label>
+              <label><input type="radio" name="yolCatPick" value="price" /> Fiyat</label>
+              <label><input type="radio" name="yolCatPick" value="height" /> Boy</label>
+              <label><input type="radio" name="yolCatPick" value="material" /> Materyal</label>
+              <label><input type="radio" name="yolCatPick" value="season" /> Sezon</label>
+              <label><input type="radio" name="yolCatPick" value="fit" /> Kalıp</label>
+              <label><input type="radio" name="yolCatPick" value="collar" /> Yaka Tipi</label>
+              <label><input type="radio" name="yolCatPick" value="seller" /> Satıcı Tipi</label>
+              <div class="yol-seller-badges" id="yolSellerBadgeBox">
+                <label><input type="checkbox" name="yolSellerBadge" value="verified" /> Doğrulanmış Satıcı</label>
+                <label><input type="checkbox" name="yolSellerBadge" value="success" /> Başarılı Satıcı</label>
+                <label><input type="checkbox" name="yolSellerBadge" value="authorized" /> Yetkili Satıcı</label>
+              </div>
+              <label><input type="radio" name="yolCatPick" value="fill" /> Dolgu Materyali</label>
+              <label><input type="radio" name="yolCatPick" value="pattern" /> Desen</label>
+              <label><input type="radio" name="yolCatPick" value="lining" /> Astar Durumu</label>
+              <label><input type="radio" name="yolCatPick" value="fabric" /> Kumaş Tipi</label>
+              <label><input type="radio" name="yolCatPick" value="flash" /> Flaş Ürünler</label>
+              <label><input type="radio" name="yolCatPick" value="coupon" /> Kuponlu</label>
+            </div>
+            <select id="yolProductCategory" hidden>
+              <option value="" selected>Tümü</option>
+            </select>
+            <select id="yolProductCategoryValue" aria-label="Kategori değeri" hidden></select>
+          </details>
+          <details class="yol-color-panel" aria-label="Renk bölümü">
+            <summary class="yol-sort-label">Renk</summary>
+            <div class="yol-color-grid" id="yolColorGrid">
+              <label><input type="checkbox" name="yolColor" value="Altın" /> Altın</label>
+              <label><input type="checkbox" name="yolColor" value="Bej" /> Bej</label>
+              <label><input type="checkbox" name="yolColor" value="Beyaz" /> Beyaz</label>
+              <label><input type="checkbox" name="yolColor" value="Bordo" /> Bordo</label>
+              <label><input type="checkbox" name="yolColor" value="Gri" /> Gri</label>
+              <label><input type="checkbox" name="yolColor" value="Ekru" /> Ekru</label>
+              <label><input type="checkbox" name="yolColor" value="Haki" /> Haki</label>
+              <label><input type="checkbox" name="yolColor" value="Gümüş" /> Gümüş</label>
+              <label><input type="checkbox" name="yolColor" value="Kahverengi" /> Kahverengi</label>
+              <label><input type="checkbox" name="yolColor" value="Kırmızı" /> Kırmızı</label>
+              <label><input type="checkbox" name="yolColor" value="Lacivert" /> Lacivert</label>
+              <label><input type="checkbox" name="yolColor" value="Mavi" /> Mavi</label>
+              <label><input type="checkbox" name="yolColor" value="Metalik" /> Metalik</label>
+              <label><input type="checkbox" name="yolColor" value="Mor" /> Mor</label>
+              <label><input type="checkbox" name="yolColor" value="Sarı" /> Sarı</label>
+              <label><input type="checkbox" name="yolColor" value="Turkuaz" /> Turkuaz</label>
+              <label><input type="checkbox" name="yolColor" value="Pembe" /> Pembe</label>
+              <label><input type="checkbox" name="yolColor" value="Siyah" /> Siyah</label>
+              <label><input type="checkbox" name="yolColor" value="Yeşil" /> Yeşil</label>
+              <label><input type="checkbox" name="yolColor" value="Turuncu" /> Turuncu</label>
+              <label><input type="checkbox" name="yolColor" value="Krem" /> Krem</label>
+              <label><input type="checkbox" name="yolColor" value="Çok Renkli" /> Çok Renkli</label>
+              <label><input type="checkbox" name="yolColor" value="Şeffaf" /> Şeffaf</label>
+            </div>
+          </details>
+          <details class="yol-color-panel" aria-label="Fiyat bölümü">
+            <summary class="yol-sort-label">Fiyat</summary>
+            <div class="yol-price-box" id="yolPriceBox">
+              <div class="yol-price-manual">
+                <input id="yolPriceMin" inputmode="decimal" placeholder="En Az" maxlength="10" aria-label="En az fiyat" />
+                <span>–</span>
+                <input id="yolPriceMax" inputmode="decimal" placeholder="En Çok" maxlength="10" aria-label="En çok fiyat" />
+              </div>
+              <div class="yol-price-ranges">
+                <label><input type="checkbox" name="yolPriceRange" data-min="0" data-max="1299" /> 0 TL - 1299 TL</label>
+                <label><input type="checkbox" name="yolPriceRange" data-min="1249" data-max="1999" /> 1249 TL - 1999 TL</label>
+                <label><input type="checkbox" name="yolPriceRange" data-min="2000" data-max="3499" /> 2000 TL - 3499 TL</label>
+                <label><input type="checkbox" name="yolPriceRange" data-min="3500" data-max="6999" /> 3500 TL - 6999 TL</label>
+                <label><input type="checkbox" name="yolPriceRange" data-min="7000" data-max="17499" /> 7000 TL - 17499 TL</label>
+                <label><input type="checkbox" name="yolPriceRange" data-min="17500" data-max="79000" /> 17500 TL - 79000 TL</label>
+              </div>
+            </div>
+          </details>
+          <details class="yol-color-panel" aria-label="Boy bölümü">
+            <summary class="yol-sort-label">Boy</summary>
+            <div class="yol-price-ranges" id="yolLengthBox">
+              <label><input type="checkbox" name="yolLength" value="Bebek" /> Bebek</label>
+              <label><input type="checkbox" name="yolLength" value="Crop" /> Crop</label>
+              <label><input type="checkbox" name="yolLength" value="Kısa" /> Kısa</label>
+              <label><input type="checkbox" name="yolLength" value="Belirtilmemiş" /> Belirtilmemiş</label>
+              <label><input type="checkbox" name="yolLength" value="Kısa / Mini" /> Kısa / Mini</label>
+              <label><input type="checkbox" name="yolLength" value="Maxi" /> Maxi</label>
+              <label><input type="checkbox" name="yolLength" value="Midi" /> Midi</label>
+              <label><input type="checkbox" name="yolLength" value="Mini" /> Mini</label>
+              <label><input type="checkbox" name="yolLength" value="Normal Boy" /> Normal Boy</label>
+              <label><input type="checkbox" name="yolLength" value="Orta" /> Orta</label>
+              <label><input type="checkbox" name="yolLength" value="Regular" /> Regular</label>
+              <label><input type="checkbox" name="yolLength" value="Standart" /> Standart</label>
+              <label><input type="checkbox" name="yolLength" value="Uzun" /> Uzun</label>
+            </div>
+          </details>
+          <details class="yol-color-panel" aria-label="Materyal bölümü">
+            <summary class="yol-sort-label">Materyal</summary>
+            <div class="yol-color-grid" id="yolMaterialBox">
+              <label><input type="checkbox" name="yolMaterial" value="%100 Pamuk" /> %100 Pamuk</label>
+              <label><input type="checkbox" name="yolMaterial" value="Akrilik" /> Akrilik</label>
+              <label><input type="checkbox" name="yolMaterial" value="Denim" /> Denim</label>
+              <label><input type="checkbox" name="yolMaterial" value="Dokuma" /> Dokuma</label>
+              <label><input type="checkbox" name="yolMaterial" value="Elastan" /> Elastan</label>
+              <label><input type="checkbox" name="yolMaterial" value="Belirtilmemiş" /> Belirtilmemiş</label>
+              <label><input type="checkbox" name="yolMaterial" value="Elyaf" /> Elyaf</label>
+              <label><input type="checkbox" name="yolMaterial" value="Gabardin" /> Gabardin</label>
+              <label><input type="checkbox" name="yolMaterial" value="Gore" /> Gore</label>
+              <label><input type="checkbox" name="yolMaterial" value="Hakiki Deri" /> Hakiki Deri</label>
+              <label><input type="checkbox" name="yolMaterial" value="Kadife" /> Kadife</label>
+              <label><input type="checkbox" name="yolMaterial" value="Kaz Tüyü" /> Kaz Tüyü</label>
+              <label><input type="checkbox" name="yolMaterial" value="Keten" /> Keten</label>
+              <label><input type="checkbox" name="yolMaterial" value="kumaş" /> kumaş</label>
+              <label><input type="checkbox" name="yolMaterial" value="Naylon" /> Naylon</label>
+              <label><input type="checkbox" name="yolMaterial" value="Nubuk" /> Nubuk</label>
+              <label><input type="checkbox" name="yolMaterial" value="Örme" /> Örme</label>
+              <label><input type="checkbox" name="yolMaterial" value="Pamuk" /> Pamuk</label>
+              <label><input type="checkbox" name="yolMaterial" value="Pamuk - Elastan" /> Pamuk - Elastan</label>
+              <label><input type="checkbox" name="yolMaterial" value="Pamuk Polyester" /> Pamuk Polyester</label>
+              <label><input type="checkbox" name="yolMaterial" value="Pamuklu" /> Pamuklu</label>
+              <label><input type="checkbox" name="yolMaterial" value="Peluş" /> Peluş</label>
+              <label><input type="checkbox" name="yolMaterial" value="Polar" /> Polar</label>
+              <label><input type="checkbox" name="yolMaterial" value="Poliamid" /> Poliamid</label>
+              <label><input type="checkbox" name="yolMaterial" value="Poliamid Karışımlı" /> Poliamid Karışımlı</label>
+              <label><input type="checkbox" name="yolMaterial" value="Poliüretan" /> Poliüretan</label>
+              <label><input type="checkbox" name="yolMaterial" value="Polyester" /> Polyester</label>
+              <label><input type="checkbox" name="yolMaterial" value="Polyester - Elastan" /> Polyester - Elastan</label>
+              <label><input type="checkbox" name="yolMaterial" value="Polyester Karışımlı" /> Polyester Karışımlı</label>
+              <label><input type="checkbox" name="yolMaterial" value="Su Geçirmez" /> Su Geçirmez</label>
+              <label><input type="checkbox" name="yolMaterial" value="Süet" /> Süet</label>
+              <label><input type="checkbox" name="yolMaterial" value="Suni Deri" /> Suni Deri</label>
+              <label><input type="checkbox" name="yolMaterial" value="Suni Kürk" /> Suni Kürk</label>
+              <label><input type="checkbox" name="yolMaterial" value="Tekstil" /> Tekstil</label>
+              <label><input type="checkbox" name="yolMaterial" value="Triko" /> Triko</label>
+              <label><input type="checkbox" name="yolMaterial" value="Yün" /> Yün</label>
+              <label><input type="checkbox" name="yolMaterial" value="Yünlü" /> Yünlü</label>
+            </div>
+          </details>
+        </div>
         <form id="yolProductSearch" class="yol-search-form">
-          <label class="yol-search-label" for="yolProductQuery">Ürün Arama</label>
           <div class="yol-search-row">
-            <input id="yolProductQuery" type="search" placeholder="Ürün ara" maxlength="80" autocomplete="off" />
+            <input id="yolProductQuery" type="search" placeholder="Ürün ara" maxlength="80" autocomplete="off" aria-label="Ürün ara" />
             <button class="primary" type="submit">Ara</button>
           </div>
         </form>
-        <div class="yol-search-results" id="yolSearchResults" hidden></div>
+        <div class="yol-dept-scroller" id="yolDeptScroller" aria-label="Ürün kategorileri">
+          <button type="button" class="yol-dept-chip is-on" data-yol-dept="">Tümü</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="kadin">Kadın</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="erkek">Erkek</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="anne">Anne &amp; Çocuk</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="ev">Ev &amp; Yaşam</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="market">Süpermarket</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="kozmetik">Kozmetik</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="ayakkabi">Ayakkabı &amp; Çanta</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="elektronik">Elektronik</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="saat">Saat &amp; Aksesuar</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="spor">Spor &amp; Outdoor</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="flash">Flaş Ürünler</button>
+          <button type="button" class="yol-dept-chip" data-yol-dept="sold">Çok Satanlar</button>
+        </div>
+        <div class="yol-search-results yol-product-grid" id="yolSearchResults" hidden></div>
+      </section>
+      <section id="yolCartPanel" class="yol-cart-panel" hidden>
+        <h2 class="subhead">Sepet</h2>
+        <div id="yolCartList"></div>
       </section>
 
       <main id="views">
@@ -116,53 +302,7 @@
               </article>
               <article class="card" id="yolRegisterCard">
                 <h3>Üye ol</h3>
-                <p class="hint">Önce ticari faaliyet veya bireysel satış üyeliği açın. Aynı telefon veya aynı mail ile ikinci üyelik açılamaz.</p>
-                <div class="yol-partners">
-              <article class="card">
-                <h3>Ticari üyelik</h3>
-                <p class="hint yol-hint-white">İsim, soy isim, telefon, adres, mail ve vergi kimlik no zorunludur. İmza sirküsü, vergi levhası ve ikametgah yükleyin.</p>
-                <p class="hint yol-hint-white">Demo: Ahmet Ticari · demo.ticari@harbiyol.test · şifre 1234</p>
-                <button class="secondary" id="yolDemoTicari" type="button">Demo ticari ile gir</button>
-                <form id="yolTicari" class="note-form">
-                  <input id="yolTicariFirst" placeholder="İsim" required maxlength="40" />
-                  <input id="yolTicariLast" placeholder="Soy isim" required maxlength="40" />
-                  <input id="yolTicariPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
-                  <textarea id="yolTicariAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
-                  <input id="yolTicariMail" type="email" placeholder="Mail" required maxlength="120" />
-                  <input id="yolTicariVkn" inputmode="numeric" placeholder="Vergi kimlik no" required maxlength="10" />
-                  <label class="field">İmza Sirküsü yükle
-                    <input id="yolTicariImza" type="file" accept="image/*,.pdf" required />
-                  </label>
-                  <label class="field">Vergi Levhası yükle
-                    <input id="yolTicariVergiLevha" type="file" accept="image/*,.pdf" required />
-                  </label>
-                  <label class="field">İkametgah Yükle
-                    <input id="yolTicariIkamet" type="file" accept="image/*,.pdf" required />
-                  </label>
-                  <input id="yolTicariPin" type="password" placeholder="Şifre" required minlength="4" />
-                  <p class="hint" id="yolTicariMsg"></p>
-                  <button class="gold" type="submit">Ticari üye ol</button>
-                </form>
-              </article>
-              <article class="card">
-                <h3>Bireysel üyelik</h3>
-                <p class="hint yol-hint-white">İsim, soy isim, telefon, mail, adres ve şifre zorunludur. Bireysel satış yalnızca tekli ürün ekler.</p>
-                <p class="hint yol-hint-white">Demo: Elif Bireysel · demo.bireysel@harbiyol.test · şifre 1234</p>
-                <button class="secondary" id="yolDemoBireysel" type="button">Demo bireysel ile gir</button>
-                <form id="yolBireysel" class="note-form">
-                  <input id="yolBireyselFirst" placeholder="İsim" required maxlength="40" />
-                  <input id="yolBireyselLast" placeholder="Soy isim" required maxlength="40" />
-                  <input id="yolBireyselPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
-                  <input id="yolBireyselMail" type="email" placeholder="Mail" required maxlength="120" />
-                  <textarea id="yolBireyselAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
-                  <input id="yolBireyselPin" type="password" placeholder="Şifre" required minlength="4" />
-                  <p class="hint" id="yolBireyselMsg"></p>
-                  <button class="gold" type="submit">Bireysel üye ol</button>
-                </form>
-              </article>
-                </div>
-                <h3>Müşteri üye ol</h3>
-                <p class="hint">Alışveriş için isim, soy isim, telefon, mail ve adres zorunludur.</p>
+                <p class="hint">Alışveriş için isim, soy isim, telefon, mail ve adres zorunludur. Aynı telefon veya aynı mail ile ikinci üyelik açılamaz.</p>
                 <form id="yolRegister" class="note-form">
                   <input id="yolRegFirst" placeholder="İsim" required maxlength="40" />
                   <input id="yolRegLast" placeholder="Soy isim" required maxlength="40" />
@@ -185,11 +325,60 @@
               </article>
               </div>
 
-              <div id="yolPartnerPanel" hidden></div>
+              <div id="yolPartnerPanel" hidden>
+                <section class="yol-partner-apply">
+                  <h2 class="subhead">İş Ortaklığı</h2>
+                  <p class="hint">Ticari veya bireysel satış için başvurun.</p>
+                  <div class="yol-partners">
+                    <article class="card">
+                      <h3>Ticari üyelik</h3>
+                      <p class="hint yol-hint-white">İsim, soy isim, telefon, adres, mail ve vergi kimlik no zorunludur. İmza sirküsü, vergi levhası ve ikametgah yükleyin.</p>
+                      <p class="hint yol-hint-white">Demo: Ahmet Ticari · demo.ticari@harbiyol.test · şifre 1234</p>
+                      <button class="secondary" id="yolDemoTicari" type="button">Demo ticari ile gir</button>
+                      <form id="yolTicari" class="note-form">
+                        <input id="yolTicariFirst" placeholder="İsim" required maxlength="40" />
+                        <input id="yolTicariLast" placeholder="Soy isim" required maxlength="40" />
+                        <input id="yolTicariPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                        <textarea id="yolTicariAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                        <input id="yolTicariMail" type="email" placeholder="Mail" required maxlength="120" />
+                        <input id="yolTicariVkn" inputmode="numeric" placeholder="Vergi kimlik no" required maxlength="10" />
+                        <label class="field">İmza Sirküsü yükle
+                          <input id="yolTicariImza" type="file" accept="image/*,.pdf" required />
+                        </label>
+                        <label class="field">Vergi Levhası yükle
+                          <input id="yolTicariVergiLevha" type="file" accept="image/*,.pdf" required />
+                        </label>
+                        <label class="field">İkametgah Yükle
+                          <input id="yolTicariIkamet" type="file" accept="image/*,.pdf" required />
+                        </label>
+                        <input id="yolTicariPin" type="password" placeholder="Şifre" required minlength="4" />
+                        <p class="hint" id="yolTicariMsg"></p>
+                        <button class="gold" type="submit">Ticari üye ol</button>
+                      </form>
+                    </article>
+                    <article class="card">
+                      <h3>Bireysel üyelik</h3>
+                      <p class="hint yol-hint-white">İsim, soy isim, telefon, mail, adres ve şifre zorunludur. Bireysel satış yalnızca tekli ürün ekler.</p>
+                      <p class="hint yol-hint-white">Demo: Elif Bireysel · demo.bireysel@harbiyol.test · şifre 1234</p>
+                      <button class="secondary" id="yolDemoBireysel" type="button">Demo bireysel ile gir</button>
+                      <form id="yolBireysel" class="note-form">
+                        <input id="yolBireyselFirst" placeholder="İsim" required maxlength="40" />
+                        <input id="yolBireyselLast" placeholder="Soy isim" required maxlength="40" />
+                        <input id="yolBireyselPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
+                        <input id="yolBireyselMail" type="email" placeholder="Mail" required maxlength="120" />
+                        <textarea id="yolBireyselAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                        <input id="yolBireyselPin" type="password" placeholder="Şifre" required minlength="4" />
+                        <p class="hint" id="yolBireyselMsg"></p>
+                        <button class="gold" type="submit">Bireysel üye ol</button>
+                      </form>
+                    </article>
+                  </div>
+                </section>
+              </div>
               <section id="yolMarketBoard">
                 <h2 class="subhead" id="yolMarketTitle">Pazar yeri</h2>
                 <p class="hint" id="yolMarketHint">Çoklu satıcı pazarı. Satıcılar ürün yükler, müşteriler alışveriş yapar.</p>
-                <div class="holiday-results" id="yolMarketList"></div>
+                <div class="holiday-results yol-product-grid" id="yolMarketList"></div>
               </section>
             </section>
             <div class="tile-row-3 owner-app-row">
@@ -230,11 +419,27 @@
                 <label class="field">Ürün fotoğrafı
                   <input id="yolProdPhoto" type="file" accept="image/*" />
                 </label>
+                <label class="field">Kategori
+                  <select id="yolProdDept" required>
+                    <option value="">Kategori seçin</option>
+                    <option value="kadin">Kadın</option>
+                    <option value="erkek">Erkek</option>
+                    <option value="anne">Anne &amp; Çocuk</option>
+                    <option value="ev">Ev &amp; Yaşam</option>
+                    <option value="market">Süpermarket</option>
+                    <option value="kozmetik">Kozmetik</option>
+                    <option value="ayakkabi">Ayakkabı &amp; Çanta</option>
+                    <option value="elektronik">Elektronik</option>
+                    <option value="saat">Saat &amp; Aksesuar</option>
+                    <option value="spor">Spor &amp; Outdoor</option>
+                  </select>
+                </label>
+                <label class="field"><input type="checkbox" id="yolProdFlash" /> Flaş ürün</label>
                 <textarea id="yolProdDesc" placeholder="Açıklama (isteğe bağlı)" maxlength="240" rows="2"></textarea>
                 <p class="hint" id="yolSellerMsg"></p>
                 <button class="gold" type="submit">Ürünü satışa koy</button>
               </form>
-              <div class="holiday-results" id="yolMyProducts"></div>
+              <div class="holiday-results yol-product-grid" id="yolMyProducts"></div>
             </article>
           </section>
         </section>
@@ -1458,7 +1663,8 @@
       <footer class="site-footer">
         <p>© 2026 Harbi pazar yeri</p>
       </footer>
-      <button class="install-home-btn" id="installBtn" type="button" hidden>Kısayol</button>
+        </div>
+      </div>
       <p id="installHint" hidden></p>
 
       <nav class="tabbar">
@@ -1525,6 +1731,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=251"></script>
+    <script src="js/app.js?v=290"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE = "harbi-grup-v251";
+const CACHE = "harbi-grup-v290";
 const ASSETS = [
   "./",
   "./index.html",
