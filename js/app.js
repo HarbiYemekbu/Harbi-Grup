@@ -47,7 +47,7 @@ function resumeSaveFields() {
     state.fields = {};
     $$("#views input, #views textarea, #views select").forEach((el) => {
       if (!el.id || el.type === "password" || el.type === "file") return;
-      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey" || el.id === "eimzaCardNumber" || el.id === "eimzaCardCvc" || el.id === "eimzaHavaleIban" || el.id === "ownerPin" || el.id === "yolLoginPin" || el.id === "yolRegPin") return;
+      if (el.id === "posWithdrawTarget" || el.id === "posSettleIban" || el.id === "posGateApi" || el.id === "posGateSecret" || el.id === "posPayApiKey" || el.id === "posCardApiKey" || el.id === "eimzaCardNumber" || el.id === "eimzaCardCvc" || el.id === "eimzaHavaleIban" || el.id === "ownerPin" || el.id === "yolLoginPin" || el.id === "yolRegPin" || el.id === "yolHizmetPin") return;
       state.fields[el.id] = el.type === "checkbox" ? el.checked : el.value;
     });
     if ($("#nfcResult")) state.nfcResult = $("#nfcResult").textContent || "";
@@ -136,7 +136,7 @@ const views = $$(".view");
 const tabs = $$(".tab");
 
 views.forEach((view) => {
-  if (view.dataset.view === "home" || view.dataset.view === "camera" || view.dataset.view === "sell") return;
+  if (view.dataset.view === "home" || view.dataset.view === "camera" || view.dataset.view === "sell" || view.dataset.view === "admin") return;
   const btn = document.createElement("button");
   btn.className = "secondary home-back";
   btn.type = "button";
@@ -154,9 +154,9 @@ function syncOwnerApps() {
 }
 
 function showView(name) {
-  const allowed = new Set(["home", "nfc", "stats", "sell", "desk", "about", "career", "contact", "recall", "sellerSell", "sellerBasics", "sellerAcademy", "helpFaq", "helpLive", "helpReturn", "helpGuide", "countrySelect", "safeShop", "securityCert"]);
+  const allowed = new Set(["home", "nfc", "stats", "sell", "desk", "admin", "about", "career", "contact", "recall", "sellerSell", "sellerBasics", "sellerAcademy", "helpFaq", "helpLive", "helpReturn", "helpGuide", "countrySelect", "safeShop", "securityCert"]);
   if (!allowed.has(name)) name = "home";
-  if (name === "stats" && !ownerAppsOn()) name = "home";
+  if ((name === "stats" || name === "admin") && !ownerAppsOn()) name = "home";
   const prev = resumeActiveView();
   if (prev && prev !== name) resumeSaveScroll(prev);
   views.forEach((view) => {
@@ -181,6 +181,7 @@ function showView(name) {
   if (name === "nfc") startNfcScan();
   else nfcSleepAudio();
   if (name === "stats") renderSiteStats();
+  if (name === "admin") renderYolAdmin();
   if (name === "sell") renderYolSeller();
   if (name === "desk") renderYolDesk();
   if (name === "home") renderYolMarket();
@@ -223,6 +224,7 @@ const SITE_APP_LABELS = {
   securityCert: "Güvenlik Sertifikası",
   sell: "Ürün yükle",
   desk: "Kontrol paneli",
+  admin: "Kontrol paneli",
   camera: "Kamera",
   nfc: "NFC Kontrol",
   music: "Müzik Veya Şarkı Yap",
@@ -7324,7 +7326,7 @@ $(".brand")?.addEventListener("click", () => {
   ownerTaps = 0;
   const saved = store.get(POS_ADMIN_REMEMBER, null);
   if (saved?.remember && saved.user && $("#ownerUser")) $("#ownerUser").value = saved.user;
-  if ($("#ownerMsg")) $("#ownerMsg").textContent = "Sanal Santral yalnızca sizin için.";
+  if ($("#ownerMsg")) $("#ownerMsg").textContent = "Kontrol paneli yalnızca sizin için.";
   if ($("#ownerModal")) $("#ownerModal").hidden = false;
 });
 
@@ -7346,7 +7348,8 @@ $("#ownerForm")?.addEventListener("submit", (event) => {
   $("#ownerPin").value = "";
   if ($("#ownerModal")) $("#ownerModal").hidden = true;
   syncOwnerApps();
-  renderSiteStats();
+  renderYolAdmin();
+  showView("admin");
 });
 
 const YOL_MEMBERS = "yol-members";
@@ -7372,6 +7375,10 @@ const YOL_TRACK_STATUS = {
   kargoda: "Kargoda",
   teslim: "Teslim edildi",
   iade: "İade",
+};
+const YOL_CANCEL_REASONS = {
+  kusurlu: "Kusurlu ürün",
+  tedarik: "Tedarik edilemez",
 };
 const YOL_CARGO = {
   yurtici: "Yurtiçi Kargo",
@@ -7629,6 +7636,17 @@ function yolDemoList() {
       pin: "1234",
       address: "Kadıköy, İstanbul",
     },
+    {
+      demoId: "demo-hizmet",
+      kind: "hizmet",
+      role: "hizmet",
+      first: "Mert",
+      last: "Destek",
+      phone: "5550000404",
+      mail: "demo.hizmet@harbiyol.test",
+      pin: "1234",
+      address: "Levent, İstanbul",
+    },
   ];
 }
 
@@ -7643,9 +7661,51 @@ function yolSite() {
 function yolRole(member) {
   if (!member) return "";
   if (member.role === "satici") return "satici";
+  if (member.role === "hizmet") return "hizmet";
   if (member.role === "musteri") return "musteri";
   if (yolPartnerKindFor(member.phone, member.mail)) return "satici";
   return "musteri";
+}
+
+function yolMemberArea(member) {
+  if (!member) return "musteri";
+  if (member.role === "hizmet") return "hizmet";
+  const partner = yolPartnerKindFor(member.phone, member.mail);
+  if (partner?.kind === "ticari") return "ticari";
+  if (partner?.kind === "bireysel") return "bireysel";
+  if (member.area === "hizmet") return "hizmet";
+  return "musteri";
+}
+
+function yolAdminMemberCard(member) {
+  const name = `${member.first || ""} ${member.last || ""}`.trim() || "Üye";
+  return `<article class="note yol-admin-member">
+    <strong>${escapeHtml(name)}</strong>
+    <p>${escapeHtml(member.mail || "")}</p>
+    <p>${escapeHtml(member.phone || "")}</p>
+    <p>${escapeHtml(member.address || "")}</p>
+  </article>`;
+}
+
+function renderYolAdmin() {
+  if (!ownerAppsOn()) return;
+  yolEnsureDemos();
+  const groups = { ticari: [], bireysel: [], musteri: [], hizmet: [] };
+  yolMembers().forEach((member) => {
+    const area = yolMemberArea(member);
+    if (groups[area]) groups[area].push(member);
+  });
+  const paint = (id, list) => {
+    const el = $(id);
+    if (!el) return;
+    el.innerHTML = list.length
+      ? list.map(yolAdminMemberCard).join("")
+      : "<p class='hint'>Bu alanda henüz üye yok.</p>";
+  };
+  paint("#yolAdminTicari", groups.ticari);
+  paint("#yolAdminBireysel", groups.bireysel);
+  paint("#yolAdminMusteri", groups.musteri);
+  paint("#yolAdminHizmet", groups.hizmet);
 }
 
 function yolEnsureDemos() {
@@ -7668,6 +7728,7 @@ function yolEnsureDemos() {
       address: demo.address,
       pin: demo.pin,
       phoneOk: true,
+      area: demo.kind,
     });
     membersChanged = true;
   });
@@ -7727,8 +7788,13 @@ function yolEnsureDemos() {
       m.role = "musteri";
       rolesFixed = true;
     }
-    if (yolPartnerKindFor(m.phone, m.mail) && m.role !== "satici") {
+    if (yolPartnerKindFor(m.phone, m.mail) && m.role !== "satici" && m.role !== "hizmet") {
       m.role = "satici";
+      rolesFixed = true;
+    }
+    const area = yolMemberArea(m);
+    if (m.area !== area) {
+      m.area = area;
       rolesFixed = true;
     }
   });
@@ -7863,16 +7929,26 @@ function yolEnsureDemos() {
   }
   let orderTrackFix = false;
   orders.forEach((o) => {
+    (o.lines || []).forEach((l) => {
+      if (l.status) return;
+      l.status =
+        o.demoId === "demo-ticari-order"
+          ? "pending"
+          : o.trackStatus === "kargoda" || o.trackStatus === "teslim"
+            ? "approved"
+            : "pending";
+      orderTrackFix = true;
+    });
     if (o.demoId === "demo-bireysel-order" && !o.trackNo) {
       o.cargo = "aras";
       o.trackNo = "ARB123456789TR";
       o.trackStatus = "kargoda";
       orderTrackFix = true;
     }
-    if (o.demoId === "demo-ticari-order" && !o.trackNo) {
-      o.cargo = o.cargo || "yurtici";
-      o.trackNo = "YK123456789TR";
-      o.trackStatus = o.trackStatus || "kargoda";
+    if (o.demoId === "demo-ticari-order") {
+      o.trackNo = "";
+      o.trackStatus = "hazirlaniyor";
+      o.sellerStatus = "new";
       orderTrackFix = true;
     }
   });
@@ -7959,6 +8035,7 @@ function yolEnterDemo(kind) {
   store.set(YOL_SESSION, member.id);
   if (partner) store.set(YOL_SELLER, { id: partner.id, kind: partner.kind, phone: partner.phone, mail: partner.mail });
   renderYol();
+  if (yolHasDesk() && yolPendingSellerOrders().length) yolDeskTab = "orders";
   showView(yolHasDesk() ? "desk" : "sell");
   renderYolSeller();
   if (yolHasDesk()) renderYolDesk();
@@ -8047,6 +8124,88 @@ function yolVariantLine(v) {
   const bits = [v.name, v.gender, v.color && `Renk ${v.color}`, v.size && `Beden ${v.size}`].filter(Boolean);
   const label = bits.join(" · ") || "Varyant";
   return `<p class="hint">${escapeHtml(label)} · ${formatTry(parseMoney(v.price))}</p>`;
+}
+
+function yolLinePhoto(line) {
+  const products = store.get(YOL_PRODUCTS, []);
+  const product = products.find((p) => String(p.id) === String(line?.id));
+  return yolPhotoSrc(product);
+}
+
+function yolLineStatus(line) {
+  return line?.status === "approved" || line?.status === "cancelled" ? line.status : "pending";
+}
+
+function yolCancelReasonLabel(value) {
+  return YOL_CANCEL_REASONS[value] || "";
+}
+
+function yolOrderHasPending(order) {
+  return (order?.lines || []).some((l) => yolLineStatus(l) === "pending");
+}
+
+function yolPendingSellerOrders() {
+  return yolSellerOrders().filter(yolOrderHasPending);
+}
+
+function yolSyncOrderStatuses(order) {
+  const lines = order.lines || [];
+  if (!lines.length) return;
+  const pending = lines.some((l) => yolLineStatus(l) === "pending");
+  const cancelled = lines.filter((l) => yolLineStatus(l) === "cancelled").length;
+  const approved = lines.filter((l) => yolLineStatus(l) === "approved").length;
+  if (pending) {
+    order.sellerStatus = "new";
+    return;
+  }
+  if (cancelled === lines.length) {
+    order.sellerStatus = "cancelled";
+    order.trackStatus = "iade";
+    return;
+  }
+  order.sellerStatus = approved && cancelled ? "partial" : "approved";
+  if (!order.trackStatus || order.trackStatus === "iade") order.trackStatus = "hazirlaniyor";
+}
+
+function yolPatchSellerOrder(orderId, mutator) {
+  const id = String(orderId || "");
+  const orders = store.get(YOL_ORDERS, []);
+  const order = orders.find((o) => String(o.id) === id);
+  if (!order || !yolSellerOrders().some((o) => String(o.id) === id)) return null;
+  mutator(order);
+  yolSyncOrderStatuses(order);
+  store.set(YOL_ORDERS, orders);
+  return order;
+}
+
+function yolApproveOrderLines(orderId, lineIndex) {
+  const order = yolPatchSellerOrder(orderId, (cur) => {
+    (cur.lines || []).forEach((line, i) => {
+      if (lineIndex != null && i !== Number(lineIndex)) return;
+      if (yolLineStatus(line) !== "pending") return;
+      line.status = "approved";
+      line.cancelReason = "";
+    });
+  });
+  if (!order) return;
+  yolDeskMsg(lineIndex == null ? "Sipariş onaylandı." : "Ürün onaylandı.");
+  renderYolDesk();
+}
+
+function yolCancelOrderLine(orderId, lineIndex, reason) {
+  if (!YOL_CANCEL_REASONS[reason]) {
+    yolDeskMsg("İptal için Kusurlu ürün veya Tedarik edilemez seçin.");
+    return;
+  }
+  const order = yolPatchSellerOrder(orderId, (cur) => {
+    const line = (cur.lines || [])[Number(lineIndex)];
+    if (!line || yolLineStatus(line) !== "pending") return;
+    line.status = "cancelled";
+    line.cancelReason = reason;
+  });
+  if (!order) return;
+  yolDeskMsg(`Ürün iptal edildi: ${yolCancelReasonLabel(reason)}.`);
+  renderYolDesk();
 }
 
 function yolPhotoSrc(item) {
@@ -8716,7 +8875,9 @@ function yolHasDesk() {
 
 function yolOrdersForProduct(productId) {
   const id = String(productId || "");
-  return yolSellerOrders().filter((o) => (o.lines || []).some((l) => String(l.id) === id));
+  return yolSellerOrders().filter((o) =>
+    (o.lines || []).some((l) => String(l.id) === id && yolLineStatus(l) !== "cancelled")
+  );
 }
 
 function yolInvoiceForOrder(orderId) {
@@ -8941,7 +9102,7 @@ let yolDeskTab = "products";
 
 function yolShowDeskTab(tab) {
   yolDeskTab = tab || "products";
-  ["products", "reports", "stats", "invoices", "coupons", "campaigns", "account", "track", "addresses"].forEach((id) => {
+  ["orders", "products", "reports", "stats", "invoices", "coupons", "campaigns", "account", "track", "addresses"].forEach((id) => {
     const box = $(`#yolDesk${id[0].toUpperCase()}${id.slice(1)}`);
     if (box) box.hidden = id !== yolDeskTab;
   });
@@ -8968,16 +9129,75 @@ function renderYolDesk() {
   $$("#yolDeskNav [data-yol-desk='stats']").forEach((btn) => {
     btn.hidden = !yolIsTicari();
   });
+  const pendingOrders = yolPendingSellerOrders();
+  $$("#yolDeskNav [data-yol-desk='orders']").forEach((btn) => {
+    btn.hidden = !yolHasDesk();
+    btn.textContent = pendingOrders.length ? `Yeni sipariş (${pendingOrders.length})` : "Yeni sipariş";
+  });
   ["account", "track", "addresses"].forEach((id) => {
     $$("#yolDeskNav [data-yol-desk='" + id + "']").forEach((btn) => {
       btn.hidden = !yolHasDesk();
     });
   });
   if (!yolIsTicari() && yolDeskTab === "stats") yolDeskTab = "reports";
-  if (!yolHasDesk() && ["account", "track", "addresses"].includes(yolDeskTab)) yolDeskTab = "products";
+  if (!yolHasDesk() && ["account", "track", "addresses", "orders"].includes(yolDeskTab)) yolDeskTab = "products";
   yolShowDeskTab(yolDeskTab);
   const mine = yolOwnProductsRaw();
   const invoices = yolSellerInvoices();
+  if ($("#yolDeskOrderList")) {
+    $("#yolDeskOrderList").innerHTML = pendingOrders.length
+      ? pendingOrders
+          .map((o) => {
+            const lines = (o.lines || [])
+              .map((l, i) => {
+                const src = yolLinePhoto(l);
+                const st = yolLineStatus(l);
+                if (st === "cancelled") {
+                  return `<article class="yol-order-line">
+                    <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : "<span class='hint'>Görsel yok</span>"}</div>
+                    <div>
+                      <strong>${escapeHtml(l.name || "Ürün")}</strong>
+                      <p class="hint">${Number(l.qty) || 1} adet · ${formatTry(l.sum || 0)} · İptal: ${escapeHtml(yolCancelReasonLabel(l.cancelReason) || "İptal")}</p>
+                    </div>
+                  </article>`;
+                }
+                if (st === "approved") {
+                  return `<article class="yol-order-line">
+                    <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : "<span class='hint'>Görsel yok</span>"}</div>
+                    <div>
+                      <strong>${escapeHtml(l.name || "Ürün")}</strong>
+                      <p class="hint">${Number(l.qty) || 1} adet · ${formatTry(l.sum || 0)} · Onaylandı</p>
+                    </div>
+                  </article>`;
+                }
+                return `<article class="yol-order-line">
+                  <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : "<span class='hint'>Görsel yok</span>"}</div>
+                  <div>
+                    <strong>${escapeHtml(l.name || "Ürün")}</strong>
+                    <p class="hint">${Number(l.qty) || 1} adet · ${formatTry(l.sum || 0)}</p>
+                    <div class="yol-cancel-reasons">
+                      <label><input type="radio" name="yolCancel-${escapeHtml(String(o.id))}-${i}" value="kusurlu" /> Kusurlu ürün</label>
+                      <label><input type="radio" name="yolCancel-${escapeHtml(String(o.id))}-${i}" value="tedarik" /> Tedarik edilemez</label>
+                    </div>
+                    <div class="row">
+                      <button class="gold" type="button" data-yol-order-ok="${escapeHtml(String(o.id))}" data-yol-line="${i}">Onay</button>
+                      <button class="danger" type="button" data-yol-order-no="${escapeHtml(String(o.id))}" data-yol-line="${i}">İptal</button>
+                    </div>
+                  </div>
+                </article>`;
+              })
+              .join("");
+            return `<article class="note yol-new-order">
+              <p class="hint">${escapeHtml(o.buyer?.name || "Alıcı")} · ${new Date(o.at).toLocaleString("tr-TR")}</p>
+              ${lines}
+              <div class="row">
+                <button class="gold" type="button" data-yol-order-ok-all="${escapeHtml(String(o.id))}">Siparişi onayla</button>
+              </div>
+            </article>`;
+          })
+          .join("")
+      : "<p class='hint'>Bekleyen yeni sipariş yok.</p>";
+  }
   const box = $("#yolDeskProductList");
   if (box) {
     box.innerHTML = mine.length
@@ -9004,8 +9224,12 @@ function renderYolDesk() {
       : "<p class='hint'>Henüz ürün yok. Yeni ürün yükleyin.</p>";
   }
   const orders = yolSellerOrders();
-  const revenue = orders.reduce((n, o) => n + (Number(o.goods) || 0) - (Number(o.discount) || 0), 0);
-  const units = orders.reduce((n, o) => n + (o.lines || []).reduce((s, l) => s + (Number(l.qty) || 1), 0), 0);
+  const liveLines = (o) => (o.lines || []).filter((l) => yolLineStatus(l) !== "cancelled");
+  const revenue = orders.reduce(
+    (n, o) => n + liveLines(o).reduce((s, l) => s + (Number(l.sum) || 0), 0) - (Number(o.discount) || 0),
+    0
+  );
+  const units = orders.reduce((n, o) => n + liveLines(o).reduce((s, l) => s + (Number(l.qty) || 1), 0), 0);
   const shipSum = orders.reduce((n, o) => n + (Number(o.ship) || 0), 0);
   const discSum = orders.reduce((n, o) => n + (Number(o.discount) || 0), 0);
   const avg = orders.length ? revenue / orders.length : 0;
@@ -9034,7 +9258,7 @@ function renderYolDesk() {
   if ($("#yolDeskTopProducts")) {
     const soldMap = new Map();
     orders.forEach((o) => {
-      (o.lines || []).forEach((l) => {
+      liveLines(o).forEach((l) => {
         const key = l.name || "Ürün";
         const row = soldMap.get(key) || { name: key, qty: 0, sum: 0 };
         row.qty += Number(l.qty) || 1;
@@ -9273,7 +9497,7 @@ function yolRecordOrder(pending) {
       sellerName: g.sellerName,
       method: pending.method,
       buyer: pending.buyer,
-      lines: g.lines,
+      lines: g.lines.map((line) => ({ ...line, status: line.status || "pending" })),
       goods: g.goods,
       ship: groups.size === 1 ? Number(pending.ship) || 0 : 0,
       discount: share,
@@ -9281,6 +9505,7 @@ function yolRecordOrder(pending) {
       cargo: yolProductCargo(store.get(YOL_PRODUCTS, []).find((p) => String(p.id) === String(g.lines[0]?.id))),
       trackNo: "",
       trackStatus: "hazirlaniyor",
+      sellerStatus: "new",
       total: g.goods - share + (groups.size === 1 ? Number(pending.ship) || 0 : 0),
     });
   });
@@ -9596,8 +9821,10 @@ function yolSyncNav() {
   document.body.classList.toggle("yol-seller-account", seller);
   const view = document.querySelector(".view.active")?.dataset.view || "";
   const deskPanel = yolHasDesk() && (view === "desk" || view === "sell");
+  const adminPanel = ownerAppsOn() && view === "admin";
   document.body.classList.toggle("yol-bireysel-panel", deskPanel);
   document.body.classList.toggle("yol-desk-panel", deskPanel);
+  document.body.classList.toggle("yol-admin-panel", adminPanel);
   if (deskPanel) {
     const cart = $("#yolCartPanel");
     if (cart) cart.hidden = true;
@@ -9700,6 +9927,7 @@ $("#yolCheckout")?.addEventListener("submit", async (event) => {
         sellerMail: line.product.sellerMail,
         sellerPhone: line.product.sellerPhone,
         sellerName: line.product.sellerName,
+        status: "pending",
       })),
       at: Date.now(),
     });
@@ -9748,6 +9976,23 @@ $("#yolDeskNav")?.addEventListener("click", (event) => {
   const btn = event.target.closest("[data-yol-desk]");
   if (!btn) return;
   yolShowDeskTab(btn.dataset.yolDesk);
+});
+$("#yolDeskOrderList")?.addEventListener("click", (event) => {
+  const all = event.target.closest("[data-yol-order-ok-all]");
+  if (all) {
+    yolApproveOrderLines(all.dataset.yolOrderOkAll, null);
+    return;
+  }
+  const ok = event.target.closest("[data-yol-order-ok]");
+  if (ok) {
+    yolApproveOrderLines(ok.dataset.yolOrderOk, ok.dataset.yolLine);
+    return;
+  }
+  const no = event.target.closest("[data-yol-order-no]");
+  if (!no) return;
+  const wrap = no.closest(".yol-order-line");
+  const picked = wrap?.querySelector('input[type="radio"]:checked')?.value || "";
+  yolCancelOrderLine(no.dataset.yolOrderNo, no.dataset.yolLine, picked);
 });
 $("#yolAccForm")?.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -9995,6 +10240,7 @@ function yolFinishRegister(pending) {
   const member = {
     id: Date.now(),
     role: "musteri",
+    area: "musteri",
     first: pending.first,
     last: pending.last,
     phone: pending.phone,
@@ -10154,6 +10400,7 @@ $("#yolLogin")?.addEventListener("submit", (event) => {
   const next = yolAfterLogin;
   yolAfterLogin = "";
   renderYol();
+  if (yolHasDesk() && yolPendingSellerOrders().length) yolDeskTab = "orders";
   if (yolHasDesk()) showView("desk");
   else if (role === "satici" || next === "sell") showView("sell");
   else showView("home");
@@ -10224,6 +10471,7 @@ async function yolPartnerSubmit(kind, ids) {
     member = {
       id: Date.now() + 1,
       role: "satici",
+      area: kind,
       first,
       last,
       phone: yolGsm(phone),
@@ -10235,6 +10483,7 @@ async function yolPartnerSubmit(kind, ids) {
     members.unshift(member);
   } else {
     member.role = "satici";
+    member.area = kind;
     member.pin = pin;
   }
   store.set(YOL_MEMBERS, members);
@@ -10283,6 +10532,59 @@ $("#yolBireysel")?.addEventListener("submit", (event) => {
     pin: "#yolBireyselPin",
     msg: "#yolBireyselMsg",
   });
+});
+
+$("#yolHizmet")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const first = $("#yolHizmetFirst").value.trim();
+  const last = $("#yolHizmetLast").value.trim();
+  const phone = yolGsm($("#yolHizmetPhone").value);
+  const mail = yolMail($("#yolHizmetMail").value);
+  const address = $("#yolHizmetAddress").value.trim();
+  const pin = $("#yolHizmetPin").value;
+  const msg = $("#yolHizmetMsg");
+  if (!first || !last || !phone || !mail || !address || !pin) {
+    if (msg) msg.textContent = "İsim, soy isim, telefon, mail ve adres zorunludur.";
+    return;
+  }
+  if (!/^5\d{9}$/.test(phone)) {
+    if (msg) msg.textContent = "Geçerli bir cep telefonu yazın.";
+    return;
+  }
+  if (pin.length < 4) {
+    if (msg) msg.textContent = "En az 4 haneli şifre yazın.";
+    return;
+  }
+  const existing = yolFindMember(phone, mail);
+  if (existing) {
+    yolRememberLast(existing);
+    yolShowAuth("login");
+    yolFillLogin(existing.mail || mail, "Bu telefon veya mail ile üyelik var. Giriş yapın.");
+    $("#yolLoginCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  const member = {
+    id: Date.now(),
+    role: "hizmet",
+    area: "hizmet",
+    first,
+    last,
+    phone,
+    mail,
+    address,
+    pin,
+    phoneOk: true,
+  };
+  const members = yolMembers();
+  members.unshift(member);
+  store.set(YOL_MEMBERS, members);
+  yolRememberLast(member);
+  $("#yolHizmet")?.reset();
+  if (msg) msg.textContent = "";
+  yolShowAuth("login");
+  yolFillLogin(mail, "Müşteri hizmetleri üyeliği tamam. Mail ve şifre ile giriş yapın.");
+  $("#yolLoginCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (ownerAppsOn()) renderYolAdmin();
 });
 
 document.querySelectorAll('input[name="yolListType"]').forEach((input) => {

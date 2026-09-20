@@ -67,7 +67,7 @@
       }
       .tabbar { display: none; }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=324" />
+    <link rel="stylesheet" href="css/app.css?v=326" />
   </head>
   <body>
     <div class="app">
@@ -504,7 +504,8 @@
           <h2 id="yolDeskTitle">Kontrol paneli</h2>
           <p class="hint" id="yolDeskHello"></p>
           <div class="row yol-desk-nav" id="yolDeskNav">
-            <button class="gold" type="button" data-yol-desk="products">Ürünlerim</button>
+            <button class="gold" type="button" data-yol-desk="orders">Yeni sipariş</button>
+            <button class="secondary" type="button" data-yol-desk="products">Ürünlerim</button>
             <button class="secondary" type="button" data-yol-desk="reports">Raporlar</button>
             <button class="secondary" type="button" data-yol-desk="stats">İstatistikler</button>
             <button class="secondary" type="button" data-yol-desk="invoices">Faturalar</button>
@@ -515,6 +516,14 @@
             <button class="secondary" type="button" data-yol-desk="addresses">Kargo Adreslerim</button>
           </div>
           <p class="hint" id="yolDeskMsg"></p>
+
+          <div id="yolDeskOrders" hidden>
+            <article class="card">
+              <h3>Yeni Sipariş Geldi</h3>
+              <p class="hint">Müşterinin sipariş ettiği ürünler. Onaylayın veya iptal nedenini işaretleyin.</p>
+              <div id="yolDeskOrderList"></div>
+            </article>
+          </div>
 
           <div id="yolDeskProducts">
             <article class="card">
@@ -1653,7 +1662,7 @@
         <button type="button" data-pbx-key="8">8</button>
         <button type="button" data-pbx-key="9">9</button>
         <button type="button" data-pbx-key="sil">Sil</button>
-        <button type="button" data-pbx-key="0">0</button>
+        <p class="hint" id="ownerMsg">Kontrol paneli yalnızca sizin için.</p>
         <button type="button" data-pbx-key="#">#</button>
       </div>
       <div class="row">
@@ -1663,6 +1672,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=324"></script>
+    <script src="js/app.js?v=326"></script>
   </body>
 </html>
