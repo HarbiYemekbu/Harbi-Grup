@@ -154,7 +154,7 @@ function syncOwnerApps() {
 }
 
 function showView(name) {
-  const allowed = new Set(["home", "nfc", "stats", "sell"]);
+  const allowed = new Set(["home", "nfc", "stats", "sell", "about", "career", "contact", "recall", "sellerSell", "sellerBasics", "sellerAcademy", "helpFaq", "helpLive", "helpReturn", "helpGuide", "countrySelect", "safeShop", "securityCert"]);
   if (!allowed.has(name)) name = "home";
   if (name === "stats" && !ownerAppsOn()) name = "home";
   const prev = resumeActiveView();
@@ -204,6 +204,20 @@ $$("[data-go]").forEach((el) => {
 
 const SITE_APP_LABELS = {
   home: "Ana sayfa",
+  about: "Biz Kimiz",
+  career: "Kariyer",
+  contact: "İletişim",
+  recall: "Geri Çağrılan Ürünler",
+  sellerSell: "Harbi'de Satış Yap",
+  sellerBasics: "Temel Kavramlar",
+  sellerAcademy: "Harbi Akademi",
+  helpFaq: "Sıkça Sorulan Sorular",
+  helpLive: "Canlı Yardım",
+  helpReturn: "Nasıl İade Edebilirim",
+  helpGuide: "İşlem Rehberi",
+  countrySelect: "Ülke Seç",
+  safeShop: "Güvenli Alışveriş",
+  securityCert: "Güvenlik Sertifikası",
   sell: "Ürün yükle",
   camera: "Kamera",
   nfc: "NFC Kontrol",
@@ -399,12 +413,7 @@ const installSteps = $("#installSteps");
 const ua = navigator.userAgent || "";
 const isIOSSafari =
   isIOS && /safari/i.test(ua) && !/crios|fxios|edgios|opios|opt\//i.test(ua);
-const INSTALL_DONE_KEY = "yol-home-shortcut";
-const isPhoneVisit =
-  /iphone|ipod/i.test(ua) ||
-  (/android/i.test(ua) && /mobile/i.test(ua)) ||
-  (window.matchMedia("(max-width: 820px)").matches &&
-    window.matchMedia("(pointer: coarse)").matches);
+const INSTALL_DONE_KEY = "yol-home-shortcut-v2";
 
 function shortcutAlreadyAdded() {
   return isStandalone || store.get(INSTALL_DONE_KEY, false) === true;
@@ -419,11 +428,11 @@ function markShortcutAdded() {
 
 function syncInstallBtn() {
   if (!installBtn) return;
-  installBtn.hidden = !isPhoneVisit || shortcutAlreadyAdded();
+  installBtn.hidden = shortcutAlreadyAdded();
 }
 
 if (isStandalone) {
-  markShortcutAdded();
+  if (installBtn) installBtn.hidden = true;
 } else {
   syncInstallBtn();
   if (installHint) {
@@ -9273,6 +9282,28 @@ const YOL_SELLER = "yol-seller";
 const YOL_LAST = "yol-last";
 const YOL_SITE = "yol-site";
 const YOL_CART = "yol-cart";
+const YOL_CARGO = {
+  yurtici: "Yurtiçi Kargo",
+  aras: "Aras Kargo",
+  mng: "MNG Kargo",
+  surat: "Sürat Kargo",
+  ptt: "PTT Kargo",
+};
+
+function yolCargoKey(value) {
+  const key = String(value || "").toLowerCase();
+  return YOL_CARGO[key] ? key : "yurtici";
+}
+
+function yolCargoName(value) {
+  return YOL_CARGO[yolCargoKey(value)];
+}
+
+function yolProductCargo(item) {
+  if (item?.cargo) return yolCargoKey(item.cargo);
+  const partner = yolPartnerKindFor(item?.sellerPhone, item?.sellerMail);
+  return yolCargoKey(partner?.cargo);
+}
 
 function yolPhone(value) {
   return String(value || "").replace(/\s+/g, "");
@@ -9396,12 +9427,17 @@ function yolEnsureDemos() {
       imza: demo.kind === "ticari" ? doc : null,
       ikamet: demo.kind === "ticari" ? doc : null,
       vergiLevha: demo.kind === "ticari" ? doc : null,
+      cargo: demo.kind === "ticari" ? "yurtici" : "aras",
     });
     partnersChanged = true;
   });
   partners.forEach((p) => {
     if (p.status === "pending") {
       p.status = "approved";
+      partnersChanged = true;
+    }
+    if (!p.cargo) {
+      p.cargo = p.kind === "ticari" ? "yurtici" : "aras";
       partnersChanged = true;
     }
     if (!Array.isArray(p.badges) || !p.badges.length) {
@@ -9440,6 +9476,7 @@ function yolEnsureDemos() {
     if (demoSeries.flash == null) demoSeries.flash = true;
     if (!demoSeries.dept) demoSeries.dept = "kadin";
     if (!demoSeries.sellerBadges) demoSeries.sellerBadges = ["verified", "authorized"];
+    if (!demoSeries.cargo) demoSeries.cargo = "yurtici";
   } else {
     products.unshift({
       id: "demo-prod-ticari-series",
@@ -9461,6 +9498,7 @@ function yolEnsureDemos() {
       flash: true,
       dept: "kadin",
       sellerBadges: ["verified", "authorized"],
+      cargo: "yurtici",
     });
   }
   const demoSoap = products.find((p) => p.demoId === "demo-bireysel-single");
@@ -9474,6 +9512,7 @@ function yolEnsureDemos() {
     if (demoSoap.coupon == null) demoSoap.coupon = true;
     if (!demoSoap.dept) demoSoap.dept = "kozmetik";
     if (!demoSoap.sellerBadges) demoSoap.sellerBadges = ["success"];
+    if (!demoSoap.cargo) demoSoap.cargo = "aras";
   } else if (!products.some((p) => p.demoId === "demo-bireysel-single")) {
     products.unshift({
       id: "demo-prod-bireysel-single",
@@ -9495,6 +9534,7 @@ function yolEnsureDemos() {
       coupon: true,
       dept: "kozmetik",
       sellerBadges: ["success"],
+      cargo: "aras",
     });
   }
   store.set(YOL_PRODUCTS, products.slice(0, 200));
@@ -9544,6 +9584,7 @@ function yolSeller() {
     mail: me.mail,
     memberId: me.id,
     role: "satici",
+    cargo: yolCargoKey(partner?.cargo),
   };
 }
 
@@ -9614,7 +9655,7 @@ function yolProductCardHtml(item, canDelete) {
     <div class="yol-photo-box">${src ? `<img class="gk-photo" src="${src}" alt="" />` : ""}</div>
     <div class="yol-product-body">
       <strong>${escapeHtml(item.name || "Ürün")}</strong>
-      <p class="hint">${escapeHtml(item.sellerName || "Satıcı")} · ${item.type === "series" ? "Ürün serisi" : "Tekli ürün"}</p>
+      <p class="hint">${escapeHtml(item.sellerName || "Satıcı")} · ${item.type === "series" ? "Ürün serisi" : "Tekli ürün"} · ${escapeHtml(yolCargoName(yolProductCargo(item)))}</p>
       ${extra}
       <button class="primary yol-cart-add" type="button" data-yol-cart="${item.id}">Sepete ekle</button>
       ${canDelete ? `<button class="linkish" type="button" data-yol-del="${item.id}">Kaldır</button>` : ""}
@@ -9943,6 +9984,7 @@ function yolRenderCart() {
       <div class="yol-product-body">
         <strong>${escapeHtml(line.product.name || "Ürün")}</strong>
         <p class="price">${formatTry(line.unit)} × ${line.qty} = ${formatTry(line.sum)}</p>
+        <p class="hint">${escapeHtml(yolCargoName(yolProductCargo(line.product)))}</p>
         <button class="linkish" type="button" data-yol-cart-del="${line.product.id}">Kaldır</button>
       </div>
     </article>`;
@@ -9987,6 +10029,7 @@ function renderYolSeller() {
           : "Bu sizin ürün yükleme sayfanız. Tekli ürün ve fotoğraf yükleyebilirsiniz.";
   }
   yolSyncSellerTypeUi();
+  if ($("#yolSellerCargo")) $("#yolSellerCargo").value = yolCargoKey(seller.cargo);
   const mine = yolListProducts(store.get(YOL_PRODUCTS, []).filter((p) => yolOwnProduct(seller, p)));
   const box = $("#yolMyProducts");
   if (!box) return;
@@ -10430,9 +10473,14 @@ async function yolPartnerSubmit(kind, ids) {
   const tc = ids.tc ? String($(ids.tc).value || "").replace(/\D/g, "") : "";
   const vkn = ids.vkn ? String($(ids.vkn).value || "").replace(/\D/g, "") : "";
   const pin = ids.pin ? $(ids.pin).value : "";
+  const cargoPick = $(ids.cargo)?.value || "";
   const msg = $(ids.msg);
   if (!first || !last || !phone || !mail || !address) {
     if (msg) msg.textContent = "İsim, soy isim, telefon, mail ve adres zorunludur.";
+    return;
+  }
+  if (!YOL_CARGO[cargoPick]) {
+    if (msg) msg.textContent = "Kargo seçin.";
     return;
   }
   if (!pin || pin.length < 4) {
@@ -10472,6 +10520,7 @@ async function yolPartnerSubmit(kind, ids) {
     imza: imza ? { name: imza.name, type: imza.type } : null,
     ikamet: ikamet ? { name: ikamet.name, type: ikamet.type } : null,
     vergiLevha: vergiLevha ? { name: vergiLevha.name, type: vergiLevha.type } : null,
+    cargo: yolCargoKey(cargoPick),
   });
   store.set(YOL_PARTNERS, partners.slice(0, 80));
   let members = yolMembers();
@@ -10520,6 +10569,7 @@ $("#yolTicari")?.addEventListener("submit", (event) => {
     imza: "#yolTicariImza",
     ikamet: "#yolTicariIkamet",
     vergiLevha: "#yolTicariVergiLevha",
+    cargo: "#yolTicariCargo",
     pin: "#yolTicariPin",
     msg: "#yolTicariMsg",
   });
@@ -10534,6 +10584,7 @@ $("#yolBireysel")?.addEventListener("submit", (event) => {
     phone: "#yolBireyselPhone",
     mail: "#yolBireyselMail",
     address: "#yolBireyselAddress",
+    cargo: "#yolBireyselCargo",
     pin: "#yolBireyselPin",
     msg: "#yolBireyselMsg",
   });
@@ -10541,6 +10592,25 @@ $("#yolBireysel")?.addEventListener("submit", (event) => {
 
 document.querySelectorAll('input[name="yolListType"]').forEach((input) => {
   input.addEventListener("change", yolSyncSellerTypeUi);
+});
+
+$("#yolSellerCargo")?.addEventListener("change", () => {
+  const seller = yolSeller();
+  const cargo = $("#yolSellerCargo")?.value || "";
+  if (!seller || !YOL_CARGO[cargo]) return;
+  const partners = store.get(YOL_PARTNERS, []);
+  const gsm = yolGsm(seller.phone);
+  const email = yolMail(seller.mail);
+  partners.forEach((p) => {
+    if ((gsm && yolGsm(p.phone) === gsm) || (email && yolMail(p.mail) === email)) p.cargo = cargo;
+  });
+  store.set(YOL_PARTNERS, partners);
+  const catalog = store.get(YOL_PRODUCTS, []);
+  catalog.forEach((p) => {
+    if (yolOwnProduct(seller, p)) p.cargo = cargo;
+  });
+  store.set(YOL_PRODUCTS, catalog);
+  renderYolMarket();
 });
 
 $("#yolSeriesAddRow")?.addEventListener("click", () => {
@@ -10603,6 +10673,19 @@ $("#yolSellerForm")?.addEventListener("submit", async (event) => {
     if (msg) msg.textContent = "Kategori seçin.";
     return;
   }
+  const cargoPick = $("#yolSellerCargo")?.value || "";
+  if (!YOL_CARGO[cargoPick]) {
+    if (msg) msg.textContent = "Kargo seçin.";
+    return;
+  }
+  const cargo = yolCargoKey(cargoPick);
+  const partners = store.get(YOL_PARTNERS, []);
+  const gsm = yolGsm(seller.phone);
+  const email = yolMail(seller.mail);
+  partners.forEach((p) => {
+    if ((gsm && yolGsm(p.phone) === gsm) || (email && yolMail(p.mail) === email)) p.cargo = cargo;
+  });
+  store.set(YOL_PARTNERS, partners);
   const flashOn = Boolean($("#yolProdFlash")?.checked);
   const products = store.get(YOL_PRODUCTS, []);
   products.unshift({
@@ -10619,6 +10702,7 @@ $("#yolSellerForm")?.addEventListener("submit", async (event) => {
     createdAt: Date.now(),
     dept,
     flash: flashOn,
+    cargo,
     sellerBadges: yolSellerBadgesOf({ sellerPhone: seller.phone, sellerMail: seller.mail, sellerKind: seller.kind }),
     ...product,
   });
@@ -10696,6 +10780,54 @@ $("#yolDeptScroller")?.addEventListener("click", (event) => {
   yolDeptActive = btn.dataset.yolDept || "";
   yolSyncDeptChips();
   yolRefreshProductLists();
+});
+$$(".yol-filter-bar details.yol-color-panel").forEach((panel) => {
+  panel.addEventListener("toggle", () => {
+    if (!panel.open) return;
+    $$(".yol-filter-bar details.yol-color-panel").forEach((other) => {
+      if (other !== panel) other.open = false;
+    });
+    yolPlaceFilterMenu(panel);
+  });
+});
+
+function yolFilterMenus(panel) {
+  return [...panel.children].filter((el) => el.tagName !== "SUMMARY" && !el.hidden);
+}
+
+function yolPlaceFilterMenu(panel) {
+  const rect = panel.getBoundingClientRect();
+  const width = Math.min(280, Math.max(220, window.innerWidth - 16));
+  let left = rect.left;
+  if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
+  if (left < 8) left = 8;
+  const top = Math.min(rect.bottom + 6, window.innerHeight - 96);
+  yolFilterMenus(panel).forEach((box) => {
+    box.style.top = `${top}px`;
+    box.style.left = `${left}px`;
+    box.style.width = `${width}px`;
+  });
+}
+
+function yolCloseFilterMenus() {
+  $$(".yol-filter-bar details.yol-color-panel").forEach((panel) => {
+    panel.open = false;
+  });
+}
+
+window.addEventListener("resize", yolCloseFilterMenus);
+document.addEventListener(
+  "scroll",
+  () => {
+    if (document.querySelector(".yol-filter-bar details[open]")) yolCloseFilterMenus();
+  },
+  true
+);
+document.addEventListener("click", (event) => {
+  const open = document.querySelector(".yol-filter-bar details[open]");
+  if (!open) return;
+  if (open.contains(event.target)) return;
+  open.open = false;
 });
 $("#yolColorGrid")?.addEventListener("change", () => yolRefreshProductLists());
 $("#yolPriceBox")?.addEventListener("change", () => yolRefreshProductLists());

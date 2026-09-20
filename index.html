@@ -12,7 +12,9 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="Harbi" />
     <meta name="format-detection" content="telephone=no" />
-    <meta name="description" content="Harbi — Pazar yeri" />
+    <meta name="description" content="Harbi — dünya çapında açık pazar yeri" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="googlebot" content="index, follow" />
     <title>Harbi</title>
     <link rel="canonical" href="https://www.tolkanugur.com/" />
     <meta property="og:url" content="https://www.tolkanugur.com/" />
@@ -65,7 +67,7 @@
       }
       .tabbar { display: none; }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=290" />
+    <link rel="stylesheet" href="css/app.css?v=303" />
   </head>
   <body>
     <div class="app">
@@ -91,7 +93,7 @@
             </svg>
             <span class="yol-cart-count" id="yolNavCartCount" hidden></span>
           </button>
-          <button class="install-home-btn" id="installBtn" type="button" hidden>Telefonuna Kısayol Ekle/İndir</button>
+          <button class="install-home-btn" id="installBtn" type="button">Tel. Kısayol Ekle</button>
           <button type="button" id="yolNavSell" hidden>Ürün yükle</button>
           <button type="button" class="secondary" id="yolLogoutTop" hidden>Çıkış yap</button>
         </nav>
@@ -351,6 +353,16 @@
                         <label class="field">İkametgah Yükle
                           <input id="yolTicariIkamet" type="file" accept="image/*,.pdf" required />
                         </label>
+                        <label class="field">Kargo
+                          <select id="yolTicariCargo" required>
+                            <option value="">Kargo seçin</option>
+                            <option value="yurtici">Yurtiçi Kargo</option>
+                            <option value="aras">Aras Kargo</option>
+                            <option value="mng">MNG Kargo</option>
+                            <option value="surat">Sürat Kargo</option>
+                            <option value="ptt">PTT Kargo</option>
+                          </select>
+                        </label>
                         <input id="yolTicariPin" type="password" placeholder="Şifre" required minlength="4" />
                         <p class="hint" id="yolTicariMsg"></p>
                         <button class="gold" type="submit">Ticari üye ol</button>
@@ -367,6 +379,16 @@
                         <input id="yolBireyselPhone" inputmode="tel" placeholder="Telefon" required maxlength="20" />
                         <input id="yolBireyselMail" type="email" placeholder="Mail" required maxlength="120" />
                         <textarea id="yolBireyselAddress" placeholder="Adres" required maxlength="240" rows="2"></textarea>
+                        <label class="field">Kargo
+                          <select id="yolBireyselCargo" required>
+                            <option value="">Kargo seçin</option>
+                            <option value="yurtici">Yurtiçi Kargo</option>
+                            <option value="aras">Aras Kargo</option>
+                            <option value="mng">MNG Kargo</option>
+                            <option value="surat">Sürat Kargo</option>
+                            <option value="ptt">PTT Kargo</option>
+                          </select>
+                        </label>
                         <input id="yolBireyselPin" type="password" placeholder="Şifre" required minlength="4" />
                         <p class="hint" id="yolBireyselMsg"></p>
                         <button class="gold" type="submit">Bireysel üye ol</button>
@@ -432,6 +454,16 @@
                     <option value="elektronik">Elektronik</option>
                     <option value="saat">Saat &amp; Aksesuar</option>
                     <option value="spor">Spor &amp; Outdoor</option>
+                  </select>
+                </label>
+                <label class="field">Kargo
+                  <select id="yolSellerCargo" required>
+                    <option value="">Kargo seçin</option>
+                    <option value="yurtici">Yurtiçi Kargo</option>
+                    <option value="aras">Aras Kargo</option>
+                    <option value="mng">MNG Kargo</option>
+                    <option value="surat">Sürat Kargo</option>
+                    <option value="ptt">PTT Kargo</option>
                   </select>
                 </label>
                 <label class="field"><input type="checkbox" id="yolProdFlash" /> Flaş ürün</label>
@@ -1659,8 +1691,136 @@
             <div class="log-list" id="eimzaList"></div>
           </div>
         </section>
+        <section class="view" data-view="about" hidden>
+          <article class="card site-info-card">
+            <h2>Biz Kimiz</h2>
+            <p>Harbi, alıcı ve satıcıyı aynı pazarda buluşturan bir alışveriş platformudur. Amacımız güvenli, hızlı ve şeffaf alışveriş sunmaktır.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="career" hidden>
+          <article class="card site-info-card">
+            <h2>Kariyer</h2>
+            <p>Harbi ekibine katılmak isteyenler kariyer@harbi.local adresine özgeçmişlerini iletebilir. Açık pozisyonlar duyuruldukça burada yer alır.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="contact" hidden>
+          <article class="card site-info-card">
+            <h2>İletişim</h2>
+            <p>Sorularınız için iletisim@harbi.local adresine yazabilir veya İş Ortaklığı sayfasından bize ulaşabilirsiniz.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="recall" hidden>
+          <article class="card site-info-card">
+            <h2>Geri Çağrılan Ürünler</h2>
+            <p>Güvenlik nedeniyle geri çağrılan ürünler bu sayfada duyurulur. Şu anda duyurulmuş geri çağırma kaydı yoktur.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="sellerSell" hidden>
+          <article class="card site-info-card">
+            <h2>Harbi'de Satış Yap</h2>
+            <p>Harbi'de ürün satmak için İş Ortaklığı üzerinden ticari veya bireysel üyelik açın. Onay sonrası ürün yükleyebilirsiniz.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="sellerBasics" hidden>
+          <article class="card site-info-card">
+            <h2>Temel Kavramlar</h2>
+            <p>Sipariş, kargo, iade ve satıcı puanı Harbi satışının temel kavramlarıdır. Ürün yüklerken doğru kategori, fiyat ve stok bilgisi girin.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="sellerAcademy" hidden>
+          <article class="card site-info-card">
+            <h2>Harbi Akademi</h2>
+            <p>Harbi Akademi, satıcıların mağaza açma, ürün listeleme ve satış büyütme adımlarını öğrenmesi içindir. Eğitimler eklendikçe burada yayınlanır.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="helpFaq" hidden>
+          <article class="card site-info-card">
+            <h2>Sıkça Sorulan Sorular</h2>
+            <p>Sipariş, kargo, üyelik ve iade sorularının yanıtları burada toplanır. Aradığınızı bulamazsanız Canlı Yardım’dan yazabilirsiniz.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="helpLive" hidden>
+          <article class="card site-info-card">
+            <h2>Canlı Yardım</h2>
+            <p>Canlı yardım hattı yakında açılacaktır. Şimdilik İletişim sayfasından veya iletisim@harbi.local adresinden bize yazabilirsiniz.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="helpReturn" hidden>
+          <article class="card site-info-card">
+            <h2>Nasıl İade Edebilirim</h2>
+            <p>Teslim aldığınız ürünü iade etmek için siparişlerinize girin, iade talebi oluşturun ve ürünü belirtilen kargo ile gönderin. Onay sonrası tutar iade edilir.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="helpGuide" hidden>
+          <article class="card site-info-card">
+            <h2>İşlem Rehberi</h2>
+            <p>Üye olma, sipariş verme, ödeme ve iade adımları işlem rehberinde anlatılır. Yeni rehberler eklendikçe bu sayfada yayınlanır.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="countrySelect" hidden>
+          <article class="card site-info-card">
+            <h2>Ülke Seç</h2>
+            <p>Harbi tüm dünyadan ziyaretçilere açıktır. Alışveriş ülkesi şu anda Türkiye’dir; diğer ülkeler eklendikçe bu listeden seçilebilir.</p>
+            <p class="site-country-now"><span class="site-tr-flag" aria-hidden="true"></span> Türkiye</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="safeShop" hidden>
+          <article class="card site-info-card">
+            <h2>Güvenli Alışveriş</h2>
+            <p>Harbi’de sipariş ve ödeme adımları güvenli bağlantı üzerinden ilerler. Satıcı ve sipariş bilgileriniz kayıt altında tutulur.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
+        <section class="view" data-view="securityCert" hidden>
+          <article class="card site-info-card">
+            <h2>Güvenlik Sertifikası</h2>
+            <p>Site, güvenli alışveriş için SSL/TLS şifrelemesi kullanır. Adres çubuğundaki kilit işareti bağlantının korunduğunu gösterir.</p>
+            <button class="secondary" data-go="home" type="button">Ana sayfa</button>
+          </article>
+        </section>
       </main>
       <footer class="site-footer">
+        <div class="site-footer-cols">
+          <nav class="site-footer-col" aria-label="Kurumsal">
+            <h2>Harbiyol</h2>
+            <button type="button" data-go="about">Biz Kimiz</button>
+            <button type="button" data-go="career">Kariyer</button>
+            <button type="button" data-go="contact">İletişim</button>
+            <button type="button" data-go="recall">Geri Çağrılan Ürünler</button>
+          </nav>
+          <nav class="site-footer-col" aria-label="Satıcı">
+            <h2>Satıcı</h2>
+            <button type="button" data-go="sellerSell">Harbi'de Satış Yap</button>
+            <button type="button" data-go="sellerBasics">Temel Kavramlar</button>
+            <button type="button" data-go="sellerAcademy">Harbi Akademi</button>
+          </nav>
+          <nav class="site-footer-col" aria-label="Yardım">
+            <h2>Yardım</h2>
+            <button type="button" data-go="helpFaq">Sıkça Sorulan Sorular</button>
+            <button type="button" data-go="helpLive">Canlı Yardım</button>
+            <button type="button" data-go="helpReturn">Nasıl İade Edebilirim</button>
+            <button type="button" data-go="helpGuide">İşlem Rehberi</button>
+          </nav>
+          <nav class="site-footer-col" aria-label="Ülke ve güvenlik">
+            <h2>Ülke Değiştir</h2>
+            <p class="site-footer-country"><span class="site-tr-flag" aria-hidden="true"></span> Türkiye</p>
+            <button type="button" data-go="countrySelect">Ülke Seç</button>
+            <button type="button" data-go="safeShop">Güvenli Alışveriş</button>
+            <button type="button" data-go="securityCert">Güvenlik Sertifikası</button>
+          </nav>
+        </div>
         <p>© 2026 Harbi pazar yeri</p>
       </footer>
         </div>
@@ -1731,6 +1891,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=290"></script>
+    <script src="js/app.js?v=303"></script>
   </body>
 </html>
