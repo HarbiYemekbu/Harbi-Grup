@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <meta name="description" content="Harbi Kurye — teslim edilecek kargolar ve kod ile teslim" />
+    <title>Harbi Kurye — Teslim Ekranı</title>
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/kargo.css" />
+  </head>
+  <body data-page="teslim">
+    <section class="hk-auth" id="tlAuthGate" hidden>
+      <div class="hk-auth-card">
+        <div class="hk-auth-brand">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <h1>Harbi Kurye</h1>
+            <p>Teslim ekranı · giriş Harbi Kargo üzerinden</p>
+          </div>
+        </div>
+        <a class="orange hk-auth-cta" href="kargo.html">Harbi Kargo girişi</a>
+        <a class="hk-auth-back" href="kargo-kurye.html">Harbi Kurye</a>
+      </div>
+    </section>
+
+    <div class="tl-app" id="tlShell" hidden>
+      <header class="tl-top">
+        <div class="tl-brand">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <strong>Harbi Kurye · Teslim ekranı</strong>
+            <small id="tlCourierLabel">Kurye</small>
+          </div>
+        </div>
+        <div class="tl-top-actions">
+          <a href="kargo-kurye.html">Kurye paneli</a>
+          <button type="button" id="tlLogout">Çıkış</button>
+        </div>
+      </header>
+
+      <div class="tl-layout">
+        <section class="tl-board">
+          <header class="tl-board-head">
+            <h1>Teslim edilecek kargolar</h1>
+            <p class="hint">Zimmetteki paketler bu ekranda listelenir. Bir kargo seçip kod ile teslim edin.</p>
+            <div class="tl-stats" id="tlStats"></div>
+          </header>
+          <div class="tl-grid" id="tlDeliverGrid"></div>
+        </section>
+
+        <aside class="tl-side">
+          <article class="tl-panel" id="tlDetailEmpty">
+            <h2>Kargo seçin</h2>
+            <p class="hint">Soldaki listeden bir kargo seçin. Teslim için alıcıdan teslim kodunu alın.</p>
+          </article>
+
+          <article class="tl-panel" id="tlDetail" hidden>
+            <h2>Seçili kargo</h2>
+            <div id="tlDetailBody"></div>
+
+            <form id="tlCodeForm" class="tl-code-form">
+              <label class="field">Teslim kodu
+                <input id="tlCode" inputmode="numeric" maxlength="8" placeholder="Alıcı kodu" autocomplete="off" required />
+              </label>
+              <p class="hint" id="tlCodeHint">Teslim kodu ayarı sonra tanımlanacak. Şimdilik girilen kodla teslim kaydı oluşur.</p>
+              <button class="orange" type="submit" id="tlDeliverBtn">Kod ile teslim et</button>
+              <p class="msg" id="tlCodeMsg"></p>
+            </form>
+
+            <div class="tl-fail-box">
+              <label class="field">Teslim edilemedi
+                <select id="tlFailReason">
+                  <option value="">Neden seçin</option>
+                  <option value="addr_outdated">Adres bilgisi güncel değil</option>
+                  <option value="bad_address">Yanlış / eksik adres</option>
+                  <option value="bad_phone">Telefon numarası güncel değil</option>
+                  <option value="fee_refused">Alıcı kargo ücretini ve kargoyu kabul etmiyor</option>
+                </select>
+              </label>
+              <button class="secondary" type="button" id="tlFailBtn">Teslim edilemedi kaydet</button>
+              <button class="ghost" type="button" id="tlUncustodyBtn">Zimmetten çıkar</button>
+            </div>
+          </article>
+
+          <article class="tl-panel">
+            <h2>Kargo teslim edilemedi</h2>
+            <div id="tlFailedList" class="tl-mini-list"></div>
+          </article>
+        </aside>
+      </div>
+    </div>
+    <script src="js/kargo.js"></script>
+  </body>
+</html>

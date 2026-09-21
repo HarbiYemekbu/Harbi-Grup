@@ -264,6 +264,10 @@ function goCourierApp() {
   location.replace("kargo-kurye.html");
 }
 
+function goTeslimScreen() {
+  location.replace("kargo-teslim.html");
+}
+
 function goBranchApp() {
   location.replace("kargo.html");
 }
@@ -274,30 +278,31 @@ function requireBranchAuth() {
   const branch = currentBranch();
   const courier = currentCourier();
 
-  if (PAGE === "courier") {
+  if (PAGE === "courier" || PAGE === "teslim") {
     if (branch) {
       goBranchApp();
       return null;
     }
+    const gateId = PAGE === "teslim" ? "#tlAuthGate" : "#kyAuthGate";
+    const shellId = PAGE === "teslim" ? "#tlShell" : "#kyShell";
     if (!courier) {
       document.body.classList.add("hk-locked");
-      if ($("#kyAuthGate")) $("#kyAuthGate").hidden = false;
-      if ($("#kyShell")) $("#kyShell").hidden = true;
+      if ($(gateId)) $(gateId).hidden = false;
+      if ($(shellId)) $(shellId).hidden = true;
       return null;
     }
     document.body.classList.remove("hk-locked");
-    if ($("#kyAuthGate")) $("#kyAuthGate").hidden = true;
-    if ($("#kyShell")) $("#kyShell").hidden = false;
+    if ($(gateId)) $(gateId).hidden = true;
+    if ($(shellId)) $(shellId).hidden = false;
     store.set(COURIER_ACTIVE, courier.id);
     const br = branches().find((b) => b.id === courier.branchId);
-    if ($("#kyBranchLabel")) {
-      $("#kyBranchLabel").textContent =
-        courier.name + (br ? " · " + br.branchName : "");
-    }
+    const label = courier.name + (br ? " · " + br.branchName : "");
+    if ($("#kyBranchLabel")) $("#kyBranchLabel").textContent = label;
+    if ($("#tlCourierLabel")) $("#tlCourierLabel").textContent = label;
     return courier;
   }
 
-  if (courier && PAGE !== "nfc") {
+  if (courier && PAGE !== "nfc" && PAGE !== "courier" && PAGE !== "teslim") {
     goCourierApp();
     return null;
   }
@@ -508,14 +513,38 @@ const BUCKETS = [
   { id: "delivered", title: "Teslim Edilen Kargolar" },
   { id: "delivered_unpaid", title: "Teslim Edilen Ücret Tahsil Edilmeyen Kargolar" },
   { id: "delivered_paid", title: "Teslim Edilen Ücret Tahsil Edilen Kargolar" },
-  { id: "bad_address", title: "Adresi Yetersiz Olan Kargolar" },
-  { id: "bad_phone", title: "Telefon Yanlış Olan Kargolar" },
-  { id: "fee_refused", title: "Kargo ve Ürün Ücreti Kabul Edilmeyen Kargolar" },
+  { id: "not_home", title: "Adreste Yok" },
+  { id: "bad_address", title: "Yanlış Adres / Adresi Yetersiz" },
+  { id: "bad_phone", title: "Telefon No Güncel Değil" },
+  { id: "fee_refused", title: "Alıcı Ücret ve Kargoyu Kabul Etmiyor" },
+  { id: "abuse", title: "Hakaret Etti" },
   { id: "return", title: "İade Kargolar" },
   { id: "pickup", title: "Adresten Alım Kargolar" },
 ];
 const BUCKET_IDS = new Set(BUCKETS.map((b) => b.id));
-const BUCKET_SEED = "hk-buckets-v2";
+const BUCKET_SEED = "hk-buckets-v3";
+
+const KY_FAIL_REASONS = [
+  { id: "addr_outdated", label: "Adres bilgisi güncel değil" },
+  { id: "bad_address", label: "Yanlış / eksik adres" },
+  { id: "bad_phone", label: "Telefon numarası güncel değil" },
+  { id: "fee_refused", label: "Alıcı kargo ücretini ve kargoyu kabul etmiyor" },
+];
+const KY_FAIL_IDS = new Set(KY_FAIL_REASONS.map((r) => r.id));
+
+function failReasonLabel(id) {
+  return KY_FAIL_REASONS.find((r) => r.id === id)?.label || kindLabel(id);
+}
+
+function kyFailReasonOptions(selected) {
+  return (
+    '<option value="">Neden seçin</option>' +
+    KY_FAIL_REASONS.map(
+      (r) =>
+        `<option value="${r.id}"${selected === r.id ? " selected" : ""}>${r.label}</option>`
+    ).join("")
+  );
+}
 
 function kindOf(s) {
   if (BUCKET_IDS.has(s.kind)) return s.kind;
@@ -1809,152 +1838,860 @@ function renderCourierBadge() {
     c.username;
 }
 
-function courierShipCard(s, mode) {
-  const key = shipKey(s);
-  const code = sendCodeOf(s);
-  const phone = s.phone || "";
-  const addr = s.address || "";
-  const maps = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addr);
-  const tel = phone ? "tel:" + phone.replace(/\s/g, "") : "";
-  let actions = "";
-  if (mode === "pool") {
-    actions = `<button type="button" class="orange" data-ky-claim="${key}">Üstlen</button>`;
-  } else if (mode === "route") {
-    actions = `<div class="ky-actions">
-      <button type="button" class="orange" data-ky-act="delivered" data-key="${key}">Teslim</button>
-      <button type="button" class="secondary" data-ky-act="delivered_paid" data-key="${key}">Ücretli teslim</button>
-      <button type="button" class="ghost" data-ky-act="delivered_unpaid" data-key="${key}">Ücretsiz teslim</button>
-      <button type="button" class="ghost" data-ky-act="bad_address" data-key="${key}">Adres hatalı</button>
-      <button type="button" class="ghost" data-ky-act="bad_phone" data-key="${key}">Tel hatalı</button>
-      <button type="button" class="ghost" data-ky-act="fee_refused" data-key="${key}">Ücret red</button>
-      <a class="mob-link" href="kargo-nfc.html?track=${code}&note=${encodeURIComponent("Kapıda tahsilat " + code)}&checkout=1">POS</a>
-    </div>`;
-  }
-  return `<div class="mob-item ky-card"><div>
-    <strong>${code} · ${s.receiver || "Alıcı"}</strong>
-    <div class="meta">${kindLabel(kindOf(s))}<br>${addr}<br>${phone}</div>
-    <div class="ky-quick">
-      ${tel ? `<a href="${tel}">Ara</a>` : ""}
-      ${addr ? `<a href="${maps}" target="_blank" rel="noopener">Harita</a>` : ""}
-    </div>
-    ${actions}
-  </div></div>`;
+const KY_ROUTE = "hk-courier-route";
+const KY_CUSTODY = "hk-courier-custody";
+const KY_DELIVERED = "hk-courier-delivered";
+const KY_FAILED = "hk-courier-failed";
+const KY_DELIVERY_LOG = "hk-courier-delivery-log";
+const KY_DEPOT = { lat: 41.0602, lng: 28.9497, name: "Harbi Merkez" };
+const KY_PAY_NORMAL = 25;
+const KY_PAY_CODE_EXTRA = 5;
+
+const KY_SYMBOLIC_ZIMMET = [
+  { code: "4801", receiver: "Ayşe Demir", address: "Kadıköy Caferağa Mah. No:12", phone: "0532 111 22 01", lat: 40.9901, lng: 29.0292, teslimCode: "1804" },
+  { code: "4802", receiver: "Mehmet Kara", address: "Üsküdar Altunizade Cad. 45", phone: "0532 111 22 02", lat: 41.0214, lng: 29.0394, teslimCode: "2084" },
+  { code: "4803", receiver: "Elif Yılmaz", address: "Beşiktaş Levent Mah. 8", phone: "0532 111 22 03", lat: 41.0815, lng: 29.0116, teslimCode: "3084" },
+  { code: "4804", receiver: "Can Öztürk", address: "Şişli Nişantaşı Sok. 3", phone: "0532 111 22 04", lat: 41.0485, lng: 28.9942, teslimCode: "4084" },
+  { code: "4805", receiver: "Zeynep Aydın", address: "Bakırköy Ataköy 7-8. Kısım", phone: "0532 111 22 05", lat: 40.9794, lng: 28.8558, teslimCode: "5084" },
+  { code: "4806", receiver: "Burak Şen", address: "Maltepe Bağlarbaşı Cad. 19", phone: "0532 111 22 06", lat: 40.9352, lng: 29.1312, teslimCode: "6084" },
+  { code: "4807", receiver: "Selin Ak", address: "Kartal Soğanlık Mah. 22", phone: "0532 111 22 07", lat: 40.9112, lng: 29.1894, teslimCode: "7084" },
+  { code: "4808", receiver: "Hakan Öz", address: "Pendik Kaynarca Mah. 14", phone: "0532 111 22 08", lat: 40.8776, lng: 29.2331, teslimCode: "8084" },
+  { code: "4809", receiver: "Ece Kaya", address: "Ataşehir Barbaros Mah. 6", phone: "0532 111 22 09", lat: 40.9833, lng: 29.1167, teslimCode: "9084" },
+  { code: "4810", receiver: "Emre Çelik", address: "Beylikdüzü Cumhuriyet Cad. 31", phone: "0532 111 22 10", lat: 41.0022, lng: 28.6414, teslimCode: "0184" },
+  { code: "4811", receiver: "Deniz Arslan", address: "Sarıyer İstinye Mah. 9", phone: "0532 111 22 11", lat: 41.1136, lng: 29.0503, teslimCode: "1184" },
+  { code: "4812", receiver: "Gülşen Tekin", address: "Fatih Aksaray Cad. 17", phone: "0532 111 22 12", lat: 41.0106, lng: 28.9525, teslimCode: "2184" },
+];
+
+let kyRouteMode = "auto";
+let kyRouteOrder = [];
+let kyDeliverOpen = "";
+
+function kyCustodyList() {
+  return store.get(KY_CUSTODY, null);
 }
 
-function refreshCourierLists() {
-  const c = activeCourier();
-  const pool = ships().filter((s) => {
-    const k = kindOf(s);
-    return (k === "custody" || k === "dist" || k === "pickup") && !s.courierId;
+function kyCustodySet() {
+  const saved = kyCustodyList();
+  if (Array.isArray(saved)) return new Set(saved);
+  return new Set();
+}
+
+function kySaveCustody(codes) {
+  store.set(KY_CUSTODY, codes.slice());
+}
+
+function kyZimmetAl(code) {
+  const done = kyDeliveredSet();
+  if (done.has(code)) return false;
+  const set = kyCustodySet();
+  set.add(code);
+  const codes = [...set];
+  kySaveCustody(codes);
+  if (!kyRouteOrder.includes(code)) kyRouteOrder.push(code);
+  kySaveRoute();
+  return true;
+}
+
+function kyZimmetBirak(code) {
+  const set = kyCustodySet();
+  set.delete(code);
+  kySaveCustody([...set]);
+  kyRouteOrder = kyRouteOrder.filter((c) => c !== code);
+  if (kyDeliverOpen === code) kyDeliverOpen = "";
+  kySaveRoute();
+  return true;
+}
+
+function kyPoolRows() {
+  const done = kyDeliveredSet();
+  const failed = kyFailedCodes();
+  const custody = kyCustodySet();
+  return KY_SYMBOLIC_ZIMMET.filter(
+    (r) => !done.has(r.code) && !failed.has(r.code) && !custody.has(r.code)
+  );
+}
+
+function kyDeliveredSet() {
+  return new Set(store.get(KY_DELIVERED, []));
+}
+
+function kyDeliveryLog() {
+  return store.get(KY_DELIVERY_LOG, []);
+}
+
+function kyPayFor(method) {
+  return method === "code" ? KY_PAY_NORMAL + KY_PAY_CODE_EXTRA : KY_PAY_NORMAL;
+}
+
+function kyMarkDeliveredSymbolic(code, opts) {
+  const method = opts.method === "code" ? "code" : "normal";
+  const pay = kyPayFor(method);
+  const list = store.get(KY_DELIVERED, []);
+  if (!list.includes(code)) list.unshift(code);
+  store.set(KY_DELIVERED, list.slice(0, 80));
+  const custody = kyCustodySet();
+  custody.delete(code);
+  kySaveCustody([...custody]);
+  kyRouteOrder = kyRouteOrder.filter((c) => c !== code);
+  const log = kyDeliveryLog();
+  log.unshift({
+    code,
+    method,
+    entered: opts.entered || "",
+    pay,
+    payLabel: method === "code" ? "Kod ile · +" + KY_PAY_CODE_EXTRA + " ₺ fark" : "Normal ödeme",
+    at: new Date().toISOString(),
   });
-  const route = c
-    ? ships().filter((s) => s.courierId === c.id && (kindOf(s) === "dist" || kindOf(s) === "custody" || kindOf(s) === "pickup"))
-    : [];
-  const done = c
-    ? ships().filter(
-        (s) =>
-          s.courierId === c.id &&
-          ["delivered", "delivered_paid", "delivered_unpaid", "bad_address", "bad_phone", "fee_refused"].includes(kindOf(s))
-      )
-    : [];
-  const poolBox = $("#kyPoolList");
-  const routeBox = $("#kyRouteList");
-  const doneBox = $("#kyDoneList");
-  if (poolBox) poolBox.innerHTML = pool.length ? pool.map((s) => courierShipCard(s, "pool")).join("") : '<p class="hint">Havuzda paket yok.</p>';
-  if (routeBox) {
-    routeBox.innerHTML = !c
-      ? '<p class="hint">Giriş gerekli.</p>'
-      : route.length
-        ? route.map((s) => courierShipCard(s, "route")).join("")
-        : '<p class="hint">Rotada paket yok. Havuzdan üstlenin.</p>';
+  store.set(KY_DELIVERY_LOG, log.slice(0, 80));
+  return { method, pay };
+}
+
+function kyFailedLog() {
+  return store.get(KY_FAILED, []);
+}
+
+function kyFailedCodes() {
+  return new Set(kyFailedLog().map((r) => r.code));
+}
+
+function kyMarkFailedSymbolic(code, reasonId) {
+  if (!KY_FAIL_IDS.has(reasonId)) return null;
+  const custody = kyCustodySet();
+  custody.delete(code);
+  kySaveCustody([...custody]);
+  kyRouteOrder = kyRouteOrder.filter((c) => c !== code);
+  if (kyDeliverOpen === code) kyDeliverOpen = "";
+  const log = kyFailedLog().filter((r) => r.code !== code);
+  log.unshift({
+    code,
+    reason: reasonId,
+    reasonLabel: failReasonLabel(reasonId),
+    at: new Date().toISOString(),
+  });
+  store.set(KY_FAILED, log.slice(0, 80));
+  return { reason: reasonId, reasonLabel: failReasonLabel(reasonId) };
+}
+
+function renderKyFailedList() {
+  const box = $("#kyFailedList");
+  if (!box) return;
+  const rows = kyFailedLog();
+  if (!rows.length) {
+    box.innerHTML = '<p class="hint">Henüz teslim edilemeyen kargo yok.</p>';
+    return;
   }
-  if (doneBox) {
-    doneBox.innerHTML = done.length
-      ? done
-          .slice(0, 20)
-          .map((s) => courierShipCard(s, "done"))
-          .join("")
-      : '<p class="hint">Teslim kaydı yok.</p>';
+  box.innerHTML = rows
+    .slice(0, 30)
+    .map((r) => {
+      return `<div class="ky-fail-row">
+        <strong>${r.code}</strong>
+        <span>${r.reasonLabel || failReasonLabel(r.reason)}</span>
+      </div>`;
+    })
+    .join("");
+}
+
+function kyCodeDeliverCount() {
+  return kyDeliveryLog().filter((r) => r.method === "code").length;
+}
+
+function kyNormalDeliverCount() {
+  return kyDeliveryLog().filter((r) => r.method === "normal").length;
+}
+
+function kyPayTotals() {
+  return kyDeliveryLog().reduce(
+    (acc, r) => {
+      const pay = Number(r.pay) || kyPayFor(r.method);
+      acc.total += pay;
+      if (r.method === "code") acc.codePay += pay;
+      else acc.normalPay += pay;
+      return acc;
+    },
+    { total: 0, codePay: 0, normalPay: 0 }
+  );
+}
+
+function renderKyPaySummary() {
+  const stats = $("#kyPayStats");
+  const list = $("#kyCodeDeliveredList");
+  if (!stats) return;
+  const codeN = kyCodeDeliverCount();
+  const normalN = kyNormalDeliverCount();
+  const pays = kyPayTotals();
+  stats.innerHTML = `
+    <div class="ky-stat on"><b>${codeN}</b><span>Kod ile teslim</span><small>${KY_PAY_NORMAL + KY_PAY_CODE_EXTRA} ₺ / kargo (+${KY_PAY_CODE_EXTRA} ₺ fark)</small></div>
+    <div class="ky-stat"><b>${normalN}</b><span>Normal teslim</span><small>${KY_PAY_NORMAL} ₺ / kargo</small></div>
+    <div class="ky-stat"><b>${pays.total.toLocaleString("tr-TR")} ₺</b><span>Toplam kurye ödemesi</span><small>Kod: ${pays.codePay.toLocaleString("tr-TR")} ₺ · Normal: ${pays.normalPay.toLocaleString("tr-TR")} ₺</small></div>`;
+  if (!list) return;
+  const codeRows = kyDeliveryLog().filter((r) => r.method === "code");
+  list.innerHTML = codeRows.length
+    ? codeRows
+        .slice(0, 20)
+        .map((r) => {
+          return `<div class="ky-code-row"><strong>${r.code}</strong><span>+${KY_PAY_CODE_EXTRA} ₺ fark · ${r.pay} ₺</span></div>`;
+        })
+        .join("")
+    : '<p class="hint">Henüz kod ile teslim yok.</p>';
+}
+
+function kyRouteState() {
+  return store.get(KY_ROUTE, { mode: "auto", order: KY_SYMBOLIC_ZIMMET.map((r) => r.code) });
+}
+
+function kySaveRoute() {
+  store.set(KY_ROUTE, { mode: kyRouteMode, order: kyRouteOrder.slice() });
+}
+
+function kyDistKm(a, b) {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const la1 = (a.lat * Math.PI) / 180;
+  const la2 = (b.lat * Math.PI) / 180;
+  const x =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function kyAutoRouteOrder(items) {
+  const left = items.slice();
+  const ordered = [];
+  let cur = KY_DEPOT;
+  while (left.length) {
+    let best = 0;
+    let bestD = Infinity;
+    left.forEach((row, i) => {
+      const d = kyDistKm(cur, row);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    const next = left.splice(best, 1)[0];
+    ordered.push(next.code);
+    cur = next;
   }
-  if ($("#kyRouteHint") && c) {
-    $("#kyRouteHint").textContent = "Havuzdan paket üstlenin · rota ve teslim burada";
+  return ordered;
+}
+
+function kyRouteKm(order) {
+  const byCode = Object.fromEntries(KY_SYMBOLIC_ZIMMET.map((r) => [r.code, r]));
+  let cur = KY_DEPOT;
+  let total = 0;
+  order.forEach((code) => {
+    const row = byCode[code];
+    if (!row) return;
+    total += kyDistKm(cur, row);
+    cur = row;
+  });
+  return total;
+}
+
+function kyOrderedRows() {
+  const done = kyDeliveredSet();
+  const failed = kyFailedCodes();
+  const custody = kyCustodySet();
+  const byCode = Object.fromEntries(KY_SYMBOLIC_ZIMMET.map((r) => [r.code, r]));
+  const seen = new Set();
+  const rows = [];
+  kyRouteOrder.forEach((code) => {
+    if (byCode[code] && custody.has(code) && !seen.has(code) && !done.has(code) && !failed.has(code)) {
+      rows.push(byCode[code]);
+      seen.add(code);
+    }
+  });
+  KY_SYMBOLIC_ZIMMET.forEach((r) => {
+    if (custody.has(r.code) && !seen.has(r.code) && !done.has(r.code) && !failed.has(r.code)) rows.push(r);
+  });
+  return rows;
+}
+
+function setKyRouteMsg(text, ok) {
+  const msg = $("#kyRouteMsg");
+  if (!msg) return;
+  msg.className = "msg " + (ok ? "ok" : "err");
+  msg.textContent = text || "";
+}
+
+function kyTelHref(phone) {
+  const d = String(phone || "").replace(/\D/g, "");
+  if (!d) return "";
+  const n = d.startsWith("90") ? d : d.startsWith("0") ? "90" + d.slice(1) : "90" + d;
+  return "tel:+" + n;
+}
+
+function kyMatchCodeFromScan(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  const known = KY_SYMBOLIC_ZIMMET.map((r) => r.code);
+  for (const c of known) {
+    if (digits === c || digits.endsWith(c) || digits.includes(c)) return c;
   }
-  renderCourierBadge();
+  if (digits.length >= 4) {
+    const four = digits.slice(-4);
+    if (known.includes(four)) return four;
+  }
+  return digits.slice(0, 8);
+}
+
+function kyFindSymbolic(code) {
+  return KY_SYMBOLIC_ZIMMET.find((r) => r.code === code) || null;
+}
+
+function setKyTab(name) {
+  $$(".ky-tab").forEach((b) => b.classList.toggle("on", b.dataset.kyTab === name));
+  $$("[data-ky-panel]").forEach((p) => {
+    const on = p.dataset.kyPanel === name;
+    p.classList.toggle("on", on);
+    p.hidden = !on;
+  });
+  if (name !== "scan") stopKyCam();
+}
+
+function setKyScanMode(mode) {
+  kyScanMode = mode === "teslim" ? "teslim" : "zimmet";
+  $$(".ky-scan-mode").forEach((b) => b.classList.toggle("on", b.dataset.scanMode === kyScanMode));
+  const msg = $("#kyCamMsg");
+  if (msg && !msg.textContent) {
+    msg.className = "msg";
+    msg.textContent =
+      kyScanMode === "teslim"
+        ? "Teslim için barkodu okutun · ardından müşteriyi arayıp kodu alın."
+        : "Zimmete almak için barkodu okutun.";
+  }
+}
+
+function setKyCamMsg(text, ok) {
+  const msg = $("#kyCamMsg");
+  if (!msg) return;
+  msg.className = "msg " + (ok ? "ok" : "err");
+  msg.textContent = text || "";
+}
+
+let kyCamStream = null;
+let kyScanTimer = null;
+let kyScanMode = "zimmet";
+let kyLastScanAt = 0;
+let kyLastScanCode = "";
+
+async function stopKyCam() {
+  if (kyScanTimer) {
+    clearInterval(kyScanTimer);
+    kyScanTimer = null;
+  }
+  kyCamStream?.getTracks()?.forEach((t) => t.stop());
+  kyCamStream = null;
+  const v = $("#kyCamVideo");
+  if (v) v.srcObject = null;
+  if ($("#kyCamStop")) $("#kyCamStop").disabled = true;
+}
+
+async function startKyCam() {
+  try {
+    await stopKyCam();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setKyCamMsg("Bu tarayıcı kamerayı desteklemiyor.", false);
+      return;
+    }
+    kyCamStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+    const v = $("#kyCamVideo");
+    v.srcObject = kyCamStream;
+    await v.play();
+    if ($("#kyCamStop")) $("#kyCamStop").disabled = false;
+    setKyCamMsg("Kamera açık · barkodu çerçeveye tutun.", true);
+    if ("BarcodeDetector" in window) {
+      const detector = new BarcodeDetector({ formats: ["qr_code", "ean_13", "code_128", "code_39"] });
+      kyScanTimer = setInterval(async () => {
+        try {
+          if (!v.videoWidth) return;
+          const codes = await detector.detect(v);
+          if (!codes?.length) return;
+          const code = kyMatchCodeFromScan(codes[0].rawValue);
+          if (code) kyHandleScannedCode(code);
+        } catch {
+          /* frame ignore */
+        }
+      }, 650);
+    } else {
+      setKyCamMsg("Otomatik barkod yok · kodu elle yazın.", true);
+    }
+  } catch (err) {
+    setKyCamMsg("Kamera açılamadı: " + (err.message || err), false);
+  }
+}
+
+function kyRefreshAutoRoute() {
+  kyRouteMode = "auto";
+  kyRouteOrder = kyAutoRouteOrder(kyOrderedRows());
+  kySaveRoute();
+}
+
+function kyHandleScannedCode(code) {
+  const now = Date.now();
+  if (kyLastScanCode === code && now - kyLastScanAt < 1800) return;
+  kyLastScanCode = code;
+  kyLastScanAt = now;
+  if ($("#kyManualCode")) $("#kyManualCode").value = code;
+
+  const row = kyFindSymbolic(code);
+  if (!row) {
+    setKyCamMsg("Bilinmeyen barkod: " + code, false);
+    setKyRouteMsg("Bilinmeyen barkod: " + code, false);
+    return;
+  }
+
+  if (kyScanMode === "zimmet") {
+    if (kyDeliveredSet().has(code)) {
+      setKyCamMsg(code + " zaten teslim edilmiş.", false);
+      return;
+    }
+    if (kyFailedCodes().has(code)) {
+      setKyCamMsg(code + " teslim edilemedi listesinde.", false);
+      return;
+    }
+    if (kyCustodySet().has(code)) {
+      setKyCamMsg(code + " zaten zimmette.", true);
+      return;
+    }
+    kyZimmetAl(code);
+    kyRefreshAutoRoute();
+    renderSymbolicZimmet();
+    setKyCamMsg(code + " zimmete alındı · rota güncellendi.", true);
+    setKyRouteMsg(code + " zimmete alındı · " + kyOrderedRows().length + " durak", true);
+    return;
+  }
+
+  if (!kyCustodySet().has(code)) {
+    setKyCamMsg(code + " zimmetinizde değil · önce zimmete alın.", false);
+    return;
+  }
+  kyDeliverOpen = code;
+  setKyTab("route");
+  renderSymbolicZimmet();
+  setKyCamMsg(code + " teslim için açıldı · müşteriyi arayıp kodu alın.", true);
+  setKyRouteMsg(code + " · müşteriyi arayın, teslim kodunu girin", true);
+}
+
+function renderSymbolicZimmet() {
+  const box = $("#kyZimmetList");
+  if (!box) return;
+  const rows = kyOrderedRows();
+  const meta = $("#kyRouteMeta");
+  if (meta) {
+    const km = kyRouteKm(kyRouteOrder);
+    meta.textContent = rows.length + " durak · ~" + km.toFixed(1) + " km";
+  }
+  if (!rows.length) {
+    box.innerHTML =
+      '<p class="hint">Zimmet boş. Barkod sekmesinden kargo okutarak zimmete alın.</p>';
+  } else {
+    box.innerHTML = rows
+      .map((row, i) => {
+        const open = kyDeliverOpen === row.code;
+        const tel = kyTelHref(row.phone);
+        const deliverPanel = open
+          ? `<div class="ky-inline-deliver">
+              <label class="field">Teslim kodu (müşteriden)
+                <input data-ky-code-input="${row.code}" inputmode="numeric" maxlength="8" placeholder="Alıcı kodu" autocomplete="off" />
+              </label>
+              <button type="button" class="orange" data-ky-confirm-code="${row.code}">Kod ile teslim et (+${KY_PAY_CODE_EXTRA} ₺)</button>
+              <div class="ky-fail-inline">
+                <label class="field">Teslim edilemedi
+                  <select data-ky-fail-reason="${row.code}">${kyFailReasonOptions()}</select>
+                </label>
+                <button type="button" class="secondary" data-ky-fail="${row.code}">Teslim edilemedi kaydet</button>
+              </div>
+              <button type="button" class="ghost" data-ky-cancel="${row.code}">Vazgeç</button>
+            </div>`
+          : "";
+        return `<article class="ky-zimmet-item${open ? " open" : ""}" data-ky-code="${row.code}">
+      <div class="ky-zimmet-num">${i + 1}</div>
+      <div class="ky-zimmet-body">
+        <strong>${row.code}</strong>
+        ${deliverPanel}
+      </div>
+      <div class="ky-zimmet-side">
+        ${tel ? `<a class="ky-side-call" href="${tel}">Müşteri ara</a>` : ""}
+        <button type="button" class="ky-side-deliver" data-ky-deliver="${row.code}">${open ? "Kapat" : "Teslim et"}</button>
+        <button type="button" class="ky-side-birak" data-ky-birak="${row.code}">Zimmet Bırak</button>
+      </div>
+    </article>`;
+      })
+      .join("");
+  }
+  if (kyDeliverOpen) {
+    document.querySelector(`[data-ky-code-input="${kyDeliverOpen}"]`)?.focus();
+  }
+  renderKyPaySummary();
+  renderKyFailedList();
 }
 
 (function initCourierPage() {
   if (PAGE !== "courier") return;
   const user = requireBranchAuth();
   if (!user) return;
-  seedDemo();
-  refreshCourierLists();
+
+  kyRouteMode = "auto";
+  if (kyCustodyList() === null) {
+    kySaveCustody([]);
+    kyRouteOrder = [];
+  } else {
+    const custody = [...kyCustodySet()];
+    const saved = kyRouteState();
+    if (Array.isArray(saved.order) && saved.order.length) {
+      kyRouteOrder = saved.order.filter((c) => custody.includes(c));
+      custody.forEach((c) => {
+        if (!kyRouteOrder.includes(c)) kyRouteOrder.push(c);
+      });
+    }
+    kyRefreshAutoRoute();
+  }
+
+  setKyTab("route");
+  setKyScanMode("zimmet");
+  renderSymbolicZimmet();
+  setKyRouteMsg(
+    "Barkod ile zimmet alın · rota otomatik · müşteriyi arayıp kod ile teslim edin",
+    true
+  );
 
   $("#kyLogout")?.addEventListener("click", () => {
+    stopKyCam();
     clearSession();
     location.href = "kargo.html";
   });
 
-  $("#kyPoolList")?.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-ky-claim]");
-    if (!btn) return;
-    const c = activeCourier();
-    if (!c) return;
-    patchShip(btn.getAttribute("data-ky-claim"), {
-      courierId: c.id,
-      courierName: c.name,
-      kind: "dist",
-      status: "dist",
+  $$(".ky-tab").forEach((btn) => {
+    btn.addEventListener("click", () => setKyTab(btn.dataset.kyTab));
+  });
+
+  $$(".ky-scan-mode").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setKyScanMode(btn.dataset.scanMode);
+      setKyCamMsg(
+        kyScanMode === "teslim"
+          ? "Teslim için barkodu okutun."
+          : "Zimmete almak için barkodu okutun.",
+        true
+      );
     });
-    refreshCourierLists();
   });
 
-  $("#kyRouteList")?.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-ky-act]");
-    if (!btn) return;
-    const act = btn.getAttribute("data-ky-act");
-    const key = btn.getAttribute("data-key");
-    patchShip(key, { kind: act, status: act, deliveredAt: new Date().toISOString() });
-    refreshCourierLists();
+  $("#kyCamStart")?.addEventListener("click", () => startKyCam());
+  $("#kyCamStop")?.addEventListener("click", () => {
+    stopKyCam();
+    setKyCamMsg("Kamera durduruldu.", true);
   });
 
-  $("#kyPayIban")?.addEventListener("input", (e) => {
-    e.target.value = ibanFormat(e.target.value);
+  $("#kyManualApply")?.addEventListener("click", () => {
+    const code = kyMatchCodeFromScan($("#kyManualCode")?.value || "");
+    if (!code) {
+      setKyCamMsg("Kod yazın.", false);
+      return;
+    }
+    kyHandleScannedCode(code);
   });
 
-  $("#kyPayForm")?.addEventListener("submit", (e) => {
+  $("#kyManualCode")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
     e.preventDefault();
-    const msg = $("#kyPayMsg");
-    const amount = Number($("#kyPayAmount").value);
-    const track = String($("#kyPayTrack").value || "").replace(/\D/g, "").slice(0, 4);
-    const iban = ibanRaw($("#kyPayIban").value);
+    $("#kyManualApply")?.click();
+  });
+
+  $("#kyZimmetList")?.addEventListener("click", (e) => {
+    const birak = e.target.closest("[data-ky-birak]");
+    if (birak) {
+      const code = birak.getAttribute("data-ky-birak");
+      kyZimmetBirak(code);
+      kyRefreshAutoRoute();
+      renderSymbolicZimmet();
+      setKyRouteMsg(code + " zimmet bırakıldı", true);
+      return;
+    }
+
+    const deliverBtn = e.target.closest("[data-ky-deliver]");
+    if (deliverBtn) {
+      const code = deliverBtn.getAttribute("data-ky-deliver");
+      kyDeliverOpen = kyDeliverOpen === code ? "" : code;
+      renderSymbolicZimmet();
+      return;
+    }
+
+    const cancelBtn = e.target.closest("[data-ky-cancel]");
+    if (cancelBtn) {
+      kyDeliverOpen = "";
+      renderSymbolicZimmet();
+      return;
+    }
+
+    const confirmCode = e.target.closest("[data-ky-confirm-code]");
+    if (confirmCode) {
+      const code = confirmCode.getAttribute("data-ky-confirm-code");
+      const row = kyFindSymbolic(code);
+      const input = document.querySelector(`[data-ky-code-input="${code}"]`);
+      const entered = String(input?.value || "").replace(/\s/g, "");
+      if (!entered) {
+        setKyRouteMsg("Müşteriyi arayıp teslim kodunu alın.", false);
+        return;
+      }
+      const expected = String(row?.teslimCode || "");
+      if (expected && entered !== expected) {
+        setKyRouteMsg("Teslim kodu hatalı · doğru kişiye ait değil.", false);
+        return;
+      }
+      const res = kyMarkDeliveredSymbolic(code, { method: "code", entered });
+      kyDeliverOpen = "";
+      kyRefreshAutoRoute();
+      renderSymbolicZimmet();
+      setKyRouteMsg(code + " kod ile teslim · " + res.pay + " ₺", true);
+      return;
+    }
+
+    const failBtn = e.target.closest("[data-ky-fail]");
+    if (failBtn) {
+      const code = failBtn.getAttribute("data-ky-fail");
+      const reason = document.querySelector(`[data-ky-fail-reason="${code}"]`)?.value || "";
+      if (!KY_FAIL_IDS.has(reason)) {
+        setKyRouteMsg("Teslim edilemedi nedeni seçin.", false);
+        return;
+      }
+      const res = kyMarkFailedSymbolic(code, reason);
+      kyRefreshAutoRoute();
+      renderSymbolicZimmet();
+      setKyRouteMsg(code + " teslim edilemedi · " + res.reasonLabel, true);
+    }
+  });
+
+  window.addEventListener("pagehide", () => stopKyCam());
+})();
+
+function teslimCodeOf(s) {
+  return String(s?.teslimCode || s?.deliveryCode || "").replace(/\s/g, "");
+}
+
+/** Teslim kodu doğrulama — gerçek üretim/SMS ayarı sonra bağlanacak. */
+function verifyTeslimCode(ship, entered) {
+  const code = String(entered || "").replace(/\s/g, "");
+  if (!code) return { ok: false, error: "Teslim kodunu yazın." };
+  const expected = teslimCodeOf(ship);
+  if (!expected) {
+    return { ok: true, mode: "pending-setup", code };
+  }
+  if (expected !== code) {
+    return { ok: false, error: "Teslim kodu hatalı." };
+  }
+  return { ok: true, mode: "matched", code };
+}
+
+function courierDeliverableShips(c) {
+  if (!c) return [];
+  return ships().filter((s) => {
+    const k = kindOf(s);
+    return s.courierId === c.id && (k === "custody" || k === "dist" || k === "pickup");
+  });
+}
+
+function courierFailedShips(c) {
+  if (!c) return [];
+  return ships().filter((s) => s.courierId === c.id && KY_FAIL_IDS.has(kindOf(s)));
+}
+
+let tlSelectedKey = "";
+
+function renderTeslimScreen() {
+  const c = activeCourier();
+  const list = courierDeliverableShips(c);
+  const failed = courierFailedShips(c);
+  const grid = $("#tlDeliverGrid");
+  const stats = $("#tlStats");
+  if (stats) {
+    stats.innerHTML =
+      `<span><b>${list.length}</b> teslim edilecek</span>` +
+      `<span><b>${failed.length}</b> teslim edilemedi</span>`;
+  }
+  if (grid) {
+    if (!list.length) {
+      grid.innerHTML = '<p class="hint">Zimmette teslim edilecek kargo yok. <a href="kargo-kurye.html">Kurye paneli</a>nden zimmete alın.</p>';
+    } else {
+      grid.innerHTML = list
+        .map((s) => {
+          const key = shipKey(s);
+          const on = key === tlSelectedKey ? " on" : "";
+          const phone = s.phone || "";
+          const addr = s.address || "";
+          return `<button type="button" class="tl-card${on}" data-tl-pick="${key}">
+            <strong>${sendCodeOf(s)} · ${s.receiver || "Alıcı"}</strong>
+            <span class="meta">${kindLabel(kindOf(s))}<br>${addr}<br>${phone}</span>
+          </button>`;
+        })
+        .join("");
+    }
+  }
+  const failBox = $("#tlFailedList");
+  if (failBox) {
+    failBox.innerHTML = failed.length
+      ? failed
+          .map(
+            (s) =>
+              `<div class="tl-mini"><strong>${sendCodeOf(s)} · ${s.receiver || ""}</strong><span>${failReasonLabel(s.failReason || kindOf(s))}</span></div>`
+          )
+          .join("")
+      : '<p class="hint">Kayıt yok.</p>';
+  }
+  renderTeslimDetail();
+}
+
+function renderTeslimDetail() {
+  const empty = $("#tlDetailEmpty");
+  const panel = $("#tlDetail");
+  if (!tlSelectedKey) {
+    if (empty) empty.hidden = false;
+    if (panel) panel.hidden = true;
+    return;
+  }
+  const s = ships().find((x) => shipKey(x) === tlSelectedKey);
+  if (!s) {
+    tlSelectedKey = "";
+    if (empty) empty.hidden = false;
+    if (panel) panel.hidden = true;
+    return;
+  }
+  if (empty) empty.hidden = true;
+  if (panel) panel.hidden = false;
+  const phone = s.phone || "";
+  const addr = s.address || "";
+  const expected = teslimCodeOf(s);
+  $("#tlDetailBody").innerHTML = `
+    <div class="tl-detail-row"><span>Gönderim kodu</span><b>${sendCodeOf(s)}</b></div>
+    <div class="tl-detail-row"><span>Alıcı</span><b>${s.receiver || "-"}</b></div>
+    <div class="tl-detail-row"><span>Telefon</span><b>${phone || "-"}</b></div>
+    <div class="tl-detail-row"><span>Adres</span><b>${addr || "-"}</b></div>
+    <div class="tl-detail-row"><span>Durum</span><b>${kindLabel(kindOf(s))}</b></div>
+    <div class="ky-quick" style="margin-top:8px">
+      ${phone ? `<a href="tel:${phone.replace(/\s/g, "")}">Ara</a>` : ""}
+      ${addr ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener">Harita</a>` : ""}
+      <a href="kargo-nfc.html?track=${sendCodeOf(s)}&checkout=1">POS</a>
+    </div>`;
+  if ($("#tlCodeHint")) {
+    $("#tlCodeHint").textContent = expected
+      ? "Alıcının teslim kodunu girin ve onaylayın."
+      : "Teslim kodu üretimi sonra ayarlanacak. Şimdilik girilen kodla teslim kaydı oluşur.";
+  }
+  if ($("#tlCodeMsg")) $("#tlCodeMsg").textContent = "";
+  if ($("#tlCode")) $("#tlCode").value = "";
+}
+
+(function initTeslimPage() {
+  if (PAGE !== "teslim") return;
+  const user = requireBranchAuth();
+  if (!user) return;
+  seedDemo();
+  const saved = store.get("hk-teslim-pick", "");
+  if (saved && ships().some((s) => shipKey(s) === saved)) tlSelectedKey = saved;
+  store.set("hk-teslim-pick", null);
+  renderTeslimScreen();
+
+  $("#tlLogout")?.addEventListener("click", () => {
+    clearSession();
+    location.href = "kargo.html";
+  });
+
+  $("#tlDeliverGrid")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-tl-pick]");
+    if (!btn) return;
+    tlSelectedKey = btn.getAttribute("data-tl-pick");
+    renderTeslimScreen();
+    $("#tlCode")?.focus();
+  });
+
+  $("#tlCodeForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("#tlCodeMsg");
+    if (!tlSelectedKey) {
+      msg.className = "msg err";
+      msg.textContent = "Önce bir kargo seçin.";
+      return;
+    }
+    const ship = ships().find((s) => shipKey(s) === tlSelectedKey);
+    if (!ship) return;
+    const check = verifyTeslimCode(ship, $("#tlCode").value);
+    if (!check.ok) {
+      msg.className = "msg err";
+      msg.textContent = check.error;
+      return;
+    }
     const c = activeCourier();
-    if (!amount || amount < 0.5) {
+    patchShip(tlSelectedKey, {
+      kind: "delivered",
+      status: "delivered",
+      deliveredAt: new Date().toISOString(),
+      deliveredByCode: check.code,
+      deliveryVerifyMode: check.mode,
+      courierId: c?.id,
+      courierName: c?.name,
+    });
+    tlSelectedKey = "";
+    msg.className = "msg ok";
+    msg.textContent =
+      check.mode === "pending-setup"
+        ? "Kod ile teslim edildi (kod ayarı sonra bağlanacak)."
+        : "Kod doğrulandı · kargo teslim edildi.";
+    renderTeslimScreen();
+  });
+
+  $("#tlFailBtn")?.addEventListener("click", () => {
+    const msg = $("#tlCodeMsg");
+    if (!tlSelectedKey) {
       msg.className = "msg err";
-      msg.textContent = "En az 0,50 ₺ girin.";
+      msg.textContent = "Önce bir kargo seçin.";
       return;
     }
-    if (!ibanOk(iban)) {
+    const reason = $("#tlFailReason")?.value || "";
+    if (!KY_FAIL_IDS.has(reason)) {
       msg.className = "msg err";
-      msg.textContent = "Geçerli TR IBAN yazın.";
+      msg.textContent = "Teslim edilemedi nedeni seçin.";
       return;
     }
-    store.set(POS_HANDOFF, {
-      amount,
-      track,
-      iban,
-      note: "Harbi Kurye kapıda tahsilat" + (c ? " · " + c.name : ""),
-      checkout: true,
-      at: new Date().toISOString(),
+    const c = activeCourier();
+    patchShip(tlSelectedKey, {
+      kind: reason,
+      status: reason,
+      failReason: reason,
+      failLabel: failReasonLabel(reason),
+      failAt: new Date().toISOString(),
+      courierId: c?.id,
+      courierName: c?.name,
     });
-    const qs = new URLSearchParams({
-      amount: String(amount),
-      track,
-      iban,
-      note: "Harbi Kurye kapıda",
-      checkout: "1",
-      auto: "1",
+    tlSelectedKey = "";
+    if ($("#tlFailReason")) $("#tlFailReason").value = "";
+    msg.className = "msg ok";
+    msg.textContent = "Teslim edilemedi: " + failReasonLabel(reason);
+    renderTeslimScreen();
+  });
+
+  $("#tlUncustodyBtn")?.addEventListener("click", () => {
+    const msg = $("#tlCodeMsg");
+    if (!tlSelectedKey) {
+      msg.className = "msg err";
+      msg.textContent = "Önce bir kargo seçin.";
+      return;
+    }
+    patchShip(tlSelectedKey, {
+      courierId: null,
+      courierName: null,
+      kind: "custody",
+      status: "custody",
+      zimmetOutAt: new Date().toISOString(),
     });
-    location.href = "kargo-nfc.html?" + qs.toString();
+    tlSelectedKey = "";
+    msg.className = "msg ok";
+    msg.textContent = "Kargo zimmetten çıkarıldı.";
+    renderTeslimScreen();
   });
 })();
 

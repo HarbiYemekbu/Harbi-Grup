@@ -6,14 +6,10 @@
     <meta name="theme-color" content="#0b1f3a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Harbi Kurye" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="description" content="Harbi Kurye — dağıtım rotası, teslim ve kapıda tahsilat" />
+    <meta name="description" content="Harbi Kurye — barkod zimmet, rota, kod teslim" />
     <title>Harbi Kurye</title>
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/icon-192.png" />
     <link rel="manifest" href="kargo-kurye.webmanifest" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/kargo.css" />
   </head>
@@ -31,69 +27,74 @@
           </svg>
           <div>
             <h1>Harbi Kurye</h1>
-            <p>Giriş Harbi Kargo üzerinden yapılır. Kurye hesapları şube tarafından tanımlanır.</p>
+            <p>Giriş Harbi Kargo üzerinden yapılır.</p>
           </div>
         </div>
         <a class="orange hk-auth-cta" href="kargo.html">Harbi Kargo girişi</a>
-        <p class="hint" style="margin-top:10px;text-align:center">Şube hesapları şube paneline gider; kurye hesapları bu uygulamaya yönlendirilir.</p>
         <a class="hk-auth-back" href="index.html">Harbi Grup</a>
       </div>
     </section>
 
-    <div class="mob-app ky-app" id="kyShell" hidden>
-      <header class="mob-top">
-        <div>
-          <strong>Harbi Kurye</strong>
-          <small id="kyBranchLabel">Dağıtım</small>
-        </div>
-        <div class="mob-top-actions">
+    <div class="ky-stage" id="kyShell" hidden>
+      <div class="ky-screen">
+        <header class="ky-screen-top">
+          <div>
+            <strong>Harbi Kurye</strong>
+            <small id="kyBranchLabel">Rota</small>
+          </div>
           <button type="button" id="kyLogout">Çıkış</button>
-        </div>
-      </header>
+        </header>
 
-      <nav class="mob-jump" aria-label="Kurye bölümleri">
-        <a href="#ky-me">Profil</a>
-        <a href="#ky-pool">Havuz</a>
-        <a href="#ky-route">Rotam</a>
-        <a href="#ky-done">Teslim</a>
-        <a href="#ky-pay">Ödeme</a>
-      </nav>
+        <nav class="ky-tabs" role="tablist">
+          <button type="button" class="ky-tab on" id="kyTabRoute" data-ky-tab="route">Ana rota</button>
+          <button type="button" class="ky-tab" id="kyTabScan" data-ky-tab="scan">Barkod</button>
+        </nav>
 
-      <main class="mob-main">
-        <section class="mob-sec" id="ky-me">
-          <h2>1 · Kurye profili</h2>
-          <div class="ky-badge on" id="kyActiveBadge">Yükleniyor…</div>
-          <p class="hint" id="kyRouteHint" style="margin-top:8px">Şube paket havuzundan üstlenip rotanıza ekleyin.</p>
+        <p class="msg" id="kyRouteMsg"></p>
+
+        <section class="ky-panel on" id="kyPanelRoute" data-ky-panel="route">
+          <div class="ky-route-head">
+            <h1>Otomatik rota</h1>
+            <span id="kyRouteMeta"></span>
+          </div>
+          <div id="kyZimmetList" class="ky-zimmet-list"></div>
+
+          <section class="ky-failed-sec" id="kyFailedSec">
+            <h2>Teslim edilemedi</h2>
+            <div id="kyFailedList" class="ky-failed-list"></div>
+          </section>
+
+          <section class="ky-pay-summary" id="kyPaySummary">
+            <h2>Kod ile teslim</h2>
+            <div class="ky-pay-stats" id="kyPayStats"></div>
+            <div id="kyCodeDeliveredList" class="ky-code-delivered-list"></div>
+          </section>
         </section>
 
-        <section class="mob-sec" id="ky-pool">
-          <h2>2 · Zimmet / dağıtım havuzu</h2>
-          <p class="hint">Paketi üstlen → rotanıza eklenir.</p>
-          <div id="kyPoolList" class="mob-list"></div>
-        </section>
+        <section class="ky-panel" id="kyPanelScan" data-ky-panel="scan" hidden>
+          <div class="ky-scan-modes" role="group" aria-label="Barkod amacı">
+            <button type="button" class="ky-scan-mode on" id="kyScanModeZimmet" data-scan-mode="zimmet">Zimmete al</button>
+            <button type="button" class="ky-scan-mode" id="kyScanModeTeslim" data-scan-mode="teslim">Teslim için okut</button>
+          </div>
 
-        <section class="mob-sec" id="ky-route">
-          <h2>3 · Rotam</h2>
-          <div id="kyRouteList" class="mob-list"></div>
-        </section>
+          <div class="ky-cam-wrap">
+            <video id="kyCamVideo" playsinline muted autoplay></video>
+            <canvas id="kyCamCanvas" hidden></canvas>
+            <div class="ky-cam-frame" aria-hidden="true"></div>
+          </div>
 
-        <section class="mob-sec" id="ky-done">
-          <h2>4 · Teslim edilenler</h2>
-          <div id="kyDoneList" class="mob-list"></div>
-        </section>
+          <div class="ky-cam-actions">
+            <button type="button" class="orange" id="kyCamStart">Kamerayı aç</button>
+            <button type="button" class="secondary" id="kyCamStop" disabled>Durdur</button>
+          </div>
 
-        <section class="mob-sec" id="ky-pay">
-          <h2>5 · Kapıda kart / POS</h2>
-          <p class="hint">Tahsilat için POS açılır; IBAN’a aktarım kaydı oluşur.</p>
-          <form id="kyPayForm" class="partner-form">
-            <label class="field">Tutar ₺<input id="kyPayAmount" type="number" min="0.5" step="0.01" required placeholder="0,00" /></label>
-            <label class="field">Gönderim kodu<input id="kyPayTrack" inputmode="numeric" maxlength="4" placeholder="4 hane" /></label>
-            <label class="field">Aktarılacak IBAN<input id="kyPayIban" required maxlength="34" placeholder="TR00 0000 0000 0000 0000 0000 00" autocomplete="off" /></label>
-            <button class="orange" type="submit">Ödeme al · POS aç</button>
-            <p class="msg" id="kyPayMsg"></p>
-          </form>
+          <label class="field ky-manual-code">Kod (elle)
+            <input id="kyManualCode" inputmode="numeric" maxlength="8" placeholder="4801" autocomplete="off" />
+          </label>
+          <button type="button" class="orange" id="kyManualApply">Kodu uygula</button>
+          <p class="msg" id="kyCamMsg"></p>
         </section>
-      </main>
+      </div>
     </div>
     <script src="js/kargo.js"></script>
   </body>
