@@ -631,15 +631,31 @@ body[data-page="panel"] .hk-app {
   white-space: nowrap;
 }
 
-.hk-remember {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 2px 0 0;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--hk-navy);
-  cursor: pointer;
+.hk-auth-cta {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  margin-top: 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--hk-orange);
+  color: #fff;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.hk-auth-form .hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--hk-muted);
+  font-weight: 500;
+}
+
+.hk-auth-form .hint a {
+  color: var(--hk-orange);
+  font-weight: 700;
 }
 
 .hk-remember input {
@@ -747,7 +763,8 @@ body[data-page="create"] .hk-app {
 }
 
 /* —— Mobil kısayol uygulaması —— */
-body[data-page="mobile"] {
+body[data-page="mobile"],
+body[data-page="courier"] {
   margin: 0;
   background: #e8eef5;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
@@ -969,13 +986,49 @@ body[data-page="mobile"] {
   font-size: 0.78rem;
 }
 
-.mob-group b {
-  background: var(--hk-navy);
+.ky-badge {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eef2f7;
+  color: var(--hk-navy);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.ky-badge.on {
+  background: linear-gradient(135deg, #0b1f3a, #1a4a86);
   color: #fff;
-  border-radius: 999px;
-  min-width: 28px;
-  text-align: center;
-  padding: 2px 8px;
+}
+
+.ky-card .ky-quick {
+  display: flex;
+  gap: 10px;
+  margin: 6px 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.ky-card .ky-quick a {
+  color: var(--hk-orange);
+}
+
+.ky-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ky-actions button,
+.ky-actions .mob-link {
+  font-size: 0.68rem;
+  padding: 7px 9px;
+  border-radius: 8px;
+}
+
+body[data-page="courier"] .mob-top strong {
+  font-family: Syne, sans-serif;
 }
 
 .mob-links {
@@ -994,11 +1047,13 @@ body[data-page="mobile"] {
   font-size: 0.85rem;
 }
 
-body[data-page="mobile"].hk-locked .mob-app {
+body[data-page="mobile"].hk-locked .mob-app,
+body[data-page="courier"].hk-locked .mob-app {
   display: none !important;
 }
 
-body[data-page="mobile"] .hk-auth[hidden] {
+body[data-page="mobile"] .hk-auth[hidden],
+body[data-page="courier"] .hk-auth[hidden] {
   display: none !important;
 }
 

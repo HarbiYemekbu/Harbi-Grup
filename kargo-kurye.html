@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Harbi Kurye" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Harbi Kurye — dağıtım rotası, teslim ve kapıda tahsilat" />
+    <title>Harbi Kurye</title>
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="manifest" href="kargo-kurye.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/kargo.css" />
+  </head>
+  <body data-page="courier">
+    <section class="hk-auth" id="kyAuthGate" hidden>
+      <div class="hk-auth-card">
+        <div class="hk-auth-brand">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <h1>Harbi Kurye</h1>
+            <p>Giriş Harbi Kargo üzerinden yapılır. Kurye hesapları şube tarafından tanımlanır.</p>
+          </div>
+        </div>
+        <a class="orange hk-auth-cta" href="kargo.html">Harbi Kargo girişi</a>
+        <p class="hint" style="margin-top:10px;text-align:center">Şube hesapları şube paneline gider; kurye hesapları bu uygulamaya yönlendirilir.</p>
+        <a class="hk-auth-back" href="index.html">Harbi Grup</a>
+      </div>
+    </section>
+
+    <div class="mob-app ky-app" id="kyShell" hidden>
+      <header class="mob-top">
+        <div>
+          <strong>Harbi Kurye</strong>
+          <small id="kyBranchLabel">Dağıtım</small>
+        </div>
+        <div class="mob-top-actions">
+          <button type="button" id="kyLogout">Çıkış</button>
+        </div>
+      </header>
+
+      <nav class="mob-jump" aria-label="Kurye bölümleri">
+        <a href="#ky-me">Profil</a>
+        <a href="#ky-pool">Havuz</a>
+        <a href="#ky-route">Rotam</a>
+        <a href="#ky-done">Teslim</a>
+        <a href="#ky-pay">Ödeme</a>
+      </nav>
+
+      <main class="mob-main">
+        <section class="mob-sec" id="ky-me">
+          <h2>1 · Kurye profili</h2>
+          <div class="ky-badge on" id="kyActiveBadge">Yükleniyor…</div>
+          <p class="hint" id="kyRouteHint" style="margin-top:8px">Şube paket havuzundan üstlenip rotanıza ekleyin.</p>
+        </section>
+
+        <section class="mob-sec" id="ky-pool">
+          <h2>2 · Zimmet / dağıtım havuzu</h2>
+          <p class="hint">Paketi üstlen → rotanıza eklenir.</p>
+          <div id="kyPoolList" class="mob-list"></div>
+        </section>
+
+        <section class="mob-sec" id="ky-route">
+          <h2>3 · Rotam</h2>
+          <div id="kyRouteList" class="mob-list"></div>
+        </section>
+
+        <section class="mob-sec" id="ky-done">
+          <h2>4 · Teslim edilenler</h2>
+          <div id="kyDoneList" class="mob-list"></div>
+        </section>
+
+        <section class="mob-sec" id="ky-pay">
+          <h2>5 · Kapıda kart / POS</h2>
+          <p class="hint">Tahsilat için POS açılır; IBAN’a aktarım kaydı oluşur.</p>
+          <form id="kyPayForm" class="partner-form">
+            <label class="field">Tutar ₺<input id="kyPayAmount" type="number" min="0.5" step="0.01" required placeholder="0,00" /></label>
+            <label class="field">Gönderim kodu<input id="kyPayTrack" inputmode="numeric" maxlength="4" placeholder="4 hane" /></label>
+            <label class="field">Aktarılacak IBAN<input id="kyPayIban" required maxlength="34" placeholder="TR00 0000 0000 0000 0000 0000 00" autocomplete="off" /></label>
+            <button class="orange" type="submit">Ödeme al · POS aç</button>
+            <p class="msg" id="kyPayMsg"></p>
+          </form>
+        </section>
+      </main>
+    </div>
+    <script src="js/kargo.js"></script>
+  </body>
+</html>

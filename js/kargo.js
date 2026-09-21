@@ -102,6 +102,42 @@ const PARTNER_APPS = "hk-partner-apps";
 const BRANCHES = "hk-branches";
 const HK_SESSION = "hk-session";
 const HK_REMEMBER = "hk-login-remember";
+const COURIERS = "hk-couriers";
+const COURIER_ACTIVE = "hk-courier-active";
+
+const DEMO_COURIER = {
+  id: "ky_demo",
+  name: "Demo Kurye",
+  phone: "05321112233",
+  plate: "34 HK 001",
+  username: "demo.kurye",
+  password: "Kurye1234",
+  branchId: "br_demo",
+  role: "courier",
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
+function couriers() {
+  return store.get(COURIERS, []);
+}
+
+function saveCouriers(list) {
+  store.set(COURIERS, list);
+}
+
+function seedDemoCourier() {
+  const list = couriers();
+  const demoUser = String(DEMO_COURIER.username).toLowerCase();
+  const idx = list.findIndex(
+    (c) => c.id === DEMO_COURIER.id || String(c.username || "").toLowerCase() === demoUser
+  );
+  if (idx >= 0) {
+    list[idx] = { ...list[idx], ...DEMO_COURIER, username: DEMO_COURIER.username, password: DEMO_COURIER.password };
+  } else {
+    list.unshift({ ...DEMO_COURIER });
+  }
+  store.set(COURIERS, list);
+}
 
 function hkRememberGet() {
   return store.get(HK_REMEMBER, null);
@@ -130,11 +166,14 @@ function fillHkLoginRemember() {
   const remember = saved?.remember !== false;
   if ($("#hkLoginRemember")) $("#hkLoginRemember").checked = remember;
   if ($("#mobLoginRemember")) $("#mobLoginRemember").checked = remember;
+  if ($("#kyLoginRemember")) $("#kyLoginRemember").checked = remember;
   if (!saved?.remember || !saved.user) return;
   if ($("#hkLoginUser") && !$("#hkLoginUser").value) $("#hkLoginUser").value = saved.user;
   if ($("#hkLoginPass") && !$("#hkLoginPass").value) $("#hkLoginPass").value = saved.pass || "";
   if ($("#mobLoginUser") && !$("#mobLoginUser").value) $("#mobLoginUser").value = saved.user;
   if ($("#mobLoginPass") && !$("#mobLoginPass").value) $("#mobLoginPass").value = saved.pass || "";
+  if ($("#kyLoginUser") && !$("#kyLoginUser").value) $("#kyLoginUser").value = saved.user;
+  if ($("#kyLoginPass") && !$("#kyLoginPass").value) $("#kyLoginPass").value = saved.pass || "";
 }
 
 const DEMO_BRANCH = {
@@ -172,22 +211,105 @@ function normalizeHkUser(v) {
     .replace(/\s+/g, "");
 }
 
+function getSession() {
+  const raw = store.get(HK_SESSION, null);
+  if (!raw) return null;
+  if (typeof raw === "string") return { role: "branch", id: raw };
+  if (raw.role && raw.id) return raw;
+  return null;
+}
+
+function setSession(role, id) {
+  store.set(HK_SESSION, { role, id });
+}
+
+function clearSession() {
+  store.set(HK_SESSION, null);
+  store.set(COURIER_ACTIVE, null);
+}
+
 function currentBranch() {
-  const id = store.get(HK_SESSION, null);
-  if (!id) return null;
-  return branches().find((b) => b.id === id) || null;
+  const s = getSession();
+  if (!s || s.role !== "branch") return null;
+  return branches().find((b) => b.id === s.id) || null;
+}
+
+function currentCourier() {
+  const s = getSession();
+  if (!s || s.role !== "courier") return null;
+  return couriers().find((c) => c.id === s.id) || null;
 }
 
 function isDemoUser(user = currentBranch()) {
   return user?.role === "demo";
 }
 
+function findHkLogin(username, password) {
+  seedBranches();
+  seedDemoCourier();
+  const u = normalizeHkUser(username);
+  const p = String(password || "").trim();
+  const branch = branches().find(
+    (b) => normalizeHkUser(b.username) === u && String(b.password) === p
+  );
+  if (branch) return { role: "branch", account: branch };
+  const courier = couriers().find(
+    (c) => normalizeHkUser(c.username) === u && String(c.password) === p
+  );
+  if (courier) return { role: "courier", account: courier };
+  return null;
+}
+
+function goCourierApp() {
+  location.replace("kargo-kurye.html");
+}
+
+function goBranchApp() {
+  location.replace("kargo.html");
+}
+
 function requireBranchAuth() {
   seedBranches();
-  const user = currentBranch();
-  if (PAGE === "nfc" && !user) {
-    location.replace("kargo.html");
+  seedDemoCourier();
+  const branch = currentBranch();
+  const courier = currentCourier();
+
+  if (PAGE === "courier") {
+    if (branch) {
+      goBranchApp();
+      return null;
+    }
+    if (!courier) {
+      document.body.classList.add("hk-locked");
+      if ($("#kyAuthGate")) $("#kyAuthGate").hidden = false;
+      if ($("#kyShell")) $("#kyShell").hidden = true;
+      return null;
+    }
+    document.body.classList.remove("hk-locked");
+    if ($("#kyAuthGate")) $("#kyAuthGate").hidden = true;
+    if ($("#kyShell")) $("#kyShell").hidden = false;
+    store.set(COURIER_ACTIVE, courier.id);
+    const br = branches().find((b) => b.id === courier.branchId);
+    if ($("#kyBranchLabel")) {
+      $("#kyBranchLabel").textContent =
+        courier.name + (br ? " · " + br.branchName : "");
+    }
+    return courier;
+  }
+
+  if (courier && PAGE !== "nfc") {
+    goCourierApp();
     return null;
+  }
+
+  const user = branch;
+
+  if (PAGE === "nfc") {
+    if (!user && !courier) {
+      location.replace("kargo.html");
+      return null;
+    }
+    return user || courier;
   }
   if ((PAGE === "create" || PAGE === "mobile") && !user) {
     if (PAGE === "mobile") {
@@ -209,7 +331,7 @@ function requireBranchAuth() {
     document.body.classList.remove("hk-locked");
     if ($("#mobAuthGate")) $("#mobAuthGate").hidden = true;
     if ($("#mobShell")) $("#mobShell").hidden = false;
-    if ($("#mobBranchLabel")) $("#mobBranchLabel").textContent = user.branchName;
+    if ($("#mobBranchLabel")) $("#mobBranchLabel").textContent = user.branchName + " · Şube";
     return user;
   }
   if (PAGE !== "panel") return user;
@@ -232,19 +354,19 @@ function requireBranchAuth() {
   if (shell) shell.hidden = false;
   if (tab) tab.hidden = !user;
 
-  const staffOnly = $$("[data-go='home'], [data-go='integrate'], [data-go='branches'], a[href='kargo-nfc.html'], a[href='kargo-olustur.html']");
+  const staffOnly = $$("[data-go='home'], [data-go='integrate'], [data-go='branches'], [data-go='couriers'], a[href='kargo-nfc.html'], a[href='kargo-olustur.html'], a[href='kargo-mobil.html'], a[href='kargo-kurye.html']");
   staffOnly.forEach((el) => {
     if (el.closest(".tabbar")) el.hidden = !user;
     else if (el.matches("[data-go='branches']")) el.hidden = !(user && isDemoUser(user));
     else el.hidden = !user;
   });
-  $$(".tabbar a[href='kargo-nfc.html']").forEach((el) => {
+  $$(".tabbar a[href='kargo-nfc.html'], .tabbar a[href='kargo-mobil.html']").forEach((el) => {
     el.hidden = !user;
   });
 
   if ($("#hkBranchLabel")) {
     $("#hkBranchLabel").textContent = user
-      ? user.branchName + (user.city ? " · " + user.city : "")
+      ? user.branchName + (user.city ? " · " + user.city : "") + " · Şube"
       : "İş Ortaklığı Başvurusu";
   }
   if ($("#hkBranchesNav")) $("#hkBranchesNav").hidden = !(user && isDemoUser(user));
@@ -265,7 +387,7 @@ function openGuestPartner() {
 
 function closeGuestToLogin() {
   document.body.classList.remove("hk-guest");
-  store.set(HK_SESSION, null);
+  clearSession();
   requireBranchAuth();
   if ($("#hkLoginMsg")) $("#hkLoginMsg").textContent = "";
 }
@@ -407,7 +529,7 @@ function kindLabel(k) {
 }
 
 function showView(name) {
-  const known = new Set(["home", "integrate", "partner", "branches"]);
+  const known = new Set(["home", "integrate", "partner", "branches", "couriers"]);
   if (!known.has(name)) name = "home";
   const user = currentBranch();
   const guest = document.body.classList.contains("hk-guest");
@@ -436,6 +558,7 @@ function showView(name) {
     $("#pName")?.focus({ preventScroll: true });
   }
   if (name === "branches") renderBranchList();
+  if (name === "couriers") renderPanelCouriers();
   window.scrollTo(0, 0);
 }
 
@@ -1364,20 +1487,25 @@ async function captureMobFrame() {
 
   $("#mobLoginForm")?.addEventListener("submit", (e) => {
     e.preventDefault();
-    seedBranches();
-    const u = normalizeHkUser($("#mobLoginUser").value);
+    const u = $("#mobLoginUser").value;
     const p = String($("#mobLoginPass").value || "").trim();
     const msg = $("#mobLoginMsg");
-    const hit = branches().find(
-      (b) => normalizeHkUser(b.username) === u && String(b.password) === p
-    );
+    const hit = findHkLogin(u, p);
     if (!hit) {
       msg.className = "msg err";
       msg.textContent = "Yetkisiz giriş.";
       return;
     }
-    hkRememberSave(u, p, $("#mobLoginRemember")?.checked !== false);
-    store.set(HK_SESSION, hit.id);
+    if (hit.role === "courier") {
+      hkRememberSave(normalizeHkUser(u), p, $("#mobLoginRemember")?.checked !== false);
+      setSession("courier", hit.account.id);
+      msg.className = "msg ok";
+      msg.textContent = "Kurye hesabı · Harbi Kurye açılıyor…";
+      goCourierApp();
+      return;
+    }
+    hkRememberSave(normalizeHkUser(u), p, $("#mobLoginRemember")?.checked !== false);
+    setSession("branch", hit.account.id);
     requireBranchAuth();
     refreshMobileLists();
     updateMobPrices();
@@ -1397,7 +1525,7 @@ async function captureMobFrame() {
 
   $("#mobLogout")?.addEventListener("click", async () => {
     await stopMobCam();
-    store.set(HK_SESSION, null);
+    clearSession();
     location.reload();
   });
 
@@ -1594,6 +1722,242 @@ async function captureMobFrame() {
   });
 })();
 
+function activeCourier() {
+  return currentCourier() || (() => {
+    const id = store.get(COURIER_ACTIVE, null);
+    if (!id) return null;
+    return couriers().find((c) => c.id === id) || null;
+  })();
+}
+
+function usernameTaken(u, exceptId) {
+  const n = normalizeHkUser(u);
+  if (branches().some((b) => normalizeHkUser(b.username) === n)) return true;
+  if (couriers().some((c) => c.id !== exceptId && normalizeHkUser(c.username) === n)) return true;
+  return false;
+}
+
+function createCourierAccount(fields, branch) {
+  const username = normalizeHkUser(fields.username);
+  const password = String(fields.password || "").trim();
+  if (!fields.name || !fields.phone) throw new Error("Ad ve telefon zorunlu.");
+  if (!username || username.length < 3) throw new Error("Kullanıcı adı en az 3 karakter.");
+  if (password.length < 6) throw new Error("Şifre en az 6 karakter.");
+  if (usernameTaken(username)) throw new Error("Bu kullanıcı adı kullanılıyor.");
+  const row = {
+    id: "ky_" + Date.now().toString(36),
+    name: fields.name.trim(),
+    phone: fields.phone.trim(),
+    plate: (fields.plate || "").trim(),
+    username,
+    password,
+    branchId: branch.id,
+    role: "courier",
+    at: new Date().toISOString(),
+  };
+  const list = couriers();
+  list.unshift(row);
+  saveCouriers(list.slice(0, 80));
+  return row;
+}
+
+function renderPanelCouriers() {
+  const box = $("#panelCourierList");
+  if (!box) return;
+  const user = currentBranch();
+  if (!user) return;
+  seedDemoCourier();
+  const mine = couriers().filter((c) => c.branchId === user.id || (user.role === "demo" && c.branchId === "br_demo"));
+  if (!mine.length) {
+    box.innerHTML = '<p class="hint">Henüz kurye yok.</p>';
+    return;
+  }
+  box.innerHTML = mine
+    .map(
+      (c) =>
+        `<div class="partner-app"><strong>${c.name}</strong><div class="meta">${c.phone}${c.plate ? " · " + c.plate : ""}</div><div class="cred">Kullanıcı: ${c.username}<br>Şifre: ${c.password}</div><button type="button" class="btn-no" data-del-courier="${c.id}">Sil</button></div>`
+    )
+    .join("");
+}
+
+function patchShip(key, patch) {
+  const list = ships();
+  const idx = list.findIndex((s) => shipKey(s) === key || sendCodeOf(s) === key);
+  if (idx < 0) return null;
+  list[idx] = { ...list[idx], ...patch };
+  store.set(SHIPS, list);
+  return list[idx];
+}
+
+function renderCourierBadge() {
+  const el = $("#kyActiveBadge");
+  if (!el) return;
+  const c = activeCourier();
+  el.className = "ky-badge" + (c ? " on" : "");
+  if (!c) {
+    el.textContent = "Oturum yok";
+    return;
+  }
+  const br = branches().find((b) => b.id === c.branchId);
+  el.textContent =
+    c.name +
+    (c.plate ? " · " + c.plate : "") +
+    " · " +
+    c.phone +
+    (br ? " · " + br.branchName : "") +
+    " · @" +
+    c.username;
+}
+
+function courierShipCard(s, mode) {
+  const key = shipKey(s);
+  const code = sendCodeOf(s);
+  const phone = s.phone || "";
+  const addr = s.address || "";
+  const maps = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addr);
+  const tel = phone ? "tel:" + phone.replace(/\s/g, "") : "";
+  let actions = "";
+  if (mode === "pool") {
+    actions = `<button type="button" class="orange" data-ky-claim="${key}">Üstlen</button>`;
+  } else if (mode === "route") {
+    actions = `<div class="ky-actions">
+      <button type="button" class="orange" data-ky-act="delivered" data-key="${key}">Teslim</button>
+      <button type="button" class="secondary" data-ky-act="delivered_paid" data-key="${key}">Ücretli teslim</button>
+      <button type="button" class="ghost" data-ky-act="delivered_unpaid" data-key="${key}">Ücretsiz teslim</button>
+      <button type="button" class="ghost" data-ky-act="bad_address" data-key="${key}">Adres hatalı</button>
+      <button type="button" class="ghost" data-ky-act="bad_phone" data-key="${key}">Tel hatalı</button>
+      <button type="button" class="ghost" data-ky-act="fee_refused" data-key="${key}">Ücret red</button>
+      <a class="mob-link" href="kargo-nfc.html?track=${code}&note=${encodeURIComponent("Kapıda tahsilat " + code)}&checkout=1">POS</a>
+    </div>`;
+  }
+  return `<div class="mob-item ky-card"><div>
+    <strong>${code} · ${s.receiver || "Alıcı"}</strong>
+    <div class="meta">${kindLabel(kindOf(s))}<br>${addr}<br>${phone}</div>
+    <div class="ky-quick">
+      ${tel ? `<a href="${tel}">Ara</a>` : ""}
+      ${addr ? `<a href="${maps}" target="_blank" rel="noopener">Harita</a>` : ""}
+    </div>
+    ${actions}
+  </div></div>`;
+}
+
+function refreshCourierLists() {
+  const c = activeCourier();
+  const pool = ships().filter((s) => {
+    const k = kindOf(s);
+    return (k === "custody" || k === "dist" || k === "pickup") && !s.courierId;
+  });
+  const route = c
+    ? ships().filter((s) => s.courierId === c.id && (kindOf(s) === "dist" || kindOf(s) === "custody" || kindOf(s) === "pickup"))
+    : [];
+  const done = c
+    ? ships().filter(
+        (s) =>
+          s.courierId === c.id &&
+          ["delivered", "delivered_paid", "delivered_unpaid", "bad_address", "bad_phone", "fee_refused"].includes(kindOf(s))
+      )
+    : [];
+  const poolBox = $("#kyPoolList");
+  const routeBox = $("#kyRouteList");
+  const doneBox = $("#kyDoneList");
+  if (poolBox) poolBox.innerHTML = pool.length ? pool.map((s) => courierShipCard(s, "pool")).join("") : '<p class="hint">Havuzda paket yok.</p>';
+  if (routeBox) {
+    routeBox.innerHTML = !c
+      ? '<p class="hint">Giriş gerekli.</p>'
+      : route.length
+        ? route.map((s) => courierShipCard(s, "route")).join("")
+        : '<p class="hint">Rotada paket yok. Havuzdan üstlenin.</p>';
+  }
+  if (doneBox) {
+    doneBox.innerHTML = done.length
+      ? done
+          .slice(0, 20)
+          .map((s) => courierShipCard(s, "done"))
+          .join("")
+      : '<p class="hint">Teslim kaydı yok.</p>';
+  }
+  if ($("#kyRouteHint") && c) {
+    $("#kyRouteHint").textContent = "Havuzdan paket üstlenin · rota ve teslim burada";
+  }
+  renderCourierBadge();
+}
+
+(function initCourierPage() {
+  if (PAGE !== "courier") return;
+  const user = requireBranchAuth();
+  if (!user) return;
+  seedDemo();
+  refreshCourierLists();
+
+  $("#kyLogout")?.addEventListener("click", () => {
+    clearSession();
+    location.href = "kargo.html";
+  });
+
+  $("#kyPoolList")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-ky-claim]");
+    if (!btn) return;
+    const c = activeCourier();
+    if (!c) return;
+    patchShip(btn.getAttribute("data-ky-claim"), {
+      courierId: c.id,
+      courierName: c.name,
+      kind: "dist",
+      status: "dist",
+    });
+    refreshCourierLists();
+  });
+
+  $("#kyRouteList")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-ky-act]");
+    if (!btn) return;
+    const act = btn.getAttribute("data-ky-act");
+    const key = btn.getAttribute("data-key");
+    patchShip(key, { kind: act, status: act, deliveredAt: new Date().toISOString() });
+    refreshCourierLists();
+  });
+
+  $("#kyPayIban")?.addEventListener("input", (e) => {
+    e.target.value = ibanFormat(e.target.value);
+  });
+
+  $("#kyPayForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("#kyPayMsg");
+    const amount = Number($("#kyPayAmount").value);
+    const track = String($("#kyPayTrack").value || "").replace(/\D/g, "").slice(0, 4);
+    const iban = ibanRaw($("#kyPayIban").value);
+    const c = activeCourier();
+    if (!amount || amount < 0.5) {
+      msg.className = "msg err";
+      msg.textContent = "En az 0,50 ₺ girin.";
+      return;
+    }
+    if (!ibanOk(iban)) {
+      msg.className = "msg err";
+      msg.textContent = "Geçerli TR IBAN yazın.";
+      return;
+    }
+    store.set(POS_HANDOFF, {
+      amount,
+      track,
+      iban,
+      note: "Harbi Kurye kapıda tahsilat" + (c ? " · " + c.name : ""),
+      checkout: true,
+      at: new Date().toISOString(),
+    });
+    const qs = new URLSearchParams({
+      amount: String(amount),
+      track,
+      iban,
+      note: "Harbi Kurye kapıda",
+      checkout: "1",
+      auto: "1",
+    });
+    location.href = "kargo-nfc.html?" + qs.toString();
+  });
+})();
+
 function marketName(id) {
   return MARKETS.find((m) => m.id === id)?.name || id;
 }
@@ -1648,7 +2012,7 @@ function fillReturnMarkets() {
   renderReturnLog();
 
   $("#hkCreateLogout")?.addEventListener("click", () => {
-    store.set(HK_SESSION, null);
+    clearSession();
     location.href = "kargo.html";
   });
 
@@ -1767,20 +2131,23 @@ function fillReturnMarkets() {
 
   $("#hkLoginForm")?.addEventListener("submit", (e) => {
     e.preventDefault();
-    seedBranches();
-    const u = normalizeHkUser($("#hkLoginUser").value);
+    const u = $("#hkLoginUser").value;
     const p = String($("#hkLoginPass").value || "").trim();
     const msg = $("#hkLoginMsg");
-    const hit = branches().find(
-      (b) => normalizeHkUser(b.username) === u && String(b.password) === p
-    );
+    const hit = findHkLogin(u, p);
     if (!hit) {
       msg.className = "msg err";
-      msg.textContent = "Yetkisiz. Yalnızca kayıtlı kargo şubeleri giriş yapabilir.";
+      msg.textContent = "Yetkisiz. Şube veya kurye hesabı bulunamadı.";
       return;
     }
-    hkRememberSave(u, p, $("#hkLoginRemember")?.checked !== false);
-    store.set(HK_SESSION, hit.id);
+    hkRememberSave(normalizeHkUser(u), p, $("#hkLoginRemember")?.checked !== false);
+    setSession(hit.role, hit.account.id);
+    if (hit.role === "courier") {
+      msg.className = "msg ok";
+      msg.textContent = "Kurye girişi · Harbi Kurye açılıyor…";
+      goCourierApp();
+      return;
+    }
     document.body.classList.remove("hk-guest", "hk-locked");
     history.replaceState(null, "", "kargo.html");
     requireBranchAuth();
@@ -1792,7 +2159,7 @@ function fillReturnMarkets() {
   });
 
   $("#hkLogoutBtn")?.addEventListener("click", () => {
-    store.set(HK_SESSION, null);
+    clearSession();
     document.body.classList.remove("hk-guest");
     requireBranchAuth();
     if ($("#hkLoginUser")) $("#hkLoginUser").value = "";
@@ -1806,7 +2173,44 @@ function fillReturnMarkets() {
   if (!user) return;
 
   if (hash === "integrate") showView("integrate");
+  if (hash === "couriers") showView("couriers");
   if (hash === "branches" && isDemoUser()) showView("branches");
+
+  $("#panelCourierForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("#pcMsg");
+    try {
+      const row = createCourierAccount(
+        {
+          name: $("#pcName").value,
+          phone: $("#pcPhone").value,
+          plate: $("#pcPlate").value,
+          username: $("#pcUser").value,
+          password: $("#pcPass").value,
+        },
+        currentBranch()
+      );
+      $("#panelCourierForm").reset();
+      msg.className = "msg ok";
+      msg.textContent = "Kurye hesabı oluşturuldu.";
+      $("#pcCredBox").hidden = false;
+      $("#pcUserBox").textContent = "Kullanıcı adı: " + row.username;
+      $("#pcPassBox").textContent = "Şifre: " + row.password;
+      renderPanelCouriers();
+    } catch (err) {
+      msg.className = "msg err";
+      msg.textContent = err.message || "Kayıt başarısız.";
+    }
+  });
+
+  $("#panelCourierList")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-del-courier]");
+    if (!btn) return;
+    const id = btn.getAttribute("data-del-courier");
+    if (id === DEMO_COURIER.id) return;
+    saveCouriers(couriers().filter((c) => c.id !== id));
+    renderPanelCouriers();
+  });
 
   $("#branchForm")?.addEventListener("submit", (e) => {
     e.preventDefault();

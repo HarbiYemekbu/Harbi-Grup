@@ -31,11 +31,11 @@
           </svg>
           <div>
             <h1>Harbi Kargo</h1>
-            <p>Mobil şube girişi</p>
+            <p>Mobil şube uygulaması · yalnızca şube hesapları</p>
           </div>
         </div>
         <form id="mobLoginForm" class="hk-auth-form">
-          <label class="field">Kullanıcı adı<input id="mobLoginUser" required autocomplete="username" /></label>
+          <label class="field">Kullanıcı adı<input id="mobLoginUser" required autocomplete="username" placeholder="Şube kullanıcı adı" /></label>
           <label class="field">Şifre
             <span class="hk-pass-wrap">
               <input id="mobLoginPass" type="password" required autocomplete="current-password" />
@@ -43,8 +43,9 @@
             </span>
           </label>
           <label class="hk-remember"><input type="checkbox" id="mobLoginRemember" checked /> Beni hatırla</label>
+          <p class="hint">Kurye hesabıysa <a href="kargo.html">Harbi Kargo giriş</a> kullanın.</p>
           <p class="msg" id="mobLoginMsg"></p>
-          <button class="orange" type="submit">Giriş</button>
+          <button class="orange" type="submit">Şube girişi</button>
         </form>
         <a class="hk-auth-back" href="index.html">Harbi Grup</a>
       </div>
@@ -58,6 +59,7 @@
         </div>
         <div class="mob-top-actions">
           <a href="kargo.html">Panel</a>
+          <a href="kargo-kurye.html">Kurye</a>
           <button type="button" id="mobLogout">Çıkış</button>
         </div>
       </header>
@@ -200,6 +202,7 @@
         <section class="mob-sec">
           <h2>Diğer</h2>
           <div class="mob-links">
+            <a class="mob-link" href="kargo-kurye.html">Harbi Kurye</a>
             <a class="mob-link" href="kargo-olustur.html">Yeni kargo (detay)</a>
             <a class="mob-link" href="kargo-nfc.html">NFC POS</a>
             <a class="mob-link" href="kargo.html">Yönetim paneli</a>

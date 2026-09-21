@@ -27,11 +27,11 @@
           </svg>
           <div>
             <h1>Harbi Kargo</h1>
-            <p>Yalnızca yetkili kargo şubeleri giriş yapabilir.</p>
+            <p>Şube paneli veya Harbi Kurye girişi</p>
           </div>
         </div>
         <form id="hkLoginForm" class="hk-auth-form">
-          <label class="field">Kullanıcı adı<input id="hkLoginUser" required autocomplete="username" placeholder="Kullanıcı adı" /></label>
+          <label class="field">Kullanıcı adı<input id="hkLoginUser" required autocomplete="username" placeholder="Şube veya kurye kullanıcı adı" /></label>
           <label class="field">Şifre
             <span class="hk-pass-wrap">
               <input id="hkLoginPass" type="password" required autocomplete="current-password" placeholder="Şifre" />
@@ -39,8 +39,9 @@
             </span>
           </label>
           <label class="hk-remember"><input type="checkbox" id="hkLoginRemember" checked /> Beni hatırla</label>
+          <p class="hint" id="hkLoginHint">Şubeler şube paneline, kuryeler Harbi Kurye uygulamasına yönlendirilir.</p>
           <p class="msg" id="hkLoginMsg"></p>
-          <button class="orange" type="submit">Şube girişi</button>
+          <button class="orange" type="submit">Harbi Kargo girişi</button>
         </form>
         <div class="hk-auth-split">
           <button type="button" class="hk-auth-partner" id="hkOpenPartner">İş Ortaklığı Başvurusu</button>
@@ -69,6 +70,8 @@
           <button type="button" data-go="home" class="active">Yönetim</button>
           <a class="hk-linkbtn create-nav" href="kargo-olustur.html">Yeni Kargo</a>
           <a class="hk-linkbtn create-nav" href="kargo-mobil.html">Mobil</a>
+          <button type="button" data-go="couriers" class="create-nav">Kuryeler</button>
+          <a class="hk-linkbtn create-nav" href="kargo-kurye.html">Harbi Kurye</a>
           <button type="button" data-go="integrate">Pazaryeri</button>
           <a class="hk-linkbtn" href="kargo-nfc.html">NFC POS</a>
           <a class="hk-linkbtn" href="index.html">Harbi Pazar</a>
@@ -175,6 +178,39 @@
           </div>
         </section>
 
+        <section class="view" data-view="couriers" hidden>
+          <div class="partner-page">
+            <header class="partner-page-head">
+              <h2>Harbi Kurye hesapları</h2>
+              <p class="hint">Şube kurye hesaplarını burada oluşturur. Kuryeler Harbi Kargo girişinden yalnızca kurye uygulamasına girer.</p>
+            </header>
+            <div class="partner-layout">
+              <article class="partner-card">
+                <h3>Yeni kurye</h3>
+                <form id="panelCourierForm" class="partner-form">
+                  <label class="field">Ad soyad<input id="pcName" required maxlength="80" placeholder="Kurye adı" /></label>
+                  <label class="field">Telefon<input id="pcPhone" inputmode="tel" required maxlength="20" placeholder="05xx" /></label>
+                  <label class="field">Plaka / araç<input id="pcPlate" maxlength="20" placeholder="34 ABC 123" /></label>
+                  <label class="field">Kullanıcı adı<input id="pcUser" required maxlength="40" placeholder="ornek.kurye" autocomplete="off" /></label>
+                  <label class="field">Şifre<input id="pcPass" required maxlength="40" placeholder="En az 6 karakter" autocomplete="new-password" /></label>
+                  <p class="msg" id="pcMsg"></p>
+                  <button class="orange" type="submit">Kurye hesabı oluştur</button>
+                </form>
+                <article class="partner-card" id="pcCredBox" hidden style="margin-top:10px;box-shadow:none;background:#f8fafc">
+                  <h3>Tanımlanan giriş</h3>
+                  <p class="hint">Kurye bu bilgilerle Harbi Kargo girişinden uygulamaya girer.</p>
+                  <div class="secret" id="pcUserBox"></div>
+                  <div class="secret" id="pcPassBox"></div>
+                </article>
+              </article>
+              <article class="partner-card">
+                <h3>Kayıtlı kuryeler</h3>
+                <div id="panelCourierList"></div>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section class="view" data-view="integrate" hidden>
           <h2 class="subhead">Pazaryeri entegrasyonu</h2>
           <article class="card">
@@ -201,6 +237,7 @@
       <button type="button" data-go="home" class="active">Yönetim</button>
       <a class="hk-linkbtn" href="kargo-olustur.html" style="text-align:center;font-size:0.72rem;padding-top:8px">Yeni</a>
       <a class="hk-linkbtn" href="kargo-mobil.html" style="text-align:center;font-size:0.72rem;padding-top:8px">Mobil</a>
+      <button type="button" data-go="couriers">Kuryeler</button>
       <button type="button" data-go="integrate">API</button>
       <button type="button" data-go="partner">İş Ortağı</button>
       <button type="button" data-go="branches" id="hkBranchesTab" hidden>Şubeler</button>

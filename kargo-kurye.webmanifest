@@ -1,0 +1,26 @@
+{
+  "name": "Harbi Kurye",
+  "short_name": "Kurye",
+  "description": "Harbi Kurye dağıtım, teslim ve kapıda tahsilat",
+  "start_url": "./kargo-kurye.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1f3a",
+  "theme_color": "#0b1f3a",
+  "lang": "tr",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -9860,6 +9860,9 @@ function openHarbiKargo() {
 function openHarbiKargoMobil() {
   location.href = "kargo-mobil.html";
 }
+function openHarbiKargoKurye() {
+  location.href = "kargo-kurye.html";
+}
 
 $("#yolNavRegister")?.addEventListener("click", () => yolOpenAuth());
 $("#yolNavPartner")?.addEventListener("click", () => yolOpenPartner());
@@ -9869,6 +9872,8 @@ $("#hkHomeKargo")?.addEventListener("click", openHarbiKargo);
 $("#hkSideKargo")?.addEventListener("click", openHarbiKargo);
 $("#hkHomeKargoMobil")?.addEventListener("click", openHarbiKargoMobil);
 $("#hkSideKargoMobil")?.addEventListener("click", openHarbiKargoMobil);
+$("#hkHomeKargoKurye")?.addEventListener("click", openHarbiKargoKurye);
+$("#hkSideKargoKurye")?.addEventListener("click", openHarbiKargoKurye);
 $("#hkTabKargo")?.addEventListener("click", openHarbiKargo);
 $("#yolNavCart")?.addEventListener("click", () => {
   const panel = $("#yolCartPanel");
