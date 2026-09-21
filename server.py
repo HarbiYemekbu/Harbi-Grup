@@ -282,6 +282,84 @@ def _rtc_handle(body: dict) -> dict:
         return {"ok": True, "peers": others, "messages": messages}
 
 
+def _kargo_api(body: dict) -> tuple[int, dict]:
+    action = str(body.get("action") or "")
+    if action == "quote":
+        kg = max(0.1, float(body.get("kg") or 1))
+        desi = max(0.1, float(body.get("desi") or kg))
+        charge = max(kg, desi)
+        zone = max(1.0, float(body.get("zone") or 1))
+        service = str(body.get("service") or "standart")
+        price = 49.9 + zone * 14 + charge * 9.5
+        if service == "express":
+            price *= 1.45
+        if service == "same-day":
+            price *= 1.9
+        if service == "international":
+            price *= 3.2
+        return 200, {
+            "ok": True,
+            "chargeable": round(charge, 2),
+            "price": round(price, 2),
+            "currency": "TRY",
+        }
+    if action == "create-shipment":
+        sender = str(body.get("sender") or "").strip()
+        receiver = str(body.get("receiver") or "").strip()
+        from_city = str(body.get("fromCity") or "").strip()
+        to_city = str(body.get("toCity") or "").strip()
+        if not sender or not receiver or not from_city or not to_city:
+            return 400, {"ok": False, "error": "Gönderici, alıcı ve şehirler zorunlu."}
+        digits = "".join(ch for ch in str(body.get("sendCode") or "") if ch.isdigit())[:4]
+        code = digits if len(digits) == 4 else str(1000 + int(time.time() * 1000) % 9000)
+        return 200, {
+            "ok": True,
+            "shipment": {
+                "tracking": code,
+                "sendCode": code,
+                "kind": str(body.get("kind") or "out"),
+                "refCode": str(body.get("refCode") or ""),
+                "sender": sender,
+                "receiver": receiver,
+                "fromCity": from_city,
+                "toCity": to_city,
+                "phone": str(body.get("phone") or ""),
+                "address": str(body.get("address") or ""),
+                "service": str(body.get("service") or "standart"),
+                "payment": str(body.get("payment") or "gonderici"),
+                "cod": float(body.get("cod") or 0),
+                "kg": float(body.get("kg") or 1),
+                "desi": float(body.get("desi") or 1),
+                "market": str(body.get("market") or "manuel"),
+                "orderNo": str(body.get("orderNo") or ""),
+                "status": "created",
+                "createdAt": datetime.utcnow().isoformat() + "Z",
+            },
+        }
+    if action == "verify-market":
+        api_key = str(body.get("apiKey") or "")
+        return 200, {"ok": True, "verified": True, "apiKeyPrefix": api_key[:8]}
+    if action == "nfc-pos":
+        try:
+            amount = float(body.get("amount") or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        if amount < 0.5:
+            return 400, {"ok": False, "error": "Geçerli tutar girin (en az 0,50 ₺)."}
+        return 200, {
+            "ok": True,
+            "method": "nfc",
+            "amount": round(amount, 2),
+            "currency": "TRY",
+            "tracking": str(body.get("tracking") or ""),
+            "nfcId": str(body.get("nfcId") or "nfc-tap")[:64],
+            "receiptNo": "POS" + hex(int(time.time() * 1000))[2:].upper(),
+            "at": datetime.utcnow().isoformat() + "Z",
+            "status": "captured-local",
+        }
+    return 400, {"ok": False, "error": "Bilinmeyen işlem."}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -315,7 +393,10 @@ class Handler(SimpleHTTPRequestHandler):
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, X-HK-Api-Key, X-HK-Timestamp, X-HK-Signature",
+        )
 
     def _json(self, code: int, payload: dict) -> None:
         raw = json.dumps(payload).encode("utf-8")
@@ -369,6 +450,9 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/phone-otp":
             code, payload = _phone_otp(body)
             self._json(code, payload)
+            return
+        if path == "/kargo-api":
+            self._json(*_kargo_api(body))
             return
         if path != "/pbx-rtc":
             self.send_error(404)

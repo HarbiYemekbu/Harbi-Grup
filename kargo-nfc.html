@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Harbi Kargo NFC Mobil POS" />
+    <title>Harbi Kargo — NFC POS</title>
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/kargo.css" />
+  </head>
+  <body data-page="nfc">
+    <div class="hk-app">
+      <header class="hk-header">
+        <a class="hk-brand" href="kargo.html">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <h1>Harbi Kargo</h1>
+            <small>NFC Mobil POS</small>
+          </div>
+        </a>
+        <nav class="hk-nav" aria-label="Menü">
+          <a class="hk-linkbtn" href="kargo.html">Yönetim paneli</a>
+          <a class="hk-linkbtn" href="index.html">Harbi Pazar</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="view active" data-view="pos">
+          <h2 class="subhead">NFC Mobil POS</h2>
+          <p class="hint">Bu sayfa yalnızca temassız tahsilat içindir. Gönderiye bağlamak için 4 haneli gönderim kodunu yazın. Teslim kodu yoktur.</p>
+          <form class="card" id="posForm">
+            <div class="grid-2">
+              <label class="field">Tutar ₺<input id="posAmount" type="number" min="0.5" step="0.01" required placeholder="0,00" /></label>
+              <label class="field">Gönderim kodu<input id="posTrack" inputmode="numeric" maxlength="4" placeholder="4 hane" /></label>
+              <label class="field">Açıklama<input id="posNote" maxlength="80" placeholder="Kapıda ödeme / kargo ücreti" /></label>
+              <label class="field">Kurye adı<input id="posCourier" maxlength="60" placeholder="Ad soyad" /></label>
+            </div>
+            <label class="field"><input type="checkbox" id="posCheckout" /> NFC dokunuşundan sonra iyzico ödeme sayfası aç</label>
+            <div class="pos-stage" id="posStage">
+              <div class="pos-ring">NFC</div>
+              <strong id="posStageTitle">Tutarı girin, taramayı başlatın</strong>
+              <p class="hint" id="posStageHint" style="color:#cdd9ec">Kartı veya telefonu cihazın arkasına yaklaştırın.</p>
+            </div>
+            <div class="row" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+              <button class="orange" type="submit">NFC taramayı başlat</button>
+              <button class="secondary" type="button" id="posStop">Durdur</button>
+            </div>
+            <p class="msg" id="posMsg"></p>
+          </form>
+          <article class="card receipt hidden" id="posReceipt"></article>
+          <h3 class="subhead">Son tahsilatlar</h3>
+          <div id="posLog"></div>
+        </section>
+      </main>
+    </div>
+    <script src="js/kargo.js"></script>
+  </body>
+</html>

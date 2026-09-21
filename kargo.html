@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Harbi Kargo yönetim paneli — gelen, giden, iade ve desi." />
+    <title>Harbi Kargo — Yönetim Paneli</title>
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/kargo.css" />
+  </head>
+  <body data-page="panel">
+    <section class="hk-auth" id="hkAuthGate" hidden>
+      <div class="hk-auth-card">
+        <div class="hk-auth-brand">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <h1>Harbi Kargo</h1>
+            <p>Yalnızca yetkili kargo şubeleri giriş yapabilir.</p>
+          </div>
+        </div>
+        <form id="hkLoginForm" class="hk-auth-form">
+          <label class="field">Kullanıcı adı<input id="hkLoginUser" required autocomplete="username" placeholder="Kullanıcı adı" /></label>
+          <label class="field">Şifre<input id="hkLoginPass" type="password" required autocomplete="current-password" placeholder="Şifre" /></label>
+          <p class="msg" id="hkLoginMsg"></p>
+          <button class="orange" type="submit">Şube girişi</button>
+        </form>
+        <div class="hk-auth-split">
+          <button type="button" class="hk-auth-partner" id="hkOpenPartner">İş Ortaklığı Başvurusu</button>
+        </div>
+        <a class="hk-auth-back" href="index.html">Harbi Grup ana sayfaya dön</a>
+      </div>
+    </section>
+
+    <div class="hk-app" id="hkAppShell" hidden>
+      <header class="hk-header">
+        <a class="hk-brand" href="kargo.html">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <h1>Harbi Kargo</h1>
+            <small id="hkBranchLabel">Kargo Yönetim Paneli</small>
+          </div>
+        </a>
+        <nav class="hk-nav" aria-label="Menü">
+          <button type="button" data-go="home" class="active">Yönetim</button>
+          <button type="button" data-go="integrate">Pazaryeri</button>
+          <a class="hk-linkbtn" href="kargo-nfc.html">NFC POS</a>
+          <a class="hk-linkbtn" href="index.html">Harbi Pazar</a>
+          <button type="button" data-go="partner" class="partner-nav">İş Ortağımız Olun</button>
+          <button type="button" data-go="branches" id="hkBranchesNav" hidden>Şubeler</button>
+          <button type="button" class="ghost" id="hkStaffLoginBtn" hidden>Şube girişi</button>
+          <button type="button" class="ghost" id="hkLogoutBtn" hidden>Çıkış</button>
+        </nav>
+      </header>
+
+      <main>
+        <section class="view active" data-view="home">
+          <p class="lede">Gruplar şerit halinde · sayı, telefon ve adres</p>
+          <div class="bucket-stack" id="bucketStack"></div>
+        </section>
+
+        <section class="view" data-view="partner" hidden>
+          <div class="partner-page">
+            <header class="partner-page-head">
+              <h2>İş Ortağımız Olun</h2>
+              <p class="hint">Başvurunuzu gönderin. Onay sonrası otomatik kullanıcı adı ve şifre tanımlanır.</p>
+            </header>
+            <div class="partner-layout">
+              <article class="partner-card">
+                <h3>Başvuru formu</h3>
+                <p class="hint">İsim, iletişim ve belgeler zorunludur.</p>
+                <form id="partnerForm" class="partner-form">
+                  <label class="field">İsim soy isim<input id="pName" required maxlength="80" placeholder="Ad Soyad" /></label>
+                  <label class="field">Telefon<input id="pPhone" inputmode="tel" required maxlength="20" placeholder="05xx" /></label>
+                  <label class="field">Mail<input id="pMail" type="email" required maxlength="120" placeholder="ornek@mail.com" /></label>
+                  <label class="field">Yaşadığın İl
+                    <select id="pIl" required>
+                      <option value="" disabled selected>İl seçin</option>
+                    </select>
+                  </label>
+                  <label class="field">İlçe<input id="pIlce" required maxlength="60" placeholder="İlçe" /></label>
+                  <label class="field">Adres<textarea id="pAddress" required maxlength="240" rows="2" placeholder="Açık adres"></textarea></label>
+                  <label class="field file-field">Vergi Levhası yükle
+                    <input id="pVergi" type="file" accept="image/*,.pdf" required />
+                  </label>
+                  <label class="field file-field">Adli Sicil yükle
+                    <input id="pSicil" type="file" accept="image/*,.pdf" required />
+                  </label>
+                  <label class="field file-field">İmza Sirküsü yükle
+                    <input id="pImza" type="file" accept="image/*,.pdf" required />
+                  </label>
+                  <label class="field file-field">Sağlık Raporu yükle
+                    <input id="pSaglik" type="file" accept="image/*,.pdf" required />
+                  </label>
+                  <p class="msg" id="partnerMsg"></p>
+                  <button class="orange" type="submit">Gönder</button>
+                </form>
+              </article>
+              <div class="partner-side">
+                <article class="partner-card" id="partnerCredBox" hidden>
+                  <h3>Hesap bilgileriniz</h3>
+                  <p class="hint" id="partnerCredHint"></p>
+                  <div class="secret" id="partnerUserBox"></div>
+                  <div class="secret" id="partnerPassBox"></div>
+                </article>
+                <article class="partner-card" id="partnerApproveBox">
+                  <h3>Onay süreci</h3>
+                  <p class="hint">Başvuruyu onaylayın veya reddedin. Onayda kullanıcı adı ve şifre otomatik tanımlanır.</p>
+                  <div id="partnerQueue"></div>
+                </article>
+                <article class="partner-card" id="partnerGuestNote" hidden>
+                  <h3>Başvuru sonrası</h3>
+                  <p class="hint">Başvurunuz incelenir. Onaylanınca size kullanıcı adı ve şifre tanımlanır; ardından şube girişi ile panele girebilirsiniz.</p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" data-view="branches" hidden>
+          <div class="partner-page">
+            <header class="partner-page-head">
+              <h2>Şube yönetimi</h2>
+              <p class="hint">Demo kullanıcı diğer şubeleri şube isimleriyle ekleyebilir. Her şubeye giriş bilgisi tanımlanır.</p>
+            </header>
+            <div class="partner-layout">
+              <article class="partner-card">
+                <h3>Yeni şube ekle</h3>
+                <form id="branchForm" class="partner-form">
+                  <label class="field">Şube adı<input id="bName" required maxlength="80" placeholder="Örn. Kadıköy Şubesi" /></label>
+                  <label class="field">Şehir<input id="bCity" maxlength="40" placeholder="İstanbul" /></label>
+                  <label class="field">Telefon<input id="bPhone" inputmode="tel" maxlength="20" placeholder="05xx" /></label>
+                  <p class="msg" id="branchMsg"></p>
+                  <button class="orange" type="submit">Şube ekle</button>
+                </form>
+                <article class="partner-card" id="branchCredBox" hidden style="margin-top:10px;box-shadow:none;background:#f8fafc">
+                  <h3>Tanımlanan giriş</h3>
+                  <p class="hint" id="branchCredHint"></p>
+                  <div class="secret" id="branchUserBox"></div>
+                  <div class="secret" id="branchPassBox"></div>
+                </article>
+              </article>
+              <article class="partner-card">
+                <h3>Kayıtlı şubeler</h3>
+                <p class="hint">Yetkili şube hesapları — sadece bunlar Harbi Kargo’ya girebilir.</p>
+                <div id="branchList"></div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" data-view="integrate" hidden>
+          <h2 class="subhead">Pazaryeri entegrasyonu</h2>
+          <article class="card">
+            <h3>Harbi Kargo API kimliği</h3>
+            <p class="hint">API anahtarı ve gizli anahtar. Başlıklar: <code>X-HK-Api-Key</code>, <code>X-HK-Timestamp</code>, <code>X-HK-Signature</code></p>
+            <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="primary" type="button" id="genKeys">Anahtar çifti üret</button>
+              <button class="secondary" type="button" id="copyKeys">Kopyala</button>
+              <button class="ghost" type="button" id="rotateKeys" style="color:#0b1f3a;border-color:#0b1f3a">Yenile</button>
+            </div>
+            <p class="hint">API anahtarı</p>
+            <div class="secret" id="apiKeyBox">Henüz üretilmedi</div>
+            <p class="hint">Gizli anahtar</p>
+            <div class="secret" id="secretKeyBox">Henüz üretilmedi</div>
+            <p class="msg" id="keyMsg"></p>
+          </article>
+          <h3 class="subhead">Pazaryeri bağlantıları</h3>
+          <div class="market-grid" id="marketGrid"></div>
+        </section>
+      </main>
+    </div>
+
+    <nav class="tabbar" id="hkTabbar" aria-label="Alt menü" hidden>
+      <button type="button" data-go="home" class="active">Yönetim</button>
+      <button type="button" data-go="integrate">API</button>
+      <button type="button" data-go="partner">İş Ortağı</button>
+      <button type="button" data-go="branches" id="hkBranchesTab" hidden>Şubeler</button>
+      <a class="hk-linkbtn" href="kargo-nfc.html" style="text-align:center;font-size:0.72rem;padding-top:8px">NFC</a>
+    </nav>
+    <script src="js/kargo.js"></script>
+  </body>
+</html>

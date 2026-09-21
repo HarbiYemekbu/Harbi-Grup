@@ -156,7 +156,8 @@ body:not(.owner-on) .owner-app-row {
 }
 
 .site-nav button,
-.site-nav a.site-nav-link {
+.site-nav a.site-nav-link,
+.site-nav button.site-nav-link {
   border: 0;
   background: transparent;
   color: var(--text-page);
@@ -174,7 +175,8 @@ body:not(.owner-on) .owner-app-row {
   flex-shrink: 0;
 }
 
-.site-nav a.site-nav-link:hover {
+.site-nav a.site-nav-link:hover,
+.site-nav button.site-nav-link:hover {
   background: rgba(26, 18, 36, 0.06);
 }
 

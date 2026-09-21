@@ -9856,6 +9856,9 @@ function renderYol() {
 }
 $("#yolNavRegister")?.addEventListener("click", () => yolOpenAuth());
 $("#yolNavPartner")?.addEventListener("click", () => yolOpenPartner());
+$("#hkNavKargo")?.addEventListener("click", () => {
+  location.href = "kargo.html";
+});
 $("#yolNavCart")?.addEventListener("click", () => {
   const panel = $("#yolCartPanel");
   if (!panel) return;
