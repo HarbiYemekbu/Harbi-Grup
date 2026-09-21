@@ -66,8 +66,37 @@
         background: #6b2288;
       }
       .tabbar { display: none; }
+      @media (max-width: 720px) {
+        .tabbar {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 18;
+          gap: 0;
+          padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+          background: #fff;
+          border-top: 1px solid rgba(26, 18, 36, 0.12);
+          box-shadow: 0 -6px 18px rgba(26, 18, 36, 0.06);
+        }
+        .tabbar .tab {
+          color: #5b6478;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 10px 4px;
+        }
+        .tabbar .tab.active {
+          color: #5b21b6;
+          font-weight: 700;
+        }
+        .app {
+          padding-bottom: calc(72px + env(safe-area-inset-bottom));
+        }
+      }
     </style>
-    <link rel="stylesheet" href="css/app.css?v=326" />
+    <link rel="stylesheet" href="css/app.css?v=328" />
   </head>
   <body>
     <div class="app">
@@ -102,6 +131,9 @@
       <div class="yol-shop">
         <div class="yol-shop-main">
       <section class="yol-search">
+        <div class="yol-quick-apps" aria-label="Hızlı erişim">
+          <button type="button" class="yol-quick-chip" id="hkHomeKargo">Harbi Kargo</button>
+        </div>
         <div class="yol-filter-bar">
           <details class="yol-color-panel" aria-label="Sıralama bölümü">
             <summary class="yol-sort-label">Sıralama</summary>
@@ -1610,11 +1642,18 @@
         <p>© 2026 Harbi pazar yeri</p>
       </footer>
         </div>
+        <aside class="yol-side-rail" id="yolSideRail" aria-label="Yan menü">
+          <h2>Yan menü</h2>
+          <button type="button" class="yol-side-app" id="hkSideKargo">Harbi Kargo</button>
+          <button type="button" class="yol-side-app ghost" data-go="nfc">NFC Kontrol</button>
+          <button type="button" class="yol-side-app ghost" id="hkSidePartner">İş Ortaklığı</button>
+        </aside>
       </div>
       <p id="installHint" hidden></p>
 
-      <nav class="tabbar">
+      <nav class="tabbar" aria-label="Alt menü">
         <button class="tab active" data-go="home" type="button">Ana</button>
+        <button class="tab" type="button" id="hkTabKargo">Harbi Kargo</button>
       </nav>
     </div>
     <div class="nfc-identity" id="nfcIdentity" hidden>
@@ -1677,6 +1716,6 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=326"></script>
+    <script src="js/app.js?v=328"></script>
   </body>
 </html>

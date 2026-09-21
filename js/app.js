@@ -9854,11 +9854,17 @@ function renderYol() {
   renderYolMarket();
   yolSyncSearch();
 }
+function openHarbiKargo() {
+  location.href = "kargo.html";
+}
+
 $("#yolNavRegister")?.addEventListener("click", () => yolOpenAuth());
 $("#yolNavPartner")?.addEventListener("click", () => yolOpenPartner());
-$("#hkNavKargo")?.addEventListener("click", () => {
-  location.href = "kargo.html";
-});
+$("#hkSidePartner")?.addEventListener("click", () => yolOpenPartner());
+$("#hkNavKargo")?.addEventListener("click", openHarbiKargo);
+$("#hkHomeKargo")?.addEventListener("click", openHarbiKargo);
+$("#hkSideKargo")?.addEventListener("click", openHarbiKargo);
+$("#hkTabKargo")?.addEventListener("click", openHarbiKargo);
 $("#yolNavCart")?.addEventListener("click", () => {
   const panel = $("#yolCartPanel");
   if (!panel) return;

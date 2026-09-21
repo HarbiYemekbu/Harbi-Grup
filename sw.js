@@ -1,9 +1,12 @@
-const CACHE = "harbi-grup-v326";
+const CACHE = "harbi-grup-v328";
 const ASSETS = [
   "./",
   "./index.html",
   "./css/app.css",
   "./js/app.js",
+  "./kargo.html",
+  "./js/kargo.js",
+  "./css/kargo.css",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

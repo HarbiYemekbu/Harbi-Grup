@@ -67,11 +67,60 @@ textarea,
 }
 
 .yol-shop {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
 }
 
 .yol-shop-main {
   min-width: 0;
+}
+
+.yol-side-rail {
+  background: #fff;
+  border: 1px solid rgba(26, 18, 36, 0.12);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  order: -1;
+}
+
+.yol-side-rail h2 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  color: #0b1f3a;
+}
+
+.yol-side-app {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #0b1f3a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.yol-side-app.ghost {
+  background: #eef2f7;
+  color: #0b1f3a;
+}
+
+@media (min-width: 900px) {
+  .yol-shop {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+  .yol-side-rail {
+    order: 0;
+    position: sticky;
+    top: 64px;
+  }
 }
 
 .site-header,
@@ -2166,6 +2215,40 @@ pre {
   display: none;
 }
 
+@media (max-width: 720px) {
+  .tabbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 18;
+    gap: 0;
+    margin: 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: #fff;
+    border-top: 1px solid rgba(26, 18, 36, 0.12);
+    box-shadow: 0 -6px 18px rgba(26, 18, 36, 0.06);
+  }
+
+  .tabbar .tab {
+    color: #5b6478;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 10px 4px;
+  }
+
+  .tabbar .tab.active {
+    color: #5b21b6;
+    font-weight: 700;
+  }
+
+  .app {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
 .tab {
   background: none;
   border: 0;
@@ -2932,12 +3015,42 @@ body.yol-seller-account .brand-title h1 {
   align-self: center;
 }
 
-body.yol-bireysel-panel .site-nav > button:not(#yolNavSell):not(#yolLogoutTop),
-body.yol-desk-panel .site-nav > button:not(#yolNavSell):not(#yolLogoutTop) {
+.yol-quick-apps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+
+.yol-quick-chip {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #0b1f3a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.yol-quick-chip:active {
+  transform: scale(0.98);
+}
+
+.site-header #hkNavKargo {
+  background: #0b1f3a;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff;
+  height: 36px;
+  padding: 0 12px;
+}
+
+body.yol-bireysel-panel .site-nav > button:not(#yolNavSell):not(#yolLogoutTop):not(#hkNavKargo),
+body.yol-desk-panel .site-nav > button:not(#yolNavSell):not(#yolLogoutTop):not(#hkNavKargo) {
   display: none !important;
 }
 
-body.yol-admin-panel .site-nav > button:not(#yolNavAdmin):not([data-go="home"]) {
+body.yol-admin-panel .site-nav > button:not(#yolNavAdmin):not([data-go="home"]):not(#hkNavKargo) {
   display: none !important;
 }
 
