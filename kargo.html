@@ -32,7 +32,13 @@
         </div>
         <form id="hkLoginForm" class="hk-auth-form">
           <label class="field">Kullanıcı adı<input id="hkLoginUser" required autocomplete="username" placeholder="Kullanıcı adı" /></label>
-          <label class="field">Şifre<input id="hkLoginPass" type="password" required autocomplete="current-password" placeholder="Şifre" /></label>
+          <label class="field">Şifre
+            <span class="hk-pass-wrap">
+              <input id="hkLoginPass" type="password" required autocomplete="current-password" placeholder="Şifre" />
+              <button class="hk-pw-toggle" id="hkLoginShowPass" type="button" aria-pressed="false">Şifreyi göster</button>
+            </span>
+          </label>
+          <label class="hk-remember"><input type="checkbox" id="hkLoginRemember" checked /> Beni hatırla</label>
           <p class="msg" id="hkLoginMsg"></p>
           <button class="orange" type="submit">Şube girişi</button>
         </form>
@@ -61,6 +67,8 @@
         </a>
         <nav class="hk-nav" aria-label="Menü">
           <button type="button" data-go="home" class="active">Yönetim</button>
+          <a class="hk-linkbtn create-nav" href="kargo-olustur.html">Yeni Kargo</a>
+          <a class="hk-linkbtn create-nav" href="kargo-mobil.html">Mobil</a>
           <button type="button" data-go="integrate">Pazaryeri</button>
           <a class="hk-linkbtn" href="kargo-nfc.html">NFC POS</a>
           <a class="hk-linkbtn" href="index.html">Harbi Pazar</a>
@@ -73,7 +81,7 @@
 
       <main>
         <section class="view active" data-view="home">
-          <p class="lede">Gruplar şerit halinde · sayı, telefon ve adres</p>
+          <p class="lede">Gruplar şerit halinde · sayı, telefon ve adres · <a href="kargo-olustur.html">Yeni kargo oluştur</a></p>
           <div class="bucket-stack" id="bucketStack"></div>
         </section>
 
@@ -191,6 +199,8 @@
 
     <nav class="tabbar" id="hkTabbar" aria-label="Alt menü" hidden>
       <button type="button" data-go="home" class="active">Yönetim</button>
+      <a class="hk-linkbtn" href="kargo-olustur.html" style="text-align:center;font-size:0.72rem;padding-top:8px">Yeni</a>
+      <a class="hk-linkbtn" href="kargo-mobil.html" style="text-align:center;font-size:0.72rem;padding-top:8px">Mobil</a>
       <button type="button" data-go="integrate">API</button>
       <button type="button" data-go="partner">İş Ortağı</button>
       <button type="button" data-go="branches" id="hkBranchesTab" hidden>Şubeler</button>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Harbi Kargo" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Harbi Kargo mobil — zimmet, kamera, fiyat ve gönderi" />
+    <title>Harbi Kargo — Mobil</title>
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="manifest" href="kargo-mobil.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/kargo.css" />
+  </head>
+  <body data-page="mobile">
+    <section class="hk-auth" id="mobAuthGate" hidden>
+      <div class="hk-auth-card">
+        <div class="hk-auth-brand">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <h1>Harbi Kargo</h1>
+            <p>Mobil şube girişi</p>
+          </div>
+        </div>
+        <form id="mobLoginForm" class="hk-auth-form">
+          <label class="field">Kullanıcı adı<input id="mobLoginUser" required autocomplete="username" /></label>
+          <label class="field">Şifre
+            <span class="hk-pass-wrap">
+              <input id="mobLoginPass" type="password" required autocomplete="current-password" />
+              <button class="hk-pw-toggle" id="mobLoginShowPass" type="button" aria-pressed="false">Şifreyi göster</button>
+            </span>
+          </label>
+          <label class="hk-remember"><input type="checkbox" id="mobLoginRemember" checked /> Beni hatırla</label>
+          <p class="msg" id="mobLoginMsg"></p>
+          <button class="orange" type="submit">Giriş</button>
+        </form>
+        <a class="hk-auth-back" href="index.html">Harbi Grup</a>
+      </div>
+    </section>
+
+    <div class="mob-app" id="mobShell" hidden>
+      <header class="mob-top">
+        <div>
+          <strong>Harbi Kargo</strong>
+          <small id="mobBranchLabel">Mobil</small>
+        </div>
+        <div class="mob-top-actions">
+          <a href="kargo.html">Panel</a>
+          <button type="button" id="mobLogout">Çıkış</button>
+        </div>
+      </header>
+
+      <nav class="mob-jump" aria-label="Bölümler">
+        <a href="#sec-scan">Kamera</a>
+        <a href="#sec-custody">Zimmet</a>
+        <a href="#sec-send">Gönderi</a>
+        <a href="#sec-price">Fiyat</a>
+        <a href="#sec-issues">Hatalı</a>
+        <a href="#sec-pay">Ödeme</a>
+        <a href="#sec-returns">İade</a>
+        <a href="#sec-groups">Gruplar</a>
+      </nav>
+
+      <main class="mob-main">
+        <section class="mob-sec" id="sec-scan">
+          <h2>1 · Kamera ile zimmet</h2>
+          <p class="hint">Barkod / kod okutun veya fotoğraf çekip zimmete ekleyin.</p>
+          <div class="mob-cam">
+            <video id="mobCamVideo" playsinline muted autoplay></video>
+            <canvas id="mobCamCanvas" hidden></canvas>
+          </div>
+          <div class="mob-row">
+            <button type="button" class="orange" id="mobCamStart">Kamerayı aç</button>
+            <button type="button" class="secondary" id="mobCamCapture" disabled>Çek / Oku</button>
+            <button type="button" class="ghost" id="mobCamStop" disabled>Kapat</button>
+          </div>
+          <p class="msg" id="mobCamMsg"></p>
+          <form id="mobCustodyForm" class="partner-form">
+            <label class="field">Gönderim kodu<input id="mobCode" inputmode="numeric" maxlength="4" placeholder="4 hane" required /></label>
+            <label class="field">Telefon<input id="mobPhone" inputmode="tel" maxlength="20" placeholder="05xx" required /></label>
+            <label class="field">Adres<textarea id="mobAddress" maxlength="240" rows="2" placeholder="Adres (hatalı olabilir)" required></textarea></label>
+            <label class="field">Durum
+              <select id="mobKind">
+                <option value="custody">Zimmete ekle</option>
+                <option value="bad_address">Hatalı / yetersiz adres</option>
+                <option value="bad_phone">Yanlış telefon</option>
+                <option value="in">Gelen kargo</option>
+              </select>
+            </label>
+            <button class="orange" type="submit">Zimmete / gruba ekle</button>
+            <p class="msg" id="mobCustodyMsg"></p>
+          </form>
+        </section>
+
+        <section class="mob-sec" id="sec-custody">
+          <h2>2 · Zimmetteki kargolar</h2>
+          <p class="hint">Adresin sağındaki × ile zimmetten çıkarın.</p>
+          <div id="mobCustodyList" class="mob-list"></div>
+        </section>
+
+        <section class="mob-sec" id="sec-send">
+          <h2>3 · Telefondan gönderi oluştur</h2>
+          <form id="mobSendForm" class="partner-form">
+            <label class="field">Gönderen<input id="msSender" required maxlength="80" /></label>
+            <label class="field">Alıcı<input id="msReceiver" required maxlength="80" /></label>
+            <label class="field">Telefon<input id="msPhone" inputmode="tel" required maxlength="20" /></label>
+            <label class="field">Adres<textarea id="msAddress" required maxlength="240" rows="2"></textarea></label>
+            <div class="create-row">
+              <label class="field">Çıkış<select id="msFrom" required></select></label>
+              <label class="field">Varış<select id="msTo" required></select></label>
+            </div>
+            <div class="create-row">
+              <label class="field">Kilo (kg)<input id="msKg" type="number" min="0.1" step="0.1" value="1" required /></label>
+              <label class="field">Desi<input id="msDesi" type="number" min="0.1" step="0.1" value="1" required /></label>
+            </div>
+            <div class="mob-price-box">
+              <span>Tahmini ücret</span>
+              <strong id="msPrice">— ₺</strong>
+            </div>
+            <button class="orange" type="submit">Gönderi oluştur</button>
+            <p class="msg" id="msMsg"></p>
+            <div class="secret" id="msCode" hidden></div>
+          </form>
+        </section>
+
+        <section class="mob-sec" id="sec-price">
+          <h2>4 · Hızlı fiyat</h2>
+          <p class="hint">Kilo ve desi girin — ücret anında hesaplanır.</p>
+          <div class="create-row">
+            <label class="field">Kilo<input id="pqKg" type="number" min="0.1" step="0.1" value="1" /></label>
+            <label class="field">Desi<input id="pqDesi" type="number" min="0.1" step="0.1" value="1" /></label>
+          </div>
+          <div class="create-row">
+            <label class="field">Çıkış<select id="pqFrom"></select></label>
+            <label class="field">Varış<select id="pqTo"></select></label>
+          </div>
+          <div class="mob-price-box big">
+            <span>Fiyat</span>
+            <strong id="pqPrice">— ₺</strong>
+          </div>
+          <p class="hint" id="pqHint"></p>
+        </section>
+
+        <section class="mob-sec" id="sec-issues">
+          <h2>5 · Hatalı adres / telefon</h2>
+          <div class="mob-sub">
+            <h3>Yetersiz adres</h3>
+            <div id="mobBadAddr" class="mob-list"></div>
+          </div>
+          <div class="mob-sub">
+            <h3>Yanlış telefon</h3>
+            <div id="mobBadPhone" class="mob-list"></div>
+          </div>
+        </section>
+
+        <section class="mob-sec" id="sec-pay">
+          <h2>8 · Kapıda kredi kartı</h2>
+          <p class="hint">Ödeme al → POS açılır. Karttan tahsilat, yazdığınız IBAN’a aktarım kaydı oluşturulur.</p>
+          <form id="mobPayForm" class="partner-form">
+            <label class="field">Tutar ₺<input id="mpAmount" type="number" min="0.5" step="0.01" required placeholder="0,00" /></label>
+            <label class="field">Gönderim kodu<input id="mpTrack" inputmode="numeric" maxlength="4" placeholder="4 hane" /></label>
+            <label class="field">Aktarılacak IBAN<input id="mpIban" required maxlength="34" placeholder="TR00 0000 0000 0000 0000 0000 00" autocomplete="off" /></label>
+            <label class="field">Açıklama<input id="mpNote" maxlength="80" placeholder="Kapıda kart ödemesi" /></label>
+            <button class="orange" type="submit" id="mpOpenPos">Ödeme al · POS aç</button>
+            <p class="msg" id="mpMsg"></p>
+          </form>
+          <h3>Son aktarımlar</h3>
+          <div id="mobPayoutLog" class="mob-list"></div>
+        </section>
+
+        <section class="mob-sec" id="sec-returns">
+          <h2>6 · Pazaryeri iadesi kabul</h2>
+          <form id="mobReturnForm" class="partner-form">
+            <label class="field">Pazaryeri<select id="mrMarket" required></select></label>
+            <label class="field">Sipariş / iade no<input id="mrOrder" required maxlength="40" /></label>
+            <label class="field">Telefon<input id="mrPhone" inputmode="tel" required maxlength="20" /></label>
+            <label class="field">Adres<textarea id="mrAddress" required maxlength="240" rows="2"></textarea></label>
+            <button class="orange" type="submit">İadeyi kabul et</button>
+            <p class="msg" id="mrMsg"></p>
+          </form>
+        </section>
+
+        <section class="mob-sec" id="sec-groups">
+          <h2>7 · Tüm gruplar</h2>
+          <div id="mobGroups" class="mob-groups"></div>
+        </section>
+
+        <section class="mob-sec">
+          <h2>Diğer</h2>
+          <div class="mob-links">
+            <a class="mob-link" href="kargo-olustur.html">Yeni kargo (detay)</a>
+            <a class="mob-link" href="kargo-nfc.html">NFC POS</a>
+            <a class="mob-link" href="kargo.html">Yönetim paneli</a>
+            <a class="mob-link" href="index.html">Harbi Pazar</a>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="js/kargo.js"></script>
+  </body>
+</html>

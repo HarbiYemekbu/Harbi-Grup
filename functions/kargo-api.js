@@ -126,6 +126,12 @@ export async function onRequestPost(context) {
   if (action === "nfc-pos") {
     const amount = moneyText(body.amount);
     if (!amount) return json({ ok: false, error: "Geçerli tutar girin (en az 0,50 ₺)." }, 400);
+    const settleIban = String(body.settleIban || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+    if (settleIban && !/^TR\d{24}$/.test(settleIban)) {
+      return json({ ok: false, error: "Geçerli TR IBAN gerekli (26 hane)." }, 400);
+    }
     const tap = String(body.nfcId || body.uid || "nfc-tap");
     const receipt = {
       ok: true,
@@ -137,6 +143,8 @@ export async function onRequestPost(context) {
       receiptNo: "POS" + Date.now().toString(36).toUpperCase(),
       at: new Date().toISOString(),
       status: "captured-local",
+      settleIban: settleIban || "",
+      note: String(body.note || "").slice(0, 80),
     };
 
     if (iyzicoConfigured(env) && body.checkout) {

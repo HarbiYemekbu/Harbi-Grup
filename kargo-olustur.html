@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1f3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Harbi Kargo — yeni kargo oluştur ve pazaryeri iadesi kabul et" />
+    <title>Harbi Kargo — Yeni Kargo</title>
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/kargo.css" />
+  </head>
+  <body data-page="create">
+    <div class="hk-app">
+      <header class="hk-header">
+        <a class="hk-brand" href="kargo.html">
+          <svg class="hk-logo" viewBox="0 0 192 192" aria-hidden="true">
+            <rect width="192" height="192" rx="42" fill="#0b1f3a" />
+            <path fill="#f26b1d" d="M28 118h136l-18 32H46z" />
+            <rect x="40" y="70" width="92" height="48" rx="8" fill="#fff" />
+            <rect x="132" y="88" width="28" height="30" rx="6" fill="#e8b84a" />
+            <circle cx="62" cy="128" r="14" fill="#123056" />
+            <circle cx="138" cy="128" r="14" fill="#123056" />
+          </svg>
+          <div>
+            <h1>Harbi Kargo</h1>
+            <small id="hkCreateBranchLabel">Yeni kargo oluştur</small>
+          </div>
+        </a>
+        <nav class="hk-nav" aria-label="Menü">
+          <a class="hk-linkbtn" href="kargo.html">Yönetim paneli</a>
+          <a class="hk-linkbtn" href="kargo-mobil.html">Mobil</a>
+          <a class="hk-linkbtn" href="kargo-nfc.html">NFC POS</a>
+          <a class="hk-linkbtn" href="index.html">Harbi Pazar</a>
+          <button type="button" class="ghost" id="hkCreateLogout">Çıkış</button>
+        </nav>
+      </header>
+
+      <main class="create-page">
+        <header class="partner-page-head">
+          <h2>Yeni kargo oluştur</h2>
+          <p class="hint">Gönderi bilgilerini girin. Kayıtta 4 haneli gönderim kodu otomatik üretilir.</p>
+        </header>
+
+        <div class="create-layout">
+          <article class="partner-card">
+            <h3>Kargo bilgileri</h3>
+            <form id="newShipForm" class="partner-form create-form">
+              <label class="field">Gönderen<input id="nsSender" required maxlength="80" placeholder="Gönderen adı" /></label>
+              <label class="field">Alıcı<input id="nsReceiver" required maxlength="80" placeholder="Alıcı adı" /></label>
+              <label class="field">Telefon<input id="nsPhone" inputmode="tel" required maxlength="20" placeholder="05xx" /></label>
+              <label class="field">Adres<textarea id="nsAddress" required maxlength="240" rows="2" placeholder="Açık adres"></textarea></label>
+              <div class="create-row">
+                <label class="field">Çıkış ili
+                  <select id="nsFrom" required></select>
+                </label>
+                <label class="field">Varış ili
+                  <select id="nsTo" required></select>
+                </label>
+              </div>
+              <div class="create-row">
+                <label class="field">Kg<input id="nsKg" type="number" min="0.1" step="0.1" value="1" required /></label>
+                <label class="field">Desi<input id="nsDesi" type="number" min="0.1" step="0.1" value="1" required /></label>
+              </div>
+              <div class="create-row">
+                <label class="field">Hizmet
+                  <select id="nsService">
+                    <option value="standart">Standart</option>
+                    <option value="express">Express</option>
+                    <option value="same-day">Aynı gün</option>
+                  </select>
+                </label>
+                <label class="field">Ödeme
+                  <select id="nsPayment">
+                    <option value="gonderici">Gönderici öder</option>
+                    <option value="alici">Alıcı öder</option>
+                  </select>
+                </label>
+              </div>
+              <label class="field">Grup
+                <select id="nsKind" required>
+                  <option value="in">Gelen Kargolar</option>
+                  <option value="custody">Zimmetteki Kargolar</option>
+                  <option value="dist">Dağıtımdaki Kargolar</option>
+                  <option value="pickup">Adresten Alım</option>
+                  <option value="return">İade Kargolar</option>
+                </select>
+              </label>
+              <p class="msg" id="nsMsg"></p>
+              <button class="orange" type="submit">Kargo oluştur</button>
+            </form>
+            <article class="partner-card" id="nsResult" hidden style="margin-top:10px;box-shadow:none;background:#f8fafc">
+              <h3>Gönderim kodu</h3>
+              <div class="secret" id="nsCodeBox"></div>
+            </article>
+          </article>
+
+          <article class="partner-card create-returns">
+            <h3>Pazaryeri iadeleri</h3>
+            <p class="hint">Tüm pazaryerlerinden gelen iadeleri burada kabul edin. Her kabul, İade Kargolar grubuna düşer.</p>
+            <form id="returnAcceptForm" class="partner-form create-form">
+              <label class="field">Pazaryeri
+                <select id="retMarket" required></select>
+              </label>
+              <label class="field">Sipariş / iade no<input id="retOrder" required maxlength="40" placeholder="Örn. TY123456" /></label>
+              <label class="field">Müşteri telefon<input id="retPhone" inputmode="tel" required maxlength="20" placeholder="05xx" /></label>
+              <label class="field">İade adresi<textarea id="retAddress" required maxlength="240" rows="2" placeholder="Alım / iade adresi"></textarea></label>
+              <label class="field">İade nedeni<input id="retReason" maxlength="120" placeholder="İsteğe bağlı" /></label>
+              <p class="msg" id="retMsg"></p>
+              <button class="orange" type="submit">İadeyi kabul et</button>
+            </form>
+            <div class="return-markets" id="returnMarketList" aria-label="Kabul edilen pazaryerleri"></div>
+            <h3 style="margin-top:14px">Son kabul edilen iadeler</h3>
+            <div id="returnLog"></div>
+          </article>
+        </div>
+      </main>
+    </div>
+    <script src="js/kargo.js"></script>
+  </body>
+</html>

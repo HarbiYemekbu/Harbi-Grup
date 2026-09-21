@@ -1,10 +1,13 @@
-const CACHE = "harbi-grup-v328";
+const CACHE = "harbi-grup-v329";
 const ASSETS = [
   "./",
   "./index.html",
   "./css/app.css",
   "./js/app.js",
   "./kargo.html",
+  "./kargo-olustur.html",
+  "./kargo-mobil.html",
+  "./kargo-mobil.webmanifest",
   "./js/kargo.js",
   "./css/kargo.css",
   "./manifest.webmanifest",

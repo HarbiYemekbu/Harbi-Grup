@@ -47,20 +47,25 @@
               <label class="field">Açıklama<input id="posNote" maxlength="80" placeholder="Kapıda ödeme / kargo ücreti" /></label>
               <label class="field">Kurye adı<input id="posCourier" maxlength="60" placeholder="Ad soyad" /></label>
             </div>
-            <label class="field"><input type="checkbox" id="posCheckout" /> NFC dokunuşundan sonra iyzico ödeme sayfası aç</label>
+            <label class="field">Aktarılacak IBAN
+              <input id="posSettleIban" required maxlength="34" placeholder="TR00 0000 0000 0000 0000 0000 00" autocomplete="off" />
+            </label>
+            <p class="hint">Karttan alınan tutar, yazdığınız IBAN’a aktarım kaydıyla bağlanır.</p>
+            <label class="field"><input type="checkbox" id="posCheckout" checked /> NFC sonrası iyzico ödeme sayfasını aç</label>
             <div class="pos-stage" id="posStage">
               <div class="pos-ring">NFC</div>
               <strong id="posStageTitle">Tutarı girin, taramayı başlatın</strong>
               <p class="hint" id="posStageHint" style="color:#cdd9ec">Kartı veya telefonu cihazın arkasına yaklaştırın.</p>
             </div>
             <div class="row" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-              <button class="orange" type="submit">NFC taramayı başlat</button>
+              <button class="orange" type="submit">Ödeme al · NFC POS</button>
               <button class="secondary" type="button" id="posStop">Durdur</button>
+              <a class="hk-linkbtn" href="kargo-mobil.html">Mobil uygulama</a>
             </div>
             <p class="msg" id="posMsg"></p>
           </form>
           <article class="card receipt hidden" id="posReceipt"></article>
-          <h3 class="subhead">Son tahsilatlar</h3>
+          <h3 class="subhead">Son tahsilatlar / IBAN aktarımları</h3>
           <div id="posLog"></div>
         </section>
       </main>

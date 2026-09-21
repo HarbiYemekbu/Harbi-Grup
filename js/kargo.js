@@ -40,6 +40,7 @@ const ZONES = {
 };
 
 const MARKETS = [
+  { id: "harbi", name: "Harbi Pazar", hint: "Harbi sipariş / iade" },
   { id: "trendyol", name: "Trendyol", hint: "Satıcı API Key + Secret" },
   { id: "hepsiburada", name: "Hepsiburada", hint: "Merchant ID, servis anahtarı" },
   { id: "amazon", name: "Amazon", hint: "LWA Client ID + Secret" },
@@ -69,10 +70,72 @@ const SHIPS = "hk-shipments";
 const MARK = "hk-markets";
 const POS = "hk-pos";
 const ORDERS = "hk-orders";
+const RETURNS = "hk-returns";
+const PAYOUTS = "hk-pos-payouts";
+const POS_HANDOFF = "hk-pos-handoff";
+
+function ibanRaw(v) {
+  return String(v || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function ibanOk(v) {
+  return /^TR\d{24}$/.test(ibanRaw(v));
+}
+
+function ibanFormat(v) {
+  return ibanRaw(v).replace(/(.{4})/g, "$1 ").trim();
+}
+
+function payouts() {
+  return store.get(PAYOUTS, []);
+}
+
+function savePayout(row) {
+  const list = payouts();
+  list.unshift(row);
+  store.set(PAYOUTS, list.slice(0, 80));
+}
 const PARTNERS = "hk-partners";
 const PARTNER_APPS = "hk-partner-apps";
 const BRANCHES = "hk-branches";
 const HK_SESSION = "hk-session";
+const HK_REMEMBER = "hk-login-remember";
+
+function hkRememberGet() {
+  return store.get(HK_REMEMBER, null);
+}
+
+function hkRememberSave(user, pass, remember) {
+  if (remember && user) {
+    store.set(HK_REMEMBER, { remember: true, user, pass: String(pass || "") });
+  } else {
+    store.set(HK_REMEMBER, { remember: false });
+  }
+}
+
+function hkTogglePass(inputSel, btnSel) {
+  const pin = $(inputSel);
+  const btn = $(btnSel);
+  if (!pin || !btn) return;
+  const show = pin.type === "password";
+  pin.type = show ? "text" : "password";
+  btn.textContent = show ? "Şifreyi gizle" : "Şifreyi göster";
+  btn.setAttribute("aria-pressed", String(show));
+}
+
+function fillHkLoginRemember() {
+  const saved = hkRememberGet();
+  const remember = saved?.remember !== false;
+  if ($("#hkLoginRemember")) $("#hkLoginRemember").checked = remember;
+  if ($("#mobLoginRemember")) $("#mobLoginRemember").checked = remember;
+  if (!saved?.remember || !saved.user) return;
+  if ($("#hkLoginUser") && !$("#hkLoginUser").value) $("#hkLoginUser").value = saved.user;
+  if ($("#hkLoginPass") && !$("#hkLoginPass").value) $("#hkLoginPass").value = saved.pass || "";
+  if ($("#mobLoginUser") && !$("#mobLoginUser").value) $("#mobLoginUser").value = saved.user;
+  if ($("#mobLoginPass") && !$("#mobLoginPass").value) $("#mobLoginPass").value = saved.pass || "";
+}
 
 const DEMO_BRANCH = {
   id: "br_demo",
@@ -126,6 +189,29 @@ function requireBranchAuth() {
     location.replace("kargo.html");
     return null;
   }
+  if ((PAGE === "create" || PAGE === "mobile") && !user) {
+    if (PAGE === "mobile") {
+      document.body.classList.add("hk-locked");
+      if ($("#mobAuthGate")) $("#mobAuthGate").hidden = false;
+      if ($("#mobShell")) $("#mobShell").hidden = true;
+      return null;
+    }
+    location.replace("kargo.html");
+    return null;
+  }
+  if (PAGE === "create" && user) {
+    if ($("#hkCreateBranchLabel")) {
+      $("#hkCreateBranchLabel").textContent = user.branchName + " · Yeni kargo";
+    }
+    return user;
+  }
+  if (PAGE === "mobile" && user) {
+    document.body.classList.remove("hk-locked");
+    if ($("#mobAuthGate")) $("#mobAuthGate").hidden = true;
+    if ($("#mobShell")) $("#mobShell").hidden = false;
+    if ($("#mobBranchLabel")) $("#mobBranchLabel").textContent = user.branchName;
+    return user;
+  }
   if (PAGE !== "panel") return user;
   const gate = $("#hkAuthGate");
   const shell = $("#hkAppShell");
@@ -146,7 +232,7 @@ function requireBranchAuth() {
   if (shell) shell.hidden = false;
   if (tab) tab.hidden = !user;
 
-  const staffOnly = $$("[data-go='home'], [data-go='integrate'], [data-go='branches'], a[href='kargo-nfc.html']");
+  const staffOnly = $$("[data-go='home'], [data-go='integrate'], [data-go='branches'], a[href='kargo-nfc.html'], a[href='kargo-olustur.html']");
   staffOnly.forEach((el) => {
     if (el.closest(".tabbar")) el.hidden = !user;
     else if (el.matches("[data-go='branches']")) el.hidden = !(user && isDemoUser(user));
@@ -253,6 +339,25 @@ function zoneOf(a, b) {
 
 function desiOf(w, l, h) {
   return Math.max(0.1, (Number(w) * Number(l) * Number(h)) / 3000);
+}
+
+function billableWeight(kg, desi) {
+  return Math.max(Number(kg) || 0, Number(desi) || 0, 0.1);
+}
+
+function quotePrice(fromCity, toCity, kg, desi) {
+  const zone = zoneOf(fromCity, toCity);
+  const w = billableWeight(kg, desi);
+  const base = 49;
+  const perUnit = 14;
+  const total = Math.round((base + w * perUnit * zone) * 100) / 100;
+  return { zone, weight: w, total };
+}
+
+function formatTry(n) {
+  return (
+    Number(n).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺"
+  );
 }
 
 function ships() {
@@ -399,8 +504,10 @@ function findShip(code) {
 }
 
 async function createShip(fields) {
-  const sendCode = uniqueSendCode();
-  const payload = { action: "create-shipment", sendCode, ...fields };
+  const sendCode = fields.sendCode && String(fields.sendCode).replace(/\D/g, "").slice(0, 4).length === 4
+    ? String(fields.sendCode).replace(/\D/g, "").slice(0, 4)
+    : uniqueSendCode();
+  const payload = { action: "create-shipment", ...fields, sendCode };
   try {
     const res = await fetch("/kargo-api", {
       method: "POST",
@@ -410,6 +517,7 @@ async function createShip(fields) {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Hata");
     const row = {
+      id: "sh_" + Date.now().toString(36),
       ...data.shipment,
       ...fields,
       sendCode,
@@ -423,11 +531,13 @@ async function createShip(fields) {
     return row;
   } catch {
     const row = {
+      id: "sh_" + Date.now().toString(36),
       ...payload,
       tracking: sendCode,
       sendCode,
       teslimCode: null,
-      status: "created",
+      status: fields.kind || "created",
+      kind: fields.kind,
       createdAt: new Date().toISOString(),
     };
     const list = ships();
@@ -863,17 +973,31 @@ function savePos(row) {
 function renderPosLog() {
   if (!$("#posLog")) return;
   const list = store.get(POS, []);
-  $("#posLog").innerHTML = list.length
-    ? `<table><thead><tr><th>Fiş</th><th>Tutar</th><th>Gönderim</th></tr></thead><tbody>${list
-        .map(
-          (p) =>
-            `<tr><td>${p.receiptNo}</td><td>${Number(p.amount).toLocaleString("tr-TR", {
-              style: "currency",
-              currency: "TRY",
-            })}</td><td>${p.tracking || "-"}</td></tr>`
-        )
+  const pays = payouts();
+  const rows = list.length
+    ? `<table><thead><tr><th>Fiş</th><th>Tutar</th><th>IBAN</th></tr></thead><tbody>${list
+        .map((p) => {
+          const ib = p.settleIban ? ibanFormat(p.settleIban) : "-";
+          return `<tr><td>${p.receiptNo}</td><td>${Number(p.amount).toLocaleString("tr-TR", {
+            style: "currency",
+            currency: "TRY",
+          })}</td><td style="font-size:0.65rem">${ib}</td></tr>`;
+        })
         .join("")}</tbody></table>`
     : '<p class="hint">Henüz tahsilat yok.</p>';
+  const payRows = pays.length
+    ? `<p class="hint" style="margin-top:10px">Aktarım kayıtları</p><div class="mob-list">${pays
+        .slice(0, 8)
+        .map(
+          (p) =>
+            `<div class="mob-item"><div><strong>${Number(p.amount).toLocaleString("tr-TR", {
+              style: "currency",
+              currency: "TRY",
+            })} · ${p.receiptNo || ""}</strong><div class="meta">${ibanFormat(p.iban)}<br>${p.status || "aktarım kaydı"}</div></div><span></span></div>`
+        )
+        .join("")}</div>`
+    : "";
+  $("#posLog").innerHTML = rows + payRows;
 }
 
 function showReceipt(p) {
@@ -883,11 +1007,16 @@ function showReceipt(p) {
   el.innerHTML = `<h3>Harbi Kargo POS</h3>
     <p>Fiş ${p.receiptNo}<br>${new Date(p.at).toLocaleString("tr-TR")}<br>
     Tutar ${Number(p.amount).toLocaleString("tr-TR", { style: "currency", currency: "TRY" })}<br>
-    Gönderim kodu ${p.tracking || "-"}<br>NFC ${p.nfcId}<br>Durum ${p.status}</p>`;
+    Gönderim kodu ${p.tracking || "-"}<br>NFC ${p.nfcId}<br>Durum ${p.status}<br>
+    IBAN ${p.settleIban ? ibanFormat(p.settleIban) : "—"}</p>`;
 }
 
 async function capturePos(nfcId) {
   const amount = Number($("#posAmount").value);
+  const settleIban = ibanRaw($("#posSettleIban")?.value || "");
+  if ($("#posSettleIban") && !ibanOk(settleIban)) {
+    throw new Error("Geçerli TR IBAN yazın (26 hane).");
+  }
   const body = {
     action: "nfc-pos",
     amount,
@@ -896,6 +1025,7 @@ async function capturePos(nfcId) {
     name: $("#posCourier").value || "Harbi Kurye",
     nfcId,
     checkout: $("#posCheckout")?.checked,
+    settleIban,
     email: "pos@harbikargo.test",
     phone: "5550000000",
   };
@@ -917,14 +1047,31 @@ async function capturePos(nfcId) {
       receiptNo: "POS" + Date.now().toString(36).toUpperCase(),
       at: new Date().toISOString(),
       status: "captured-local",
+      settleIban,
     };
   }
   if (!data.ok) throw new Error(data.error || "POS reddedildi");
+  data.settleIban = data.settleIban || settleIban;
   savePos(data);
+  if (data.settleIban) {
+    savePayout({
+      id: "po_" + Date.now().toString(36),
+      amount: data.amount,
+      iban: data.settleIban,
+      receiptNo: data.receiptNo,
+      tracking: data.tracking || "",
+      note: body.note || "Kapıda kart ödemesi",
+      status: data.paymentPageUrl ? "pos-odeme-bekliyor-iban-aktarim" : "pos-tahsil-iban-aktarim-kaydi",
+      at: new Date().toISOString(),
+    });
+  }
   showReceipt(data);
+  store.set(POS_HANDOFF, null);
   if (data.paymentPageUrl) location.href = data.paymentPageUrl;
   $("#posMsg").className = "msg ok";
-  $("#posMsg").textContent = "Tahsilat alındı. Fiş " + data.receiptNo;
+  $("#posMsg").textContent = data.settleIban
+    ? "Tahsilat alındı. IBAN aktarım kaydı: " + ibanFormat(data.settleIban)
+    : "Tahsilat alındı. Fiş " + data.receiptNo;
   if (navigator.vibrate) navigator.vibrate([40, 40, 80]);
 }
 
@@ -934,6 +1081,11 @@ $("#posForm")?.addEventListener("submit", async (e) => {
   if (!amount || amount < 0.5) {
     $("#posMsg").className = "msg err";
     $("#posMsg").textContent = "En az 0,50 ₺ girin.";
+    return;
+  }
+  if ($("#posSettleIban") && !ibanOk($("#posSettleIban").value)) {
+    $("#posMsg").className = "msg err";
+    $("#posMsg").textContent = "Aktarılacak IBAN zorunlu (TR + 24 rakam).";
     return;
   }
   $("#posMsg").textContent = "";
@@ -978,10 +1130,625 @@ $("#posForm")?.addEventListener("submit", async (e) => {
   }
 });
 
+$("#posSettleIban")?.addEventListener("input", (e) => {
+  const el = e.target;
+  const caret = el.selectionStart;
+  const before = el.value.length;
+  el.value = ibanFormat(el.value);
+  const delta = el.value.length - before;
+  if (typeof caret === "number") el.setSelectionRange(caret + delta, caret + delta);
+});
+
 if (PAGE === "nfc") {
   requireBranchAuth();
+  const handoff = store.get(POS_HANDOFF, null);
+  const q = new URLSearchParams(location.search);
+  if ($("#posAmount") && (q.get("amount") || handoff?.amount)) {
+    $("#posAmount").value = q.get("amount") || handoff.amount;
+  }
+  if ($("#posTrack") && (q.get("track") || handoff?.track)) {
+    $("#posTrack").value = q.get("track") || handoff.track;
+  }
+  if ($("#posNote") && (q.get("note") || handoff?.note)) {
+    $("#posNote").value = q.get("note") || handoff.note;
+  }
+  if ($("#posSettleIban") && (q.get("iban") || handoff?.iban)) {
+    $("#posSettleIban").value = ibanFormat(q.get("iban") || handoff.iban);
+  }
+  if ($("#posCheckout") && (q.get("checkout") === "1" || handoff?.checkout)) {
+    $("#posCheckout").checked = true;
+  }
   if (currentBranch()) renderPosLog();
+  if (q.get("auto") === "1" && Number($("#posAmount")?.value) >= 0.5 && ibanOk($("#posSettleIban")?.value)) {
+    setTimeout(() => $("#posForm")?.requestSubmit(), 400);
+  }
 }
+
+function removeShipById(id) {
+  store.set(
+    SHIPS,
+    ships().filter((s) => s.id !== id && String(s.sendCode || s.tracking) !== String(id))
+  );
+}
+
+function shipKey(s) {
+  return s.id || sendCodeOf(s) + "_" + (s.createdAt || "");
+}
+
+function setShipKind(key, kind) {
+  const list = ships();
+  const idx = list.findIndex((s) => shipKey(s) === key || sendCodeOf(s) === key);
+  if (idx < 0) return null;
+  list[idx] = { ...list[idx], kind, status: kind };
+  store.set(SHIPS, list);
+  return list[idx];
+}
+
+function deleteShipByKey(key) {
+  store.set(
+    SHIPS,
+    ships().filter((s) => shipKey(s) !== key && sendCodeOf(s) !== key)
+  );
+}
+
+function renderMobList(box, kind, withRemove) {
+  if (!box) return;
+  const rows = listOf(kind);
+  if (!rows.length) {
+    box.innerHTML = '<p class="hint">Kayıt yok.</p>';
+    return;
+  }
+  box.innerHTML = rows
+    .map((s) => {
+      const key = shipKey(s);
+      const code = sendCodeOf(s);
+      const x = withRemove
+        ? `<button type="button" class="mob-x" data-out="${key}" aria-label="Zimmetten çıkar">×</button>`
+        : `<span></span>`;
+      return `<div class="mob-item">
+        <div>
+          <strong>${code} · ${s.phone || "—"}</strong>
+          <div class="meta">${s.address || "Adres yok"}</div>
+        </div>
+        ${x}
+      </div>`;
+    })
+    .join("");
+}
+
+function renderMobGroups() {
+  const box = $("#mobGroups");
+  if (!box) return;
+  box.innerHTML = BUCKETS.map((b) => {
+    const n = listOf(b.id).length;
+    return `<div class="mob-group"><span>${b.title}</span><b>${n}</b></div>`;
+  }).join("");
+}
+
+function renderMobPayouts() {
+  const box = $("#mobPayoutLog");
+  if (!box) return;
+  const pays = payouts();
+  if (!pays.length) {
+    box.innerHTML = '<p class="hint">Henüz aktarım yok.</p>';
+    return;
+  }
+  box.innerHTML = pays
+    .slice(0, 12)
+    .map(
+      (p) =>
+        `<div class="mob-item"><div><strong>${Number(p.amount).toLocaleString("tr-TR", {
+          style: "currency",
+          currency: "TRY",
+        })}</strong><div class="meta">${ibanFormat(p.iban)} · ${p.receiptNo || ""}<br>${p.status || ""}</div></div><span></span></div>`
+    )
+    .join("");
+}
+
+function refreshMobileLists() {
+  renderMobList($("#mobCustodyList"), "custody", true);
+  renderMobList($("#mobBadAddr"), "bad_address", false);
+  renderMobList($("#mobBadPhone"), "bad_phone", false);
+  renderMobGroups();
+  renderMobPayouts();
+}
+
+function updateMobPrices() {
+  if ($("#msPrice") && $("#msFrom") && $("#msKg")) {
+    const q = quotePrice($("#msFrom").value, $("#msTo").value, $("#msKg").value, $("#msDesi").value);
+    $("#msPrice").textContent = formatTry(q.total);
+  }
+  if ($("#pqPrice") && $("#pqFrom")) {
+    const q = quotePrice($("#pqFrom").value, $("#pqTo").value, $("#pqKg").value, $("#pqDesi").value);
+    $("#pqPrice").textContent = formatTry(q.total);
+    if ($("#pqHint")) {
+      $("#pqHint").textContent =
+        "Ücretlendirilen ağırlık: " + q.weight + " · Bölge: " + q.zone + " (max kilo/desi)";
+    }
+  }
+}
+
+let mobCamStream = null;
+let mobScanTimer = null;
+
+async function stopMobCam() {
+  if (mobScanTimer) {
+    clearInterval(mobScanTimer);
+    mobScanTimer = null;
+  }
+  mobCamStream?.getTracks()?.forEach((t) => t.stop());
+  mobCamStream = null;
+  const v = $("#mobCamVideo");
+  if (v) v.srcObject = null;
+  if ($("#mobCamCapture")) $("#mobCamCapture").disabled = true;
+  if ($("#mobCamStop")) $("#mobCamStop").disabled = true;
+}
+
+async function startMobCam() {
+  const msg = $("#mobCamMsg");
+  try {
+    await stopMobCam();
+    mobCamStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+    const v = $("#mobCamVideo");
+    v.srcObject = mobCamStream;
+    await v.play();
+    $("#mobCamCapture").disabled = false;
+    $("#mobCamStop").disabled = false;
+    msg.className = "msg ok";
+    msg.textContent = "Kamera açık. Barkod varsa otomatik okunur; yoksa kodu yazın.";
+    if ("BarcodeDetector" in window) {
+      const detector = new BarcodeDetector({ formats: ["qr_code", "ean_13", "code_128", "code_39"] });
+      mobScanTimer = setInterval(async () => {
+        try {
+          const codes = await detector.detect(v);
+          if (!codes?.length) return;
+          const raw = String(codes[0].rawValue || "").replace(/\D/g, "");
+          const four = raw.slice(-4);
+          if (four.length === 4 && $("#mobCode")) {
+            $("#mobCode").value = four;
+            msg.className = "msg ok";
+            msg.textContent = "Kod okundu: " + four;
+          }
+        } catch {
+          /* ignore frame errors */
+        }
+      }, 700);
+    }
+  } catch (err) {
+    msg.className = "msg err";
+    msg.textContent = "Kamera açılamadı: " + (err.message || err);
+  }
+}
+
+async function captureMobFrame() {
+  const v = $("#mobCamVideo");
+  const c = $("#mobCamCanvas");
+  const msg = $("#mobCamMsg");
+  if (!v?.videoWidth) {
+    msg.className = "msg err";
+    msg.textContent = "Önce kamerayı açın.";
+    return;
+  }
+  c.width = v.videoWidth;
+  c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  if ("BarcodeDetector" in window) {
+    try {
+      const detector = new BarcodeDetector({ formats: ["qr_code", "ean_13", "code_128", "code_39"] });
+      const codes = await detector.detect(c);
+      if (codes?.length) {
+        const raw = String(codes[0].rawValue || "").replace(/\D/g, "");
+        const four = raw.slice(-4) || raw.slice(0, 4);
+        if (four) $("#mobCode").value = four.slice(0, 4);
+        msg.className = "msg ok";
+        msg.textContent = "Okundu. Telefon ve adresi tamamlayıp ekleyin.";
+        return;
+      }
+    } catch {
+      /* fallthrough */
+    }
+  }
+  msg.className = "msg ok";
+  msg.textContent = "Kare alındı. Gönderim kodunu yazıp zimmete ekleyin.";
+}
+
+(function initMobilePage() {
+  if (PAGE !== "mobile") return;
+  const user = requireBranchAuth();
+
+  $("#mobLoginShowPass")?.addEventListener("click", () => hkTogglePass("#mobLoginPass", "#mobLoginShowPass"));
+  fillHkLoginRemember();
+
+  $("#mobLoginForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    seedBranches();
+    const u = normalizeHkUser($("#mobLoginUser").value);
+    const p = String($("#mobLoginPass").value || "").trim();
+    const msg = $("#mobLoginMsg");
+    const hit = branches().find(
+      (b) => normalizeHkUser(b.username) === u && String(b.password) === p
+    );
+    if (!hit) {
+      msg.className = "msg err";
+      msg.textContent = "Yetkisiz giriş.";
+      return;
+    }
+    hkRememberSave(u, p, $("#mobLoginRemember")?.checked !== false);
+    store.set(HK_SESSION, hit.id);
+    requireBranchAuth();
+    refreshMobileLists();
+    updateMobPrices();
+  });
+
+  if (!user) return;
+
+  fillCities($("#msFrom"), user.city || "İstanbul");
+  fillCities($("#msTo"), "İstanbul");
+  fillCities($("#pqFrom"), user.city || "İstanbul");
+  fillCities($("#pqTo"), "Ankara");
+  if ($("#mrMarket")) {
+    $("#mrMarket").innerHTML = MARKETS.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
+  }
+  refreshMobileLists();
+  updateMobPrices();
+
+  $("#mobLogout")?.addEventListener("click", async () => {
+    await stopMobCam();
+    store.set(HK_SESSION, null);
+    location.reload();
+  });
+
+  $("#mobCamStart")?.addEventListener("click", () => startMobCam());
+  $("#mobCamStop")?.addEventListener("click", () => stopMobCam());
+  $("#mobCamCapture")?.addEventListener("click", () => captureMobFrame());
+  window.addEventListener("pagehide", () => stopMobCam());
+
+  $("#mobCustodyForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("#mobCustodyMsg");
+    let code = $("#mobCode").value.replace(/\D/g, "").slice(0, 4);
+    const phone = $("#mobPhone").value.trim();
+    const address = $("#mobAddress").value.trim();
+    const kind = $("#mobKind").value;
+    if (!phone || !address) {
+      msg.className = "msg err";
+      msg.textContent = "Telefon ve adres zorunlu.";
+      return;
+    }
+    if (code.length !== 4) code = uniqueSendCode();
+    const existing = ships().find((s) => sendCodeOf(s) === code);
+    if (existing) {
+      setShipKind(shipKey(existing), kind);
+      existing.phone = phone;
+      existing.address = address;
+      const list = ships();
+      const i = list.findIndex((s) => sendCodeOf(s) === code);
+      if (i >= 0) {
+        list[i] = { ...list[i], phone, address, kind, status: kind };
+        store.set(SHIPS, list);
+      }
+      msg.className = "msg ok";
+      msg.textContent = "Güncellendi · " + code;
+    } else {
+      const row = await createShip({
+        kind,
+        sender: "Mobil zimmet",
+        receiver: user.branchName || "Şube",
+        fromCity: user.city || "İstanbul",
+        toCity: user.city || "İstanbul",
+        phone,
+        address,
+        kg: 1,
+        desi: 1,
+        service: "standart",
+        payment: "gonderici",
+        sendCode: code,
+        tracking: code,
+        branchId: user.id,
+      });
+      // ensure code
+      const list = ships();
+      const i = list.findIndex((s) => s === row || sendCodeOf(s) === sendCodeOf(row));
+      if (i >= 0) {
+        list[i] = { ...list[i], sendCode: code, tracking: code, kind };
+        store.set(SHIPS, list);
+      }
+      msg.className = "msg ok";
+      msg.textContent = "Eklendi · " + code;
+    }
+    $("#mobCustodyForm").reset();
+    $("#mobKind").value = "custody";
+    refreshMobileLists();
+  });
+
+  $("#mobCustodyList")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-out]");
+    if (!btn) return;
+    deleteShipByKey(btn.getAttribute("data-out"));
+    refreshMobileLists();
+  });
+
+  ["msKg", "msDesi", "msFrom", "msTo", "pqKg", "pqDesi", "pqFrom", "pqTo"].forEach((id) => {
+    $("#" + id)?.addEventListener("input", updateMobPrices);
+    $("#" + id)?.addEventListener("change", updateMobPrices);
+  });
+
+  $("#mobSendForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("#msMsg");
+    const q = quotePrice($("#msFrom").value, $("#msTo").value, $("#msKg").value, $("#msDesi").value);
+    const row = await createShip({
+      kind: "custody",
+      sender: $("#msSender").value.trim(),
+      receiver: $("#msReceiver").value.trim(),
+      phone: $("#msPhone").value.trim(),
+      address: $("#msAddress").value.trim(),
+      fromCity: $("#msFrom").value,
+      toCity: $("#msTo").value,
+      kg: Number($("#msKg").value) || 1,
+      desi: Number($("#msDesi").value) || 1,
+      service: "standart",
+      payment: "gonderici",
+      price: q.total,
+      branchId: user.id,
+      branchName: user.branchName,
+    });
+    msg.className = "msg ok";
+    msg.textContent = "Gönderi oluşturuldu · " + formatTry(q.total);
+    $("#msCode").hidden = false;
+    $("#msCode").textContent = "Kod: " + sendCodeOf(row);
+    $("#mobSendForm").reset();
+    fillCities($("#msFrom"), user.city || "İstanbul");
+    fillCities($("#msTo"), "İstanbul");
+    $("#msKg").value = "1";
+    $("#msDesi").value = "1";
+    updateMobPrices();
+    refreshMobileLists();
+  });
+
+  $("#mobReturnForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("#mrMsg");
+    const market = $("#mrMarket").value;
+    const orderNo = $("#mrOrder").value.trim();
+    const phone = $("#mrPhone").value.trim();
+    const address = $("#mrAddress").value.trim();
+    const row = await createShip({
+      kind: "return",
+      sender: marketName(market) + " iade",
+      receiver: user.branchName || "Harbi Kargo",
+      fromCity: user.city || "İstanbul",
+      toCity: user.city || "İstanbul",
+      phone,
+      address,
+      kg: 1,
+      desi: 1,
+      service: "standart",
+      payment: "gonderici",
+      market,
+      orderNo,
+      branchId: user.id,
+    });
+    const list = returnsList();
+    list.unshift({
+      id: "rt_" + Date.now().toString(36),
+      market,
+      orderNo,
+      phone,
+      address,
+      sendCode: sendCodeOf(row),
+      at: new Date().toISOString(),
+    });
+    store.set(RETURNS, list.slice(0, 100));
+    msg.className = "msg ok";
+    msg.textContent = "İade kabul · " + sendCodeOf(row);
+    $("#mobReturnForm").reset();
+    $("#mrMarket").innerHTML = MARKETS.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
+    refreshMobileLists();
+  });
+
+  $("#mpIban")?.addEventListener("input", (e) => {
+    const el = e.target;
+    el.value = ibanFormat(el.value);
+  });
+
+  $("#mobPayForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("#mpMsg");
+    const amount = Number($("#mpAmount").value);
+    const track = String($("#mpTrack").value || "").replace(/\D/g, "").slice(0, 4);
+    const iban = ibanRaw($("#mpIban").value);
+    const note = ($("#mpNote").value || "Kapıda kart ödemesi").trim();
+    if (!amount || amount < 0.5) {
+      msg.className = "msg err";
+      msg.textContent = "En az 0,50 ₺ girin.";
+      return;
+    }
+    if (!ibanOk(iban)) {
+      msg.className = "msg err";
+      msg.textContent = "Geçerli TR IBAN yazın (TR + 24 rakam).";
+      return;
+    }
+    store.set(POS_HANDOFF, {
+      amount,
+      track,
+      iban,
+      note,
+      checkout: true,
+      at: new Date().toISOString(),
+    });
+    msg.className = "msg ok";
+    msg.textContent = "POS açılıyor…";
+    const qs = new URLSearchParams({
+      amount: String(amount),
+      track,
+      iban,
+      note,
+      checkout: "1",
+      auto: "1",
+    });
+    location.href = "kargo-nfc.html?" + qs.toString();
+  });
+})();
+
+function marketName(id) {
+  return MARKETS.find((m) => m.id === id)?.name || id;
+}
+
+function returnsList() {
+  return store.get(RETURNS, []);
+}
+
+function renderReturnMarkets() {
+  const box = $("#returnMarketList");
+  if (!box) return;
+  box.innerHTML = MARKETS.map(
+    (m) => `<span class="return-chip" title="${m.hint}">${m.name}</span>`
+  ).join("");
+}
+
+function renderReturnLog() {
+  const box = $("#returnLog");
+  if (!box) return;
+  const rows = returnsList();
+  if (!rows.length) {
+    box.innerHTML = '<p class="hint">Henüz kabul edilen iade yok.</p>';
+    return;
+  }
+  box.innerHTML = rows
+    .slice(0, 20)
+    .map(
+      (r) => `<div class="partner-app">
+        <strong>${marketName(r.market)}</strong>
+        <div class="meta">${r.orderNo} · ${r.phone}<br>${r.address}</div>
+        <div class="cred">Kod: ${r.sendCode}${r.reason ? "<br>" + r.reason : ""}</div>
+      </div>`
+    )
+    .join("");
+}
+
+function fillReturnMarkets() {
+  const sel = $("#retMarket");
+  if (!sel) return;
+  sel.innerHTML = MARKETS.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
+}
+
+(function initCreatePage() {
+  if (PAGE !== "create") return;
+  const user = requireBranchAuth();
+  if (!user) return;
+
+  fillCities($("#nsFrom"), user.city || "İstanbul");
+  fillCities($("#nsTo"), "İstanbul");
+  fillReturnMarkets();
+  renderReturnMarkets();
+  renderReturnLog();
+
+  $("#hkCreateLogout")?.addEventListener("click", () => {
+    store.set(HK_SESSION, null);
+    location.href = "kargo.html";
+  });
+
+  $("#newShipForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("#nsMsg");
+    const sender = $("#nsSender").value.trim();
+    const receiver = $("#nsReceiver").value.trim();
+    const phone = $("#nsPhone").value.trim();
+    const address = $("#nsAddress").value.trim();
+    const fromCity = $("#nsFrom").value;
+    const toCity = $("#nsTo").value;
+    const kg = Number($("#nsKg").value) || 1;
+    const desi = Number($("#nsDesi").value) || 1;
+    const service = $("#nsService").value;
+    const payment = $("#nsPayment").value;
+    const kind = $("#nsKind").value;
+    if (!sender || !receiver || !phone || !address) {
+      msg.className = "msg err";
+      msg.textContent = "Zorunlu alanları doldurun.";
+      return;
+    }
+    const row = await createShip({
+      kind,
+      sender,
+      receiver,
+      fromCity,
+      toCity,
+      phone,
+      address,
+      kg,
+      desi,
+      service,
+      payment,
+      branchId: user.id,
+      branchName: user.branchName,
+    });
+    msg.className = "msg ok";
+    msg.textContent = "Kargo oluşturuldu.";
+    $("#nsResult").hidden = false;
+    $("#nsCodeBox").textContent = "Gönderim kodu: " + sendCodeOf(row);
+    $("#newShipForm").reset();
+    fillCities($("#nsFrom"), user.city || "İstanbul");
+    fillCities($("#nsTo"), "İstanbul");
+    $("#nsKg").value = "1";
+    $("#nsDesi").value = "1";
+  });
+
+  $("#returnAcceptForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("#retMsg");
+    const market = $("#retMarket").value;
+    const orderNo = $("#retOrder").value.trim();
+    const phone = $("#retPhone").value.trim();
+    const address = $("#retAddress").value.trim();
+    const reason = $("#retReason").value.trim();
+    if (!market || !orderNo || !phone || !address) {
+      msg.className = "msg err";
+      msg.textContent = "Pazaryeri, sipariş no, telefon ve adres zorunlu.";
+      return;
+    }
+    const mName = marketName(market);
+    const row = await createShip({
+      kind: "return",
+      sender: mName + " iade",
+      receiver: user.branchName || "Harbi Kargo",
+      fromCity: user.city || "İstanbul",
+      toCity: user.city || "İstanbul",
+      phone,
+      address,
+      kg: 1,
+      desi: 1,
+      service: "standart",
+      payment: "gonderici",
+      market,
+      orderNo,
+      reason,
+      branchId: user.id,
+      branchName: user.branchName,
+    });
+    const list = returnsList();
+    list.unshift({
+      id: "rt_" + Date.now().toString(36),
+      market,
+      orderNo,
+      phone,
+      address,
+      reason,
+      sendCode: sendCodeOf(row),
+      at: new Date().toISOString(),
+      branchId: user.id,
+    });
+    store.set(RETURNS, list.slice(0, 100));
+    msg.className = "msg ok";
+    msg.textContent = mName + " iadesi kabul edildi. Kod: " + sendCodeOf(row);
+    $("#returnAcceptForm").reset();
+    fillReturnMarkets();
+    renderReturnLog();
+  });
+})();
 
 (function initHkAuth() {
   if (PAGE !== "panel") return;
@@ -994,6 +1761,9 @@ if (PAGE === "nfc") {
 
   $("#hkOpenPartner")?.addEventListener("click", () => openGuestPartner());
   $("#hkStaffLoginBtn")?.addEventListener("click", () => closeGuestToLogin());
+
+  $("#hkLoginShowPass")?.addEventListener("click", () => hkTogglePass("#hkLoginPass", "#hkLoginShowPass"));
+  fillHkLoginRemember();
 
   $("#hkLoginForm")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1009,6 +1779,7 @@ if (PAGE === "nfc") {
       msg.textContent = "Yetkisiz. Yalnızca kayıtlı kargo şubeleri giriş yapabilir.";
       return;
     }
+    hkRememberSave(u, p, $("#hkLoginRemember")?.checked !== false);
     store.set(HK_SESSION, hit.id);
     document.body.classList.remove("hk-guest", "hk-locked");
     history.replaceState(null, "", "kargo.html");
@@ -1027,6 +1798,7 @@ if (PAGE === "nfc") {
     if ($("#hkLoginUser")) $("#hkLoginUser").value = "";
     if ($("#hkLoginPass")) $("#hkLoginPass").value = "";
     if ($("#hkLoginMsg")) $("#hkLoginMsg").textContent = "";
+    fillHkLoginRemember();
   });
 
   const user = currentBranch();
